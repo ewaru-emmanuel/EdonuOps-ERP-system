@@ -1,0 +1,30 @@
+# EdonuOps Backend Environment Configuration
+# Copy this to .env and configure your settings
+
+# Flask Settings
+FLASK_ENV=development
+SECRET_KEY=your-secret-key-here
+
+# Database Configuration
+# For local development (SQLite)
+DATABASE_URL=sqlite:///edonuops_dev.db
+
+# For production (PostgreSQL) - uncomment and configure:
+# DATABASE_URL=postgresql://user:password@localhost:5432/edonuops
+
+# JWT Configuration
+JWT_SECRET_KEY=your-jwt-secret-here
+
+# Finance Module Settings
+DEFAULT_CURRENCY=USD
+AUTO_RECONCILE=true
+
+# CORS Settings (for frontend)
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+
+# WebSocket/Redis (optional for development)
+# SOCKETIO_MESSAGE_QUEUE=redis://localhost:6379/0
+
+# Logging
+LOG_LEVEL=INFO
+

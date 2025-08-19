@@ -1,0 +1,1 @@
+// Receive Stock placeholder 
