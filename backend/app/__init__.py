@@ -28,7 +28,14 @@ def create_app(config_name='development'):
     # Initialize extensions
     db.init_app(app)
     jwt.init_app(app)
-    CORS(app, origins=['http://localhost:3000'], supports_credentials=True, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+    # Configure CORS for both local development and production
+    cors_origins = [
+        'http://localhost:3000',  # Local development
+        'https://edonuops-erp-system.onrender.com',  # Render frontend
+        'https://edonuops-frontend.onrender.com',  # Alternative Render frontend
+        'https://*.onrender.com'  # Any Render subdomain
+    ]
+    CORS(app, origins=cors_origins, supports_credentials=True, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
     
     # Setup logging
     setup_logging(app)

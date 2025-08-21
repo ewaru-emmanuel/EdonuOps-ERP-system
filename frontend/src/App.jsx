@@ -64,11 +64,14 @@ export const useAuth = () => {
   return context;
 };
 
+// Get API base URL from environment variable or default to localhost
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+
 // API client for making HTTP requests
 const apiClient = {
   async get(endpoint) {
     try {
-      const response = await fetch(`http://localhost:5000${endpoint}`);
+      const response = await fetch(`${API_BASE_URL}${endpoint}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -81,7 +84,7 @@ const apiClient = {
 
   async post(endpoint, data) {
     try {
-      const response = await fetch(`http://localhost:5000${endpoint}`, {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -100,7 +103,7 @@ const apiClient = {
 
   async put(endpoint, data) {
     try {
-      const response = await fetch(`http://localhost:5000${endpoint}`, {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -119,7 +122,7 @@ const apiClient = {
 
   async delete(endpoint) {
     try {
-      const response = await fetch(`http://localhost:5000${endpoint}`, {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'DELETE',
       });
       if (!response.ok) {

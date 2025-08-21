@@ -37,7 +37,7 @@ services:
     staticPublishPath: ./frontend/build
     envVars:
       - key: REACT_APP_API_URL
-        value: https://edonuops-backend.onrender.com
+        value: https://edonuops-erp.onrender.com
     autoDeploy: true
     routes:
       - type: rewrite
