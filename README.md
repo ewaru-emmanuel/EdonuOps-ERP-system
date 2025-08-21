@@ -32,24 +32,24 @@ This script will:
 ### Manual Setup (Alternative)
 
 #### Backend Setup
-```bash
-cd backend
+   ```bash
+   cd backend
 python -m venv venv
 # On Windows:
 venv\Scripts\activate
 # On Unix/MacOS:
 source venv/bin/activate
-pip install -r requirements.txt
+   pip install -r requirements.txt
 python init_database.py
-python run.py
-```
+   python run.py
+   ```
 
 #### Frontend Setup
-```bash
-cd frontend
-npm install
-npm start
-```
+   ```bash
+   cd frontend
+   npm install
+   npm start
+   ```
 
 ## 🌐 Access Points
 

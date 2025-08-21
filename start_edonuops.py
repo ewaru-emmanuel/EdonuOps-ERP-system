@@ -83,7 +83,7 @@ class EdonuOpsStarter:
         )
         
         os.chdir('..')
-        
+
         # Wait a moment for backend to start
         time.sleep(3)
         
