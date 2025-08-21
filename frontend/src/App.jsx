@@ -411,17 +411,19 @@ const App = () => {
                 backgroundColor: 'grey.50'
               }}
             >
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/finance" element={<FinanceModule />} />
-                <Route path="/crm" element={<CRMModule />} />
-                        <Route path="/erp" element={<ERPMainModule />} />
-        <Route path="/inventory" element={<InventoryModule />} />
-        <Route path="/hcm" element={<HCMModule />} />
-        <Route path="/ecommerce" element={<EcommerceModule />} />
-        <Route path="/ai" element={<AIModule />} />
-        <Route path="/sustainability" element={<SustainabilityModule />} />
-              </Routes>
+                      <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/finance" element={<FinanceModule />} />
+          <Route path="/crm" element={<CRMModule />} />
+          <Route path="/erp" element={<ERPMainModule />} />
+          <Route path="/inventory" element={<InventoryModule />} />
+          <Route path="/hcm" element={<HCMModule />} />
+          <Route path="/ecommerce" element={<EcommerceModule />} />
+          <Route path="/ai" element={<AIModule />} />
+          <Route path="/sustainability" element={<SustainabilityModule />} />
+          {/* Catch-all route for direct URL access */}
+          <Route path="*" element={<Dashboard />} />
+        </Routes>
             </Box>
           </Box>
         </Router>

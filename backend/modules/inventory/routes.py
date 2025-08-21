@@ -86,16 +86,36 @@ def create_product():
     """Create a new product in database"""
     try:
         data = request.get_json()
+        
+        # Handle category mapping - frontend sends 'category' as string, we need category_id
+        category_id = None
+        if data.get('category'):
+            # Try to find category by name
+            category = Category.query.filter_by(name=data.get('category')).first()
+            if category:
+                category_id = category.id
+            else:
+                # Create new category if it doesn't exist
+                new_category = Category(name=data.get('category'))
+                db.session.add(new_category)
+                db.session.flush()  # Get the ID without committing
+                category_id = new_category.id
+        
+        # Generate unique SKU if not provided
+        sku = data.get('sku')
+        if not sku:
+            sku = f"SKU-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+        
         new_product = Product(
             name=data.get('name'),
-            sku=data.get('sku'),
-            price=data.get('price', 0.0),
-            current_stock=data.get('current_stock', 0),
-            category_id=data.get('category_id'),
+            sku=sku,
+            price=float(data.get('price', 0.0)),
+            current_stock=float(data.get('stock', 0)),
+            category_id=category_id,
             status=data.get('status', 'active'),
-            current_cost=data.get('current_cost', 0.0),
-            min_stock=data.get('min_stock', 0),
-            unit=data.get('unit', 'pieces')
+            current_cost=float(data.get('price', 0.0)),  # Use price as current_cost
+            min_stock=float(data.get('min_stock', 0)),
+            unit=data.get('unit', 'pcs')
         )
         db.session.add(new_product)
         db.session.commit()
@@ -109,6 +129,7 @@ def create_product():
                 "price": float(new_product.price) if new_product.price else 0.0,
                 "current_stock": new_product.current_stock,
                 "category_id": new_product.category_id,
+                "category_name": new_product.category.name if new_product.category else None,
                 "status": new_product.status,
                 "current_cost": float(new_product.current_cost) if new_product.current_cost else 0.0,
                 "min_stock": new_product.min_stock,
@@ -118,7 +139,7 @@ def create_product():
     except Exception as e:
         db.session.rollback()
         print(f"Error creating product: {e}")
-        return jsonify({"error": "Failed to create product"}), 500
+        return jsonify({"error": f"Failed to create product: {str(e)}"}), 500
 
 @inventory_bp.route('/products/<int:product_id>', methods=['PUT'])
 def update_product(product_id):
