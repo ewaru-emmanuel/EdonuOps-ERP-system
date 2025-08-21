@@ -66,12 +66,12 @@ const DetailViewModal = ({
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
+    if (!dateString) return '';
     return new Date(dateString).toLocaleDateString();
   };
 
   const formatCurrency = (amount) => {
-    if (!amount) return '$0.00';
+    if (!amount && amount !== 0) return '';
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
@@ -93,15 +93,15 @@ const DetailViewModal = ({
             </ListItem>
             <ListItem>
               <ListItemIcon><EmailIcon /></ListItemIcon>
-              <ListItemText primary="Email" secondary={data.email || 'N/A'} />
+              <ListItemText primary="Email" secondary={data.email || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><PhoneIcon /></ListItemIcon>
-              <ListItemText primary="Phone" secondary={data.phone || 'N/A'} />
+              <ListItemText primary="Phone" secondary={data.phone || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><LocationIcon /></ListItemIcon>
-              <ListItemText primary="Address" secondary={data.address || 'N/A'} />
+              <ListItemText primary="Address" secondary={data.address || ''} />
             </ListItem>
           </List>
         </Paper>
@@ -113,11 +113,11 @@ const DetailViewModal = ({
           <List dense>
             <ListItem>
               <ListItemIcon><BusinessIcon /></ListItemIcon>
-              <ListItemText primary="Position" secondary={data.position || 'N/A'} />
+              <ListItemText primary="Position" secondary={data.position || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><BusinessIcon /></ListItemIcon>
-              <ListItemText primary="Department" secondary={data.department || 'N/A'} />
+              <ListItemText primary="Department" secondary={data.department || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><CalendarIcon /></ListItemIcon>
@@ -162,19 +162,19 @@ const DetailViewModal = ({
           <List dense>
             <ListItem>
               <ListItemIcon><InventoryIcon /></ListItemIcon>
-              <ListItemText primary="SKU" secondary={data.sku || 'N/A'} />
+              <ListItemText primary="SKU" secondary={data.sku || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><BusinessIcon /></ListItemIcon>
-              <ListItemText primary="Name" secondary={data.name || 'N/A'} />
+              <ListItemText primary="Name" secondary={data.name || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><CategoryIcon /></ListItemIcon>
-              <ListItemText primary="Category" secondary={data.category_name || 'N/A'} />
+              <ListItemText primary="Category" secondary={data.category_name || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><InventoryIcon /></ListItemIcon>
-              <ListItemText primary="Unit" secondary={data.unit || 'N/A'} />
+              <ListItemText primary="Unit" secondary={data.unit || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><MoneyIcon /></ListItemIcon>
@@ -266,7 +266,7 @@ const DetailViewModal = ({
           <List dense>
             <ListItem>
               <ListItemIcon><CategoryIcon /></ListItemIcon>
-              <ListItemText primary="Name" secondary={data.name || 'N/A'} />
+              <ListItemText primary="Name" secondary={data.name || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><BusinessIcon /></ListItemIcon>
@@ -319,11 +319,11 @@ const DetailViewModal = ({
           <List dense>
             <ListItem>
               <ListItemIcon><PersonIcon /></ListItemIcon>
-              <ListItemText primary="Employee" secondary={data.employee || 'N/A'} />
+              <ListItemText primary="Employee" secondary={data.employee || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><CalendarIcon /></ListItemIcon>
-              <ListItemText primary="Period" secondary={data.period || 'N/A'} />
+              <ListItemText primary="Period" secondary={data.period || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><MoneyIcon /></ListItemIcon>
@@ -375,15 +375,15 @@ const DetailViewModal = ({
             </ListItem>
             <ListItem>
               <ListItemIcon><EmailIcon /></ListItemIcon>
-              <ListItemText primary="Email" secondary={data.email || 'N/A'} />
+              <ListItemText primary="Email" secondary={data.email || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><PhoneIcon /></ListItemIcon>
-              <ListItemText primary="Phone" secondary={data.phone || 'N/A'} />
+              <ListItemText primary="Phone" secondary={data.phone || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><BusinessIcon /></ListItemIcon>
-              <ListItemText primary="Company" secondary={data.company || 'N/A'} />
+              <ListItemText primary="Company" secondary={data.company || ''} />
             </ListItem>
           </List>
         </Paper>
@@ -395,7 +395,7 @@ const DetailViewModal = ({
           <List dense>
             <ListItem>
               <ListItemIcon><BusinessIcon /></ListItemIcon>
-              <ListItemText primary="Type" secondary={data.type || 'N/A'} />
+              <ListItemText primary="Type" secondary={data.type || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><AssessmentIcon /></ListItemIcon>
@@ -440,15 +440,15 @@ const DetailViewModal = ({
             </ListItem>
             <ListItem>
               <ListItemIcon><EmailIcon /></ListItemIcon>
-              <ListItemText primary="Email" secondary={data.email || 'N/A'} />
+              <ListItemText primary="Email" secondary={data.email || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><PhoneIcon /></ListItemIcon>
-              <ListItemText primary="Phone" secondary={data.phone || 'N/A'} />
+              <ListItemText primary="Phone" secondary={data.phone || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><BusinessIcon /></ListItemIcon>
-              <ListItemText primary="Company" secondary={data.company || 'N/A'} />
+              <ListItemText primary="Company" secondary={data.company || ''} />
             </ListItem>
           </List>
         </Paper>
@@ -460,7 +460,7 @@ const DetailViewModal = ({
           <List dense>
             <ListItem>
               <ListItemIcon><BusinessIcon /></ListItemIcon>
-              <ListItemText primary="Source" secondary={data.source || 'N/A'} />
+              <ListItemText primary="Source" secondary={data.source || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><AssessmentIcon /></ListItemIcon>
@@ -498,11 +498,11 @@ const DetailViewModal = ({
           <List dense>
             <ListItem>
               <ListItemIcon><BusinessIcon /></ListItemIcon>
-              <ListItemText primary="Name" secondary={data.name || 'N/A'} />
+              <ListItemText primary="Name" secondary={data.name || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><PersonIcon /></ListItemIcon>
-              <ListItemText primary="Contact ID" secondary={data.contact_id || 'N/A'} />
+              <ListItemText primary="Contact ID" secondary={data.contact_id || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><MoneyIcon /></ListItemIcon>
@@ -521,7 +521,7 @@ const DetailViewModal = ({
           <List dense>
             <ListItem>
               <ListItemIcon><AssessmentIcon /></ListItemIcon>
-              <ListItemText primary="Stage" secondary={data.stage || 'N/A'} />
+              <ListItemText primary="Stage" secondary={data.stage || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><TrendingUpIcon /></ListItemIcon>
@@ -555,15 +555,15 @@ const DetailViewModal = ({
           <List dense>
             <ListItem>
               <ListItemIcon><AccountBalanceIcon /></ListItemIcon>
-              <ListItemText primary="Code" secondary={data.code || 'N/A'} />
+              <ListItemText primary="Code" secondary={data.code || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><BusinessIcon /></ListItemIcon>
-              <ListItemText primary="Name" secondary={data.name || 'N/A'} />
+              <ListItemText primary="Name" secondary={data.name || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><AssessmentIcon /></ListItemIcon>
-              <ListItemText primary="Type" secondary={data.type || 'N/A'} />
+              <ListItemText primary="Type" secondary={data.type || ''} />
             </ListItem>
           </List>
         </Paper>
@@ -613,7 +613,7 @@ const DetailViewModal = ({
           <List dense>
             <ListItem>
               <ListItemIcon><ReceiptIcon /></ListItemIcon>
-              <ListItemText primary="Reference" secondary={data.reference || 'N/A'} />
+              <ListItemText primary="Reference" secondary={data.reference || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><CalendarIcon /></ListItemIcon>
@@ -624,7 +624,7 @@ const DetailViewModal = ({
             </ListItem>
             <ListItem>
               <ListItemIcon><AssessmentIcon /></ListItemIcon>
-              <ListItemText primary="Status" secondary={data.status || 'N/A'} />
+              <ListItemText primary="Status" secondary={data.status || ''} />
             </ListItem>
           </List>
         </Paper>
@@ -680,15 +680,15 @@ const DetailViewModal = ({
           <List dense>
             <ListItem>
               <ListItemIcon><WarehouseIcon /></ListItemIcon>
-              <ListItemText primary="Name" secondary={data.name || 'N/A'} />
+              <ListItemText primary="Name" secondary={data.name || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><LocationIcon /></ListItemIcon>
-              <ListItemText primary="Location" secondary={data.location || 'N/A'} />
+              <ListItemText primary="Location" secondary={data.location || ''} />
             </ListItem>
             <ListItem>
               <ListItemIcon><AssessmentIcon /></ListItemIcon>
-              <ListItemText primary="Capacity" secondary={data.capacity || 'N/A'} />
+              <ListItemText primary="Capacity" secondary={data.capacity || ''} />
             </ListItem>
           </List>
         </Paper>
@@ -773,7 +773,7 @@ const DetailViewModal = ({
           <Box display="flex" alignItems="center" gap={1}>
             {getIcon(type)}
             <Typography variant="h6">
-              {title || `${type.charAt(0).toUpperCase() + type.slice(1)} Details`}
+              {title || `${type ? type.charAt(0).toUpperCase() + type.slice(1) : 'Item'} Details`}
             </Typography>
           </Box>
           <Box>

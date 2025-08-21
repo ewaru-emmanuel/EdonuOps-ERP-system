@@ -117,7 +117,7 @@ const EcommerceModule = () => {
             return;
         }
         await deleteFunction(item.id);
-        showSnackbar(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully`);
+                 showSnackbar(`${type ? type.charAt(0).toUpperCase() + type.slice(1) : 'Item'} deleted successfully`);
       } catch (error) {
         showSnackbar(`Error deleting ${type}`, 'error');
       }
@@ -152,7 +152,7 @@ const EcommerceModule = () => {
         
         <Alert severity="success" sx={{ mb: 3 }}>
           <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-            ✅ E-commerce System Operational
+                          Ready to add your first products and orders
           </Typography>
           <Typography variant="body2">
             Your e-commerce platform is fully operational with real-time product management, order processing, and customer analytics.
@@ -298,15 +298,15 @@ const EcommerceModule = () => {
                          </TableCell>
                        </TableRow>
                      ) : products && products.length > 0 ? (
-                       products.map((product) => (
-                         <TableRow key={product.id}>
+                       products.map((product, index) => (
+                         <TableRow key={product.id || `product-${index}`}>
                            <TableCell>
                              <Box display="flex" alignItems="center" gap={2}>
                                <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
-                                 {product.name.charAt(0)}
+                                 {product.name ? product.name.charAt(0) : '?'}
                                </Avatar>
                                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                                 {product.name}
+                                 {product.name || 'Unknown Product'}
                                </Typography>
                              </Box>
                            </TableCell>
@@ -381,8 +381,8 @@ const EcommerceModule = () => {
                         </TableCell>
                       </TableRow>
                     ) : orders && orders.length > 0 ? (
-                      orders.map((order) => (
-                        <TableRow key={order.id}>
+                      orders.map((order, index) => (
+                        <TableRow key={order.id || `order-${index}`}>
                           <TableCell>{order.order_number}</TableCell>
                           <TableCell>{order.customer_name}</TableCell>
                           <TableCell align="right">${order.total_amount}</TableCell>
@@ -561,14 +561,14 @@ const EcommerceModule = () => {
              
              if (selectedItem) {
                await updateFunction(selectedItem.id, formData);
-               showSnackbar(`${formType.charAt(0).toUpperCase() + formType.slice(1)} updated successfully`);
+               showSnackbar(`${formType ? formType.charAt(0).toUpperCase() + formType.slice(1) : 'Item'} updated successfully`);
              } else {
                await createFunction(formData);
-               showSnackbar(`${formType.charAt(0).toUpperCase() + formType.slice(1)} created successfully`);
+               showSnackbar(`${formType ? formType.charAt(0).toUpperCase() + formType.slice(1) : 'Item'} created successfully`);
              }
              setFormOpen(false);
            } catch (error) {
-             showSnackbar(`Error ${selectedItem ? 'updating' : 'creating'} ${formType}`, 'error');
+             showSnackbar(`Error ${selectedItem ? 'updating' : 'creating'} ${formType || 'item'}`, 'error');
            }
          }}
        />

@@ -25,11 +25,13 @@ import {
   Save as SaveIcon,
   Add as AddIcon
 } from '@mui/icons-material';
+import { getERPApiService } from '../services/erpApiService';
 
 const ImprovedForm = ({
   open,
   onClose,
-  onSubmit, // Changed from onSave to onSubmit
+  onSubmit,
+  onSave, // Support both onSubmit and onSave for backward compatibility
   data = null, // null for create, object for edit
   type = 'generic',
   title = 'Form',
@@ -38,6 +40,7 @@ const ImprovedForm = ({
 }) => {
   const [formData, setFormData] = useState({});
   const [errors, setErrors] = useState({});
+  const [dynamicOptions, setDynamicOptions] = useState({});
 
   // Initialize form data when component mounts or data changes
   useEffect(() => {
@@ -49,7 +52,29 @@ const ImprovedForm = ({
       setFormData(getDefaultFormData(type));
     }
     setErrors({});
+    
+    // Fetch dynamic options for form fields
+    fetchDynamicOptions();
   }, [data, type]);
+
+  const fetchDynamicOptions = async () => {
+    const fields = getFormFields(type);
+    const apiService = getERPApiService();
+    
+    for (const field of fields) {
+      if (field.apiEndpoint) {
+        try {
+          const response = await apiService.get(field.apiEndpoint);
+          setDynamicOptions(prev => ({
+            ...prev,
+            [field.name]: response.data || response
+          }));
+        } catch (error) {
+          console.error(`Error fetching options for ${field.name}:`, error);
+        }
+      }
+    }
+  };
 
   const getDefaultFormData = (type) => {
     switch (type) {
@@ -60,7 +85,7 @@ const ImprovedForm = ({
           email: '',
           phone: '',
           position: '',
-          department: '',
+          department_id: '',
           salary: '',
           hire_date: '',
           status: 'active'
@@ -235,7 +260,7 @@ const ImprovedForm = ({
           { name: 'email', label: 'Email', type: 'email', required: true },
           { name: 'phone', label: 'Phone', type: 'tel' },
           { name: 'position', label: 'Position', type: 'text', required: true },
-          { name: 'department', label: 'Department', type: 'select', options: ['Engineering', 'Marketing', 'Sales', 'HR', 'Finance', 'Executive'] },
+          { name: 'department_id', label: 'Department', type: 'select', options: [], apiEndpoint: '/api/hcm/departments', optionValue: 'id', optionLabel: 'name' },
           { name: 'salary', label: 'Salary', type: 'number' },
           { name: 'hire_date', label: 'Hire Date', type: 'date' },
           { name: 'status', label: 'Status', type: 'select', options: ['active', 'inactive', 'terminated'] }
@@ -426,8 +451,13 @@ const ImprovedForm = ({
     }
     
     try {
-      await onSubmit(formData); // Changed from onSave to onSubmit
-      onClose();
+      const submitFunction = onSubmit || onSave; // Use onSubmit if available, otherwise fallback to onSave
+      if (submitFunction) {
+        await submitFunction(formData);
+        onClose();
+      } else {
+        console.error('No submit function provided');
+      }
     } catch (error) {
       console.error('Form submission error:', error);
     }
@@ -455,6 +485,7 @@ const ImprovedForm = ({
         );
       
       case 'select':
+        const options = field.apiEndpoint ? (dynamicOptions[field.name] || []) : field.options;
         return (
           <FormControl key={field.name} fullWidth margin="normal" error={!!error}>
             <InputLabel>{field.label}</InputLabel>
@@ -463,11 +494,15 @@ const ImprovedForm = ({
               label={field.label}
               onChange={(e) => handleInputChange(field.name, e.target.value)}
             >
-              {field.options.map((option) => (
-                <MenuItem key={option} value={option}>
-                  {option}
-                </MenuItem>
-              ))}
+              {options.map((option) => {
+                const optionValue = field.optionValue ? option[field.optionValue] : option;
+                const optionLabel = field.optionLabel ? option[field.optionLabel] : option;
+                return (
+                  <MenuItem key={optionValue} value={optionValue}>
+                    {optionLabel}
+                  </MenuItem>
+                );
+              })}
             </Select>
             {error && <Typography color="error" variant="caption">{error}</Typography>}
           </FormControl>

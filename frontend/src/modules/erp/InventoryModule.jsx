@@ -211,11 +211,11 @@ const InventoryModule = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {products.map((product) => (
-              <TableRow key={product.id}>
+            {products.map((product, index) => (
+              <TableRow key={product.id || `product-${index}`}>
                 <TableCell>{product.sku}</TableCell>
                 <TableCell>{product.name}</TableCell>
-                <TableCell>{product.category_name || 'N/A'}</TableCell>
+                <TableCell>{product.category_name || ''}</TableCell>
                 <TableCell>
                   <Chip
                     label={`${product.current_stock || 0} ${product.unit || 'units'}`}
@@ -288,10 +288,10 @@ const InventoryModule = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {categories.map((category) => (
-              <TableRow key={category.id}>
+            {categories.map((category, index) => (
+              <TableRow key={category.id || `category-${index}`}>
                 <TableCell>{category.name}</TableCell>
-                <TableCell>{category.description || 'N/A'}</TableCell>
+                <TableCell>{category.description || ''}</TableCell>
                 <TableCell>
                   <Chip
                     label={category.is_active ? 'Active' : 'Inactive'}
@@ -360,7 +360,7 @@ const InventoryModule = () => {
             {warehouses.map((warehouse) => (
               <TableRow key={warehouse.id}>
                 <TableCell>{warehouse.name}</TableCell>
-                <TableCell>{warehouse.location || 'N/A'}</TableCell>
+                <TableCell>{warehouse.location || ''}</TableCell>
                 <TableCell>{warehouse.capacity || 0}</TableCell>
                 <TableCell>
                   <Chip
@@ -433,9 +433,9 @@ const InventoryModule = () => {
                 <TableCell>{transaction.quantity}</TableCell>
                 <TableCell>${transaction.unit_cost || 0}</TableCell>
                 <TableCell>${transaction.total_cost || 0}</TableCell>
-                <TableCell>{transaction.reference || 'N/A'}</TableCell>
+                <TableCell>{transaction.reference || ''}</TableCell>
                 <TableCell>
-                  {transaction.created_at ? new Date(transaction.created_at).toLocaleDateString() : 'N/A'}
+                  {transaction.created_at ? new Date(transaction.created_at).toLocaleDateString() : ''}
                 </TableCell>
               </TableRow>
             ))}
@@ -496,7 +496,7 @@ const InventoryModule = () => {
                 Total Value
               </Typography>
               <Typography variant="h4">
-                ${inventoryMetrics.totalValue.toLocaleString()}
+                                                                   ${inventoryMetrics.totalValue ? inventoryMetrics.totalValue.toLocaleString() : ''}
               </Typography>
             </CardContent>
           </Card>
@@ -548,7 +548,7 @@ const InventoryModule = () => {
           setDetailViewOpen(false);
           handleEdit(item, selectedItemType);
         }}
-        title={`${selectedItemType.charAt(0).toUpperCase() + selectedItemType.slice(1)} Details`}
+        title={`${selectedItemType ? selectedItemType.charAt(0).toUpperCase() + selectedItemType.slice(1) : 'Item'} Details`}
       />
 
       {/* Improved Form */}
@@ -561,7 +561,7 @@ const InventoryModule = () => {
         onSave={handleSave}
         data={editItem}
         type={selectedItemType}
-        title={selectedItemType.charAt(0).toUpperCase() + selectedItemType.slice(1)}
+        title={selectedItemType ? selectedItemType.charAt(0).toUpperCase() + selectedItemType.slice(1) : 'Item'}
         loading={categoriesLoading || productsLoading || warehousesLoading}
       />
 

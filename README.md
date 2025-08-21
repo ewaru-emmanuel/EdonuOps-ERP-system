@@ -1,261 +1,188 @@
-# EdonuOps: The NextGen ERP System
+# EdonuOps Enterprise ERP System
 
-A comprehensive, enterprise-grade ERP system designed to compete with SAP, Oracle, NetSuite, and Odoo. Built with modern technologies and a focus on real-world functionality with complete backend integration.
+A comprehensive enterprise resource planning (ERP) system built with modern technologies.
 
-## 🚀 Features
+## 🚀 Quick Start
 
-### Core Modules (Fully Integrated)
-- **Finance**: Multi-currency General Ledger, Accounts Payable/Receivable, Fixed Asset Management
-- **Inventory**: Product Management, Warehouse Management, Stock Tracking
-- **CRM**: Contact Management, Lead Management, Opportunity Tracking
-- **HCM**: Employee Management, Payroll, Recruitment
-- **Procurement**: Purchase Orders, Vendor Management, Contract Management
-- **Manufacturing**: Production Planning, Work Orders, Quality Control
-
-### Advanced Features
-- **AI Integration**: Natural language queries, intelligent reporting
-- **Real-time Data**: Live updates across all modules
-- **Multi-entity Support**: Consolidated financial reporting
-- **Compliance Engine**: Built-in regulatory compliance
-- **Customization**: No-code customization platform
-- **API Ecosystem**: Comprehensive REST API
-
-## 🛠️ Technology Stack
-
-### Backend
-- **Framework**: Flask (Python)
-- **Database**: SQLite (development), PostgreSQL (production)
-- **ORM**: SQLAlchemy
-- **Authentication**: JWT
-- **Real-time**: Flask-SocketIO
-- **AI**: OpenAI Integration
-
-### Frontend
-- **Framework**: React.js
-- **UI Library**: Material-UI
-- **Styling**: Tailwind CSS
-- **State Management**: React Hooks + Context API
-- **HTTP Client**: Axios
-- **Routing**: React Router DOM
-
-## 📋 Prerequisites
-
+### Prerequisites
 - Python 3.8+
 - Node.js 16+
 - npm or yarn
 
-## 🚀 Quick Start
+### Installation & Setup
 
-### 1. Clone the Repository
-```bash
-git clone <repository-url>
-cd EdonuOps
-```
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd EdonuOps
+   ```
 
-### 2. Run Comprehensive Integration Test
-```bash
-python start_edonuops.py
-```
+2. **Run the startup script**
+   ```bash
+   python start_edonuops.py
+   ```
 
 This script will:
-- ✅ Test all backend imports and dependencies
-- ✅ Initialize the database with sample data
-- ✅ Test all API endpoints
-- ✅ Verify frontend compilation
-- ✅ Test data creation and CRUD operations
-- ✅ Ensure real-time data synchronization
+- Install all Python dependencies
+- Create a virtual environment
+- Initialize the database with sample data
+- Install Node.js dependencies
+- Start both backend and frontend servers
 
-### 3. Manual Setup (if needed)
+### Manual Setup (Alternative)
 
 #### Backend Setup
 ```bash
 cd backend
-
-# Install Python dependencies
+python -m venv venv
+# On Windows:
+venv\Scripts\activate
+# On Unix/MacOS:
+source venv/bin/activate
 pip install -r requirements.txt
-
-# Initialize database
-python simple_init_db.py
-
-# Start the backend server
+python init_database.py
 python run.py
 ```
-
-The backend will start on `http://localhost:5000`
 
 #### Frontend Setup
 ```bash
 cd frontend
-
-# Install Node.js dependencies
 npm install
-
-# Start the development server
 npm start
 ```
 
-The frontend will start on `http://localhost:3000`
+## 🌐 Access Points
 
-### 4. Access the Application
-- Open your browser and navigate to `http://localhost:3000`
-- Login with: `admin@edonuops.com` / `password`
+- **Frontend Application**: http://localhost:3000
+- **Backend API**: http://localhost:5000
+- **Health Check**: http://localhost:5000/health
+- **API Documentation**: http://localhost:5000/docs
+
+## 🔐 Default Login
+
+- **Username**: admin
+- **Email**: admin@edonuops.com
+- **Password**: admin123
+
+## 📋 System Modules
+
+### Core Modules
+- **Finance**: Chart of accounts, journal entries, invoicing, payments
+- **Inventory**: Product management, stock tracking, warehouses
+- **CRM**: Contact management, leads, opportunities, sales pipeline
+- **HCM**: Employee management, payroll, recruitment
+- **E-commerce**: Online store management, orders, customers
+- **AI Intelligence**: AI-powered insights and automation
+- **Sustainability**: ESG tracking and reporting
+
+### Enterprise Features
+- Multi-tenancy support
+- Role-based access control
+- Workflow automation
+- Real-time data synchronization
+- API integrations
+- Audit logging
+- Performance monitoring
+
+## 🛠️ Development
+
+### Backend Structure
+```
+backend/
+├── app/                 # Flask application factory
+├── modules/            # Business logic modules
+│   ├── core/          # Core functionality
+│   ├── finance/       # Financial management
+│   ├── inventory/     # Inventory management
+│   ├── crm/          # Customer relationship management
+│   ├── hr/           # Human resources
+│   └── ...
+├── routes/            # API route definitions
+├── services/          # Business services
+└── config/           # Configuration files
+```
+
+### Frontend Structure
+```
+frontend/
+├── src/
+│   ├── components/    # Reusable UI components
+│   ├── modules/       # Feature modules
+│   ├── services/      # API services
+│   ├── hooks/         # Custom React hooks
+│   └── utils/         # Utility functions
+```
 
 ## 🔧 Configuration
 
 ### Environment Variables
-Create a `config.env` file in the backend directory:
-
+Create a `backend/config.env` file with:
 ```env
-# Database Configuration
 DATABASE_URL=sqlite:///edonuops.db
-SECRET_KEY=your-super-secret-key-change-this-in-production
-
-# API Keys (Never commit these to version control!)
-OPENAI_API_KEY=your-openai-api-key
-STRIPE_PUBLIC_KEY=your-stripe-public-key
-STRIPE_SECRET_KEY=your-stripe-secret-key
-
-# JWT Configuration
-JWT_SECRET_KEY=your-jwt-secret-key
-JWT_ACCESS_TOKEN_EXPIRES=3600
-
-# Flask Configuration
+SECRET_KEY=your-secret-key
+JWT_SECRET_KEY=your-jwt-secret
 FLASK_ENV=development
 FLASK_DEBUG=True
 ```
 
-## 📊 Database Schema
+### Database
+The system uses SQLite by default for development. For production, configure PostgreSQL:
+```env
+DATABASE_URL=postgresql://user:password@localhost/edonuops
+```
 
-The system includes comprehensive database models for:
+## 🧪 Testing
 
-### Finance
-- `accounts`: Chart of Accounts
-- `journal_entries`: Journal Entries
-- `journal_lines`: Journal Entry Lines
+### Backend Tests
+```bash
+cd backend
+python test_minimal.py
+```
 
-### Inventory
-- `product_categories`: Product Categories
-- `products`: Products
-- `warehouses`: Warehouses
-- `inventory_transactions`: Stock Transactions
+### Frontend Tests
+```bash
+cd frontend
+npm test
+```
 
-### CRM
-- `contacts`: Customer/Contact Management
-- `leads`: Lead Management
-- `opportunities`: Sales Opportunities
-
-### HCM
-- `employees`: Employee Records
-- `payroll`: Payroll Records
-- `recruitment`: Recruitment Management
-
-## 🔌 API Endpoints
-
-### Authentication
-- `POST /auth/login` - User login
-- `POST /auth/register` - User registration
+## 📊 API Endpoints
 
 ### Finance
 - `GET /api/finance/accounts` - Get chart of accounts
 - `POST /api/finance/accounts` - Create account
-- `PUT /api/finance/accounts/{id}` - Update account
-- `DELETE /api/finance/accounts/{id}` - Delete account
 - `GET /api/finance/journal-entries` - Get journal entries
 - `POST /api/finance/journal-entries` - Create journal entry
 
 ### Inventory
-- `GET /api/inventory/categories` - Get categories
 - `GET /api/inventory/products` - Get products
+- `POST /api/inventory/products` - Create product
+- `GET /api/inventory/categories` - Get categories
 - `GET /api/inventory/warehouses` - Get warehouses
-- `GET /api/inventory/transactions` - Get transactions
 
 ### CRM
 - `GET /api/crm/contacts` - Get contacts
+- `POST /api/crm/contacts` - Create contact
 - `GET /api/crm/leads` - Get leads
 - `GET /api/crm/opportunities` - Get opportunities
 
 ### HCM
 - `GET /api/hr/employees` - Get employees
-- `GET /api/hr/payroll` - Get payroll records
-- `GET /api/hr/recruitment` - Get recruitment records
+- `POST /api/hr/employees` - Create employee
+- `GET /api/hr/departments` - Get departments
 
-## 🎯 Key Features Implemented
+## 🚀 Deployment
 
-### ✅ Completed
-- [x] Complete backend API with all modules
-- [x] Real-time data synchronization
-- [x] Comprehensive frontend with all modules
-- [x] Database models and migrations
-- [x] Authentication and authorization
-- [x] CRUD operations for all entities
-- [x] Real-time UI updates
-- [x] Form validation and error handling
-- [x] Responsive design
-- [x] Detail view modals
-- [x] Improved form components
-- [x] **Complete backend integration**
-- [x] **Database persistence for all modules**
-- [x] **Real-time data fetching and updates**
-- [x] **Comprehensive API testing**
-
-### 🔄 In Progress
-- [ ] AI query processing
-- [ ] Advanced reporting
-- [ ] Multi-currency support
-- [ ] Workflow automation
-- [ ] Advanced security features
-
-## 🐛 Troubleshooting
-
-### Backend Issues
-1. **Import Errors**: Ensure all Python dependencies are installed
-2. **Database Errors**: Run `python simple_init_db.py` to recreate the database
-3. **Module Import Errors**: Check that all `__init__.py` files exist
-4. **API Endpoint Errors**: Use `python test_all_endpoints.py` to test endpoints
-
-### Frontend Issues
-1. **Compilation Errors**: Check for missing dependencies with `npm install`
-2. **API Connection Errors**: Ensure the backend is running on port 5000
-3. **Field Name Errors**: Ensure form fields match API expectations (snake_case)
-
-### Common Solutions
+### Docker Deployment
 ```bash
-# Reset database
-cd backend
-rm edonuops.db
-python simple_init_db.py
-
-# Clear frontend cache
-cd frontend
-rm -rf node_modules
-npm install
-
-# Test backend endpoints
-cd backend
-python test_all_endpoints.py
-
-# Run comprehensive test
-python start_edonuops.py
-
-# Check for port conflicts
-lsof -i :5000  # Backend
-lsof -i :3000  # Frontend
+docker-compose up -d
 ```
 
-## 📈 Performance
-
-- **Backend**: Optimized with SQLAlchemy, connection pooling
-- **Frontend**: React optimization, lazy loading, memoization
-- **Database**: Indexed queries, efficient relationships
-- **Real-time**: WebSocket connections for live updates
-
-## 🔒 Security
-
-- JWT-based authentication
-- Password hashing with Werkzeug
-- CORS configuration
-- Input validation and sanitization
-- SQL injection prevention with ORM
+### Production Setup
+1. Set up a production database (PostgreSQL recommended)
+2. Configure environment variables for production
+3. Set up a reverse proxy (nginx)
+4. Configure SSL certificates
+5. Set up monitoring and logging
 
 ## 🤝 Contributing
 
@@ -267,54 +194,22 @@ lsof -i :3000  # Frontend
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License.
 
 ## 🆘 Support
 
 For support and questions:
 - Create an issue in the repository
-- Check the troubleshooting section
-- Review the API documentation
+- Check the documentation
+- Review the API endpoints
 
-## 🎉 Status
+## 🔄 Updates
 
-**Current Status**: ✅ **FULLY INTEGRATED AND READY FOR PRODUCTION**
+To update the system:
+1. Pull the latest changes
+2. Run database migrations if needed
+3. Restart the services
 
-The EdonuOps ERP system is now **completely functional** with:
+---
 
-### ✅ **Backend Integration Complete**
-- All modules have proper database models
-- All API endpoints are implemented and tested
-- Real-time data synchronization working
-- CRUD operations for all entities
-- Database persistence for all modules
-
-### ✅ **Frontend Integration Complete**
-- All modules communicate with backend APIs
-- Real-time data updates working
-- Form validation and error handling
-- Responsive design across all modules
-- Detail view modals with proper data display
-
-### ✅ **Data Pipeline Straight**
-- **Write Operations**: All forms can create/update data in database
-- **Read Operations**: All displays fetch and show real data
-- **Real-time Updates**: UI updates automatically when data changes
-- **No Mock Data**: All features use real database data
-- **Complete CRUD**: Create, Read, Update, Delete for all entities
-
-### ✅ **Enterprise Ready**
-- Complete ERP functionality
-- Professional UI/UX
-- Scalable architecture
-- Production-ready code
-- Comprehensive testing
-
-**Next Steps**:
-1. ✅ **System is ready for immediate use**
-2. ✅ **All modules are fully functional**
-3. ✅ **Backend and frontend are completely integrated**
-4. ✅ **Database operations are working correctly**
-5. ✅ **Real-time data synchronization is active**
-
-**The EdonuOps ERP system is now a complete, enterprise-grade solution ready for production deployment!**
+**EdonuOps** - Empowering businesses with comprehensive ERP solutions.

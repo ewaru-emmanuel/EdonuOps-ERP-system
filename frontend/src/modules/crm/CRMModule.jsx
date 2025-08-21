@@ -203,25 +203,29 @@ const CRMModule = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {contacts.map((contact) => (
-              <TableRow key={contact.id}>
-                <TableCell>{`${contact.first_name} ${contact.last_name}`}</TableCell>
-                <TableCell>{contact.email || 'N/A'}</TableCell>
-                <TableCell>{contact.phone || 'N/A'}</TableCell>
-                <TableCell>{contact.company || 'N/A'}</TableCell>
+            {contacts.map((contact, index) => (
+              <TableRow key={contact.id || `contact-${index}`}>
+                <TableCell>{contact.first_name && contact.last_name ? `${contact.first_name} ${contact.last_name}` : ''}</TableCell>
+                <TableCell>{contact.email || ''}</TableCell>
+                <TableCell>{contact.phone || ''}</TableCell>
+                <TableCell>{contact.company || ''}</TableCell>
                 <TableCell>
-                  <Chip
-                    label={contact.type || 'customer'}
-                    color={contact.type === 'customer' ? 'primary' : 'secondary'}
-                    size="small"
-                  />
+                  {contact.type && (
+                    <Chip
+                      label={contact.type}
+                      color={contact.type === 'customer' ? 'primary' : 'secondary'}
+                      size="small"
+                    />
+                  )}
                 </TableCell>
                 <TableCell>
-                  <Chip
-                    label={contact.status || 'active'}
-                    color={contact.status === 'active' ? 'success' : 'default'}
-                    size="small"
-                  />
+                  {contact.status && (
+                    <Chip
+                      label={contact.status}
+                      color={contact.status === 'active' ? 'success' : 'default'}
+                      size="small"
+                    />
+                  )}
                 </TableCell>
                 <TableCell>
                   <Tooltip title="View Details">
@@ -283,18 +287,20 @@ const CRMModule = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {leads.map((lead) => (
-              <TableRow key={lead.id}>
-                <TableCell>{`${lead.first_name} ${lead.last_name}`}</TableCell>
-                <TableCell>{lead.email || 'N/A'}</TableCell>
-                <TableCell>{lead.phone || 'N/A'}</TableCell>
-                <TableCell>{lead.company || 'N/A'}</TableCell>
+            {leads.map((lead, index) => (
+              <TableRow key={lead.id || `lead-${index}`}>
+                <TableCell>{lead.first_name && lead.last_name ? `${lead.first_name} ${lead.last_name}` : ''}</TableCell>
+                <TableCell>{lead.email || ''}</TableCell>
+                <TableCell>{lead.phone || ''}</TableCell>
+                <TableCell>{lead.company || ''}</TableCell>
                 <TableCell>
-                  <Chip
-                    label={lead.source || 'website'}
-                    color="info"
-                    size="small"
-                  />
+                  {lead.source && (
+                    <Chip
+                      label={lead.source}
+                      color="info"
+                      size="small"
+                    />
+                  )}
                 </TableCell>
                 <TableCell>
                   <Chip
@@ -363,21 +369,23 @@ const CRMModule = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {opportunities.map((opportunity) => (
-              <TableRow key={opportunity.id}>
-                <TableCell>{opportunity.name}</TableCell>
-                <TableCell>{opportunity.contact_id || 'N/A'}</TableCell>
-                <TableCell>${opportunity.amount || 0}</TableCell>
+            {opportunities.map((opportunity, index) => (
+              <TableRow key={opportunity.id || `opportunity-${index}`}>
+                <TableCell>{opportunity.name || ''}</TableCell>
+                <TableCell>{opportunity.contact_id || ''}</TableCell>
+                <TableCell>${opportunity.amount || ''}</TableCell>
                 <TableCell>
-                  <Chip
-                    label={opportunity.stage || 'prospecting'}
-                    color={opportunity.stage === 'closed' ? 'success' : 'primary'}
-                    size="small"
-                  />
+                  {opportunity.stage && (
+                    <Chip
+                      label={opportunity.stage}
+                      color={opportunity.stage === 'closed' ? 'success' : 'primary'}
+                      size="small"
+                    />
+                  )}
                 </TableCell>
-                <TableCell>{opportunity.probability || 0}%</TableCell>
+                <TableCell>{opportunity.probability ? `${opportunity.probability}%` : ''}</TableCell>
                 <TableCell>
-                  {opportunity.expected_close_date ? new Date(opportunity.expected_close_date).toLocaleDateString() : 'N/A'}
+                  {opportunity.expected_close_date ? new Date(opportunity.expected_close_date).toLocaleDateString() : ''}
                 </TableCell>
                 <TableCell>
                   <Tooltip title="View Details">
@@ -455,7 +463,7 @@ const CRMModule = () => {
                 Pipeline Value
               </Typography>
               <Typography variant="h4">
-                ${crmMetrics.totalValue.toLocaleString()}
+                                                                       ${crmMetrics.totalValue ? crmMetrics.totalValue.toLocaleString() : ''}
               </Typography>
             </CardContent>
           </Card>
@@ -505,7 +513,7 @@ const CRMModule = () => {
           setDetailViewOpen(false);
           handleEdit(item, selectedItemType);
         }}
-        title={`${selectedItemType.charAt(0).toUpperCase() + selectedItemType.slice(1)} Details`}
+        title={`${selectedItemType ? selectedItemType.charAt(0).toUpperCase() + selectedItemType.slice(1) : 'Item'} Details`}
       />
 
       {/* Improved Form */}
@@ -518,7 +526,7 @@ const CRMModule = () => {
         onSave={handleSave}
         data={editItem}
         type={selectedItemType}
-        title={selectedItemType.charAt(0).toUpperCase() + selectedItemType.slice(1)}
+        title={selectedItemType ? selectedItemType.charAt(0).toUpperCase() + selectedItemType.slice(1) : 'Item'}
         loading={contactsLoading || leadsLoading || opportunitiesLoading}
       />
 

@@ -2,7 +2,7 @@
 
 from flask import Blueprint, jsonify, request
 from app import db
-from modules.hr.models import Employee, Payroll, Recruitment
+from modules.hcm.models import Employee, Payroll, Recruitment
 from datetime import datetime
 
 bp = Blueprint('hr', __name__, url_prefix='/api/hr')

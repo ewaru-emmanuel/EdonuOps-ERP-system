@@ -3,7 +3,7 @@
  * Handles API calls and provides real-time updates to the UI
  */
 
-import erpApiService from './erpApiService';
+import { getERPApiService } from './erpApiService';
 
 class RealTimeDataService {
   constructor() {
@@ -14,7 +14,8 @@ class RealTimeDataService {
 
   // Check if API service is ready
   isApiServiceReady() {
-    return erpApiService && erpApiService.apiClient;
+    const apiService = getERPApiService();
+    return apiService && apiService.apiClient;
   }
 
   // Wait for API service to be ready
@@ -23,9 +24,11 @@ class RealTimeDataService {
       if (this.isApiServiceReady()) {
         return true;
       }
+      console.log(`Waiting for API service... (${i + 1}/${maxRetries})`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
-    throw new Error('API service not initialized after maximum retries');
+    console.error('API service not initialized after maximum retries');
+    return false;
   }
 
   // Subscribe to data updates
@@ -99,9 +102,13 @@ class RealTimeDataService {
   async fetchData(endpoint) {
     try {
       // Wait for API service to be ready
-      await this.waitForApiService();
+      const isReady = await this.waitForApiService();
+      if (!isReady) {
+        throw new Error('API service not available');
+      }
       
-      const response = await erpApiService.get(endpoint);
+      const apiService = getERPApiService();
+      const response = await apiService.get(endpoint);
       return response.data || response; // Handle both response formats
     } catch (error) {
       console.error(`Error fetching ${endpoint}:`, error);
@@ -118,9 +125,13 @@ class RealTimeDataService {
   async create(endpoint, data) {
     try {
       // Wait for API service to be ready
-      await this.waitForApiService();
+      const isReady = await this.waitForApiService();
+      if (!isReady) {
+        throw new Error('API service not available');
+      }
       
-      const response = await erpApiService.post(endpoint, data);
+      const apiService = getERPApiService();
+      const response = await apiService.post(endpoint, data);
       const responseData = response.data || response;
       
       // Update cache and notify subscribers
@@ -140,9 +151,13 @@ class RealTimeDataService {
   async update(endpoint, id, data) {
     try {
       // Wait for API service to be ready
-      await this.waitForApiService();
+      const isReady = await this.waitForApiService();
+      if (!isReady) {
+        throw new Error('API service not available');
+      }
       
-      const response = await erpApiService.put(`${endpoint}/${id}`, data);
+      const apiService = getERPApiService();
+      const response = await apiService.put(`${endpoint}/${id}`, data);
       const responseData = response.data || response;
       
       // Update cache and notify subscribers
@@ -166,9 +181,13 @@ class RealTimeDataService {
   async delete(endpoint, id) {
     try {
       // Wait for API service to be ready
-      await this.waitForApiService();
+      const isReady = await this.waitForApiService();
+      if (!isReady) {
+        throw new Error('API service not available');
+      }
       
-      await erpApiService.delete(`${endpoint}/${id}`);
+      const apiService = getERPApiService();
+      await apiService.delete(`${endpoint}/${id}`);
       
       // Update cache and notify subscribers
       const currentData = this.cache.get(endpoint) || [];
@@ -189,7 +208,10 @@ class RealTimeDataService {
   async loadData(endpoint, startPolling = true) {
     try {
       // Wait for API service to be ready
-      await this.waitForApiService();
+      const isReady = await this.waitForApiService();
+      if (!isReady) {
+        throw new Error('API service not available');
+      }
       
       const data = await this.fetchData(endpoint);
       this.cache.set(endpoint, data);

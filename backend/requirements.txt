@@ -38,3 +38,14 @@ pytz>=2023.3
 # Development & Testing
 pytest>=7.4.0
 pytest-flask>=1.2.0
+
+# PostgreSQL and Redis
+psycopg2-binary==2.9.7
+redis==5.0.1
+celery==5.3.4
+gunicorn==21.2.0
+alembic==1.12.1
+coverage==7.3.2
+black==23.9.1
+flake8==6.1.0
+mypy==1.6.1

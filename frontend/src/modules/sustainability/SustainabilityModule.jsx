@@ -39,34 +39,26 @@ const SustainabilityModule = () => {
   // Real-time data hooks
   const { 
     data: environmentalMetrics, 
-    loading: environmentalLoading, 
     create: createEnvironmentalMetric,
-    update: updateEnvironmentalMetric,
-    remove: deleteEnvironmentalMetric
+    update: updateEnvironmentalMetric
   } = useRealTimeData('/api/sustainability/environmental');
 
   const { 
     data: socialMetrics, 
-    loading: socialLoading, 
     create: createSocialMetric,
-    update: updateSocialMetric,
-    remove: deleteSocialMetric
+    update: updateSocialMetric
   } = useRealTimeData('/api/sustainability/social');
 
   const { 
     data: governanceMetrics, 
-    loading: governanceLoading, 
     create: createGovernanceMetric,
-    update: updateGovernanceMetric,
-    remove: deleteGovernanceMetric
+    update: updateGovernanceMetric
   } = useRealTimeData('/api/sustainability/governance');
 
   const { 
     data: esgReports, 
-    loading: reportsLoading, 
     create: createESGReport,
-    update: updateESGReport,
-    remove: deleteESGReport
+    update: updateESGReport
   } = useRealTimeData('/api/sustainability/reports');
 
   const handleTabChange = (event, newValue) => {
@@ -83,45 +75,10 @@ const SustainabilityModule = () => {
     setFormOpen(true);
   };
 
-  const handleEdit = (item, type) => {
-    setFormType(type);
-    setSelectedItem(item);
-    setFormOpen(true);
-  };
-
   const handleView = (item, type) => {
     setFormType(type);
     setSelectedItem(item);
     setDetailOpen(true);
-  };
-
-  const handleDelete = async (item, type) => {
-    const confirmed = window.confirm(`Are you sure you want to delete this ${type}?`);
-    if (confirmed) {
-      try {
-        let deleteFunction;
-        switch (type) {
-          case 'environmental':
-            deleteFunction = deleteEnvironmentalMetric;
-            break;
-          case 'social':
-            deleteFunction = deleteSocialMetric;
-            break;
-          case 'governance':
-            deleteFunction = deleteGovernanceMetric;
-            break;
-          case 'report':
-            deleteFunction = deleteESGReport;
-            break;
-          default:
-            return;
-        }
-        await deleteFunction(item.id);
-        showSnackbar(`${type.charAt(0).toUpperCase() + type.slice(1)} metric deleted successfully`);
-      } catch (error) {
-        showSnackbar(`Error deleting ${type} metric`, 'error');
-      }
-    }
   };
 
   // Calculate metrics from real data
@@ -154,7 +111,7 @@ const SustainabilityModule = () => {
         
         <Alert severity="success" sx={{ mb: 3 }}>
           <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-            ✅ ESG Platform Operational
+                          Ready to track your sustainability metrics
           </Typography>
           <Typography variant="body2">
             Your sustainability and ESG management system is fully operational with comprehensive tracking and reporting capabilities.
@@ -420,10 +377,10 @@ const SustainabilityModule = () => {
              
              if (selectedItem) {
                await updateFunction(selectedItem.id, formData);
-               showSnackbar(`${formType.charAt(0).toUpperCase() + formType.slice(1)} metric updated successfully`);
+               showSnackbar(`${formType ? formType.charAt(0).toUpperCase() + formType.slice(1) : 'Item'} metric updated successfully`);
              } else {
                await createFunction(formData);
-               showSnackbar(`${formType.charAt(0).toUpperCase() + formType.slice(1)} metric created successfully`);
+               showSnackbar(`${formType ? formType.charAt(0).toUpperCase() + formType.slice(1) : 'Item'} metric created successfully`);
              }
              setFormOpen(false);
            } catch (error) {

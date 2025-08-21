@@ -48,8 +48,9 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const data = await apiClient.get('/api/dashboard/summary');
-        setDashboardData(data);
+        const response = await apiClient.get('/api/dashboard/summary');
+        // Handle the actual API response structure
+        setDashboardData(response.data || response);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
         // Use fallback data if API fails
@@ -73,23 +74,14 @@ const Dashboard = () => {
   }
 
   const data = dashboardData || {
-    totalRevenue: 1250000,
-    totalCustomers: 342,
-    totalLeads: 156,
-    totalOpportunities: 89,
-    totalProducts: 89,
-    totalEmployees: 45,
-    recentTransactions: [
-      { id: 1, type: 'Journal Entry', amount: 2500, reference: 'INV-001', date: '2024-01-15' },
-      { id: 2, type: 'Journal Entry', amount: 1800, reference: 'INV-002', date: '2024-01-14' },
-      { id: 3, type: 'Journal Entry', amount: 3200, reference: 'INV-003', date: '2024-01-13' }
-    ],
-    systemStatus: {
-      database: 'Online',
-      api_services: 'Online',
-      file_storage: 'Online',
-      email_service: 'Online'
-    }
+          totalRevenue: 0,
+    totalCustomers: 0,
+    totalLeads: 0,
+    totalOpportunities: 0,
+    totalProducts: 0,
+    totalEmployees: 0,
+    recentActivity: [],
+    systemStatus: 'operational'
   };
 
   const quickActions = [
@@ -100,10 +92,10 @@ const Dashboard = () => {
   ];
 
   const systemStatus = [
-    { name: 'Database', status: data.systemStatus?.database || 'Online', color: 'success' },
-    { name: 'API Services', status: data.systemStatus?.api_services || 'Online', color: 'success' },
-    { name: 'File Storage', status: data.systemStatus?.file_storage || 'Online', color: 'success' },
-    { name: 'Email Service', status: data.systemStatus?.email_service || 'Online', color: 'success' }
+    { name: 'Database', status: 'Online', color: 'success' },
+    { name: 'API Services', status: 'Online', color: 'success' },
+    { name: 'File Storage', status: 'Online', color: 'success' },
+    { name: 'Email Service', status: 'Online', color: 'success' }
   ];
 
   return (
@@ -122,7 +114,7 @@ const Dashboard = () => {
             ✅ System Ready - All modules operational
           </Typography>
           <Typography variant="body2">
-            Your EdonuOps platform is fully configured with sample data and ready for immediate use.
+            Your EdonuOps platform is ready. Start by adding your first data to see it here.
           </Typography>
         </Alert>
       </Box>
@@ -135,7 +127,7 @@ const Dashboard = () => {
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
                   <Typography variant="h4" color="primary" sx={{ fontWeight: 'bold' }}>
-                    ${(data.totalRevenue / 1000000).toFixed(1)}M
+                    ${data.totalRevenue ? (data.totalRevenue / 1000000).toFixed(1) + 'M' : '$0'}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Total Revenue
@@ -286,47 +278,31 @@ const Dashboard = () => {
             <CardContent>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                 <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                  Recent Transactions
+                  Recent Activity
                 </Typography>
                 <IconButton size="small">
                   <RefreshIcon />
                 </IconButton>
               </Box>
               
-              <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Type</TableCell>
-                      <TableCell>Amount</TableCell>
-                      <TableCell>Customer/Supplier</TableCell>
-                      <TableCell>Date</TableCell>
-                      <TableCell>Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {data.recentTransactions.map((transaction) => (
-                      <TableRow key={transaction.id}>
-                        <TableCell>
-                          <Chip 
-                            label={transaction.type} 
-                            color={transaction.type === 'Sale' ? 'success' : 'warning'} 
-                            size="small" 
-                          />
-                        </TableCell>
-                        <TableCell>${transaction.amount.toLocaleString()}</TableCell>
-                        <TableCell>{transaction.customer || transaction.supplier}</TableCell>
-                        <TableCell>{transaction.date}</TableCell>
-                        <TableCell>
-                          <IconButton size="small">
-                            <ViewIcon />
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+              <List>
+                {(data.recentActivity || []).map((activity, index) => (
+                  <ListItem key={index}>
+                    <ListItemIcon>
+                      <CheckCircleIcon color={activity.type === 'order' ? 'success' : 'info'} />
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary={activity.message}
+                      secondary={activity.time}
+                    />
+                    <Chip 
+                      label={activity.type} 
+                      color={activity.type === 'order' ? 'success' : activity.type === 'payment' ? 'primary' : 'default'} 
+                      size="small" 
+                    />
+                  </ListItem>
+                ))}
+              </List>
             </CardContent>
           </Card>
         </Grid>
@@ -353,10 +329,10 @@ const Dashboard = () => {
                   <ListItemIcon>
                     <CheckCircleIcon color="success" />
                   </ListItemIcon>
-                  <ListItemText 
-                    primary="Sample Data Loaded"
-                    secondary="Ready for immediate use"
-                  />
+                                     <ListItemText 
+                     primary="System Ready"
+                     secondary="Start adding your data"
+                   />
                 </ListItem>
                 
                 <ListItem>

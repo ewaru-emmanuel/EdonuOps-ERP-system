@@ -1,6 +1,6 @@
 from app import db
 from datetime import datetime
-from sqlalchemy.dialects.postgresql import JSON
+# Remove PostgreSQL-specific import for SQLite compatibility
 
 class Category(db.Model):
     __tablename__ = 'product_categories'
@@ -21,13 +21,16 @@ class Product(db.Model):
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
     category_id = db.Column(db.Integer, db.ForeignKey('product_categories.id'))
+    price = db.Column(db.Float, default=0.0)  # Selling price
     unit = db.Column(db.String(20), default='pcs')  # pcs, kg, m, etc.
     cost_method = db.Column(db.String(20), default='FIFO')  # FIFO, Weighted Average
     standard_cost = db.Column(db.Float, default=0.0)
     current_cost = db.Column(db.Float, default=0.0)
+    current_stock = db.Column(db.Float, default=0.0)  # Current stock quantity
     min_stock = db.Column(db.Float, default=0.0)
     max_stock = db.Column(db.Float, default=0.0)
     is_active = db.Column(db.Boolean, default=True)
+    status = db.Column(db.String(20), default='active')  # active, inactive, discontinued
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -52,6 +55,29 @@ class InventoryTransaction(db.Model):
     
     # Relationships
     warehouse = db.relationship('Warehouse', backref='inventory_transactions')
+
+class StockMovement(db.Model):
+    __tablename__ = 'stock_movements'
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
+    warehouse_id = db.Column(db.Integer, db.ForeignKey('warehouses.id'), nullable=False)
+    movement_type = db.Column(db.String(20), nullable=False)  # IN, OUT, TRANSFER, ADJUSTMENT
+    quantity = db.Column(db.Float, nullable=False)
+    unit_cost = db.Column(db.Float, nullable=False)
+    total_cost = db.Column(db.Float, nullable=False)
+    reference_type = db.Column(db.String(50))  # PO, SO, TRANSFER, ADJUSTMENT
+    reference_id = db.Column(db.Integer)
+    from_warehouse_id = db.Column(db.Integer, db.ForeignKey('warehouses.id'))  # For transfers
+    to_warehouse_id = db.Column(db.Integer, db.ForeignKey('warehouses.id'))  # For transfers
+    notes = db.Column(db.Text)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    product = db.relationship('Product', backref='stock_movements')
+    warehouse = db.relationship('Warehouse', foreign_keys=[warehouse_id], backref='stock_movements')
+    from_warehouse = db.relationship('Warehouse', foreign_keys=[from_warehouse_id])
+    to_warehouse = db.relationship('Warehouse', foreign_keys=[to_warehouse_id])
 
 class Warehouse(db.Model):
     __tablename__ = 'warehouses'

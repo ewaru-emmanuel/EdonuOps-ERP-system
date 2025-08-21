@@ -23,7 +23,7 @@ class Account(db.Model):
     code = db.Column(db.String(20), unique=True, nullable=False)
     name = db.Column(db.String(100), nullable=False)
     type = db.Column(db.String(20), nullable=False)  # asset, liability, equity, revenue, expense
-    balance = db.Column(db.Numeric(15, 2), default=0.0)
+    balance = db.Column(db.Float, default=0.0)
     currency = db.Column(db.String(3), default='USD')
     parent_id = db.Column(db.Integer, db.ForeignKey('accounts.id'))
     is_active = db.Column(db.Boolean, default=True)
@@ -42,8 +42,8 @@ class JournalEntry(db.Model):
     description = db.Column(db.String(200), nullable=False)
     status = db.Column(db.String(20), default='draft')  # draft, posted, cancelled
     currency = db.Column(db.String(3), default='USD')
-    total_debit = db.Column(db.Numeric(15, 2), default=0.0)
-    total_credit = db.Column(db.Numeric(15, 2), default=0.0)
+    total_debit = db.Column(db.Float, default=0.0)
+    total_credit = db.Column(db.Float, default=0.0)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -57,14 +57,48 @@ class JournalLine(db.Model):
     journal_entry_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id'), nullable=False)
     account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=False)
     description = db.Column(db.String(200))
-    debit_amount = db.Column(db.Numeric(15, 2), default=0.0)
-    credit_amount = db.Column(db.Numeric(15, 2), default=0.0)
+    debit_amount = db.Column(db.Float, default=0.0)
+    credit_amount = db.Column(db.Float, default=0.0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
     account = db.relationship('Account')
 
+class Invoice(db.Model):
+    __tablename__ = 'invoices'
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_number = db.Column(db.String(50), unique=True, nullable=False)
+    customer_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))
+    invoice_date = db.Column(db.Date, nullable=False)
+    due_date = db.Column(db.Date, nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    tax_amount = db.Column(db.Float, default=0.0)
+    total_amount = db.Column(db.Float, nullable=False)
+    status = db.Column(db.String(20), default='draft')  # draft, sent, paid, overdue, cancelled
+    currency = db.Column(db.String(3), default='USD')
+    notes = db.Column(db.Text)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class Payment(db.Model):
+    __tablename__ = 'payments'
+    id = db.Column(db.Integer, primary_key=True)
+    payment_number = db.Column(db.String(50), unique=True, nullable=False)
+    invoice_id = db.Column(db.Integer, db.ForeignKey('invoices.id'))
+    customer_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))
+    payment_date = db.Column(db.Date, nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    payment_method = db.Column(db.String(50), default='cash')  # cash, check, credit_card, bank_transfer
+    reference_number = db.Column(db.String(100))
+    status = db.Column(db.String(20), default='pending')  # pending, completed, failed, refunded
+    notes = db.Column(db.Text)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 # Indexes
 db.Index('ix_journal_lines_account_id', JournalLine.account_id)
 db.Index('ix_journal_lines_journal_entry_id', JournalLine.journal_entry_id)
 db.Index('ix_accounts_code', Account.code)
+db.Index('ix_invoices_invoice_number', Invoice.invoice_number)

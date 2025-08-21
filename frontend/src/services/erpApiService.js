@@ -1,8 +1,3 @@
-import { useAuth } from '../App';
-
-// Base API configuration
-// const API_BASE = 'http://127.0.0.1:5000/api';
-
 // ERP API Service Class
 class ERPApiService {
   constructor(apiClient) {
@@ -607,10 +602,9 @@ export const initializeERPApiService = (apiClient) => {
   erpApiServiceInstance.apiClient = apiClient;
 };
 
-// Hook to use ERP API Service
-export const useERPApi = () => {
-  const { apiClient } = useAuth();
-  return new ERPApiService(apiClient);
+// Function to get ERP API Service instance
+export const getERPApiService = () => {
+  return erpApiServiceInstance;
 };
 
 // Export the singleton instance as default

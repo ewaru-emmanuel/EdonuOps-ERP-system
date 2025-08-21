@@ -175,8 +175,8 @@ const FinanceModule = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {accounts.map((account) => (
-              <TableRow key={account.id}>
+            {accounts.map((account, index) => (
+              <TableRow key={account.id || `account-${index}`}>
                 <TableCell>{account.code}</TableCell>
                 <TableCell>{account.name}</TableCell>
                 <TableCell>
@@ -254,13 +254,13 @@ const FinanceModule = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {journalEntries.map((entry) => (
-              <TableRow key={entry.id}>
+            {journalEntries.map((entry, index) => (
+              <TableRow key={entry.id || `entry-${index}`}>
                 <TableCell>
-                  {entry.entry_date ? new Date(entry.entry_date).toLocaleDateString() : 'N/A'}
+                                      {entry.entry_date ? new Date(entry.entry_date).toLocaleDateString() : ''}
                 </TableCell>
-                <TableCell>{entry.reference || 'N/A'}</TableCell>
-                <TableCell>{entry.description || 'N/A'}</TableCell>
+                <TableCell>{entry.reference || ''}</TableCell>
+                <TableCell>{entry.description || ''}</TableCell>
                 <TableCell>
                   <Chip
                     label={entry.status || 'draft'}
@@ -334,7 +334,7 @@ const FinanceModule = () => {
                 Total Debits
               </Typography>
               <Typography variant="h4">
-                ${financeMetrics.totalDebits.toLocaleString()}
+                                   ${financeMetrics.totalDebits ? financeMetrics.totalDebits.toLocaleString() : ''}
               </Typography>
             </CardContent>
           </Card>
@@ -346,7 +346,7 @@ const FinanceModule = () => {
                 Total Credits
               </Typography>
               <Typography variant="h4">
-                ${financeMetrics.totalCredits.toLocaleString()}
+                                   ${financeMetrics.totalCredits ? financeMetrics.totalCredits.toLocaleString() : ''}
               </Typography>
             </CardContent>
           </Card>
@@ -394,7 +394,7 @@ const FinanceModule = () => {
           setDetailViewOpen(false);
           handleEdit(item, selectedItemType);
         }}
-        title={`${selectedItemType.charAt(0).toUpperCase() + selectedItemType.slice(1)} Details`}
+        title={`${selectedItemType ? selectedItemType.charAt(0).toUpperCase() + selectedItemType.slice(1) : 'Item'} Details`}
       />
 
       {/* Improved Form */}
@@ -407,7 +407,7 @@ const FinanceModule = () => {
         onSave={handleSave}
         data={editItem}
         type={selectedItemType}
-        title={selectedItemType.charAt(0).toUpperCase() + selectedItemType.slice(1)}
+        title={selectedItemType ? selectedItemType.charAt(0).toUpperCase() + selectedItemType.slice(1) : 'Item'}
         loading={accountsLoading || journalEntriesLoading}
       />
 

@@ -61,15 +61,15 @@ const HCMModule = () => {
     create: createEmployee,
     update: updateEmployee,
     remove: deleteEmployee
-  } = useRealTimeData('/api/hr/employees');
+  } = useRealTimeData('/api/hcm/employees');
   
   const { 
     data: payroll 
-  } = useRealTimeData('/api/hr/payroll');
+  } = useRealTimeData('/api/hcm/payroll');
   
   const { 
     data: recruitment 
-  } = useRealTimeData('/api/hr/recruitment');
+  } = useRealTimeData('/api/hcm/recruitment');
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -97,7 +97,7 @@ const HCMModule = () => {
 
   const handleSaveEmployee = async (formData) => {
     try {
-      if (editEmployee) {
+      if (editEmployee && editEmployee.id) {
         await updateEmployee(editEmployee.id, formData);
         showSnackbar(`Employee "${formData.first_name} ${formData.last_name}" updated successfully`);
       } else {
@@ -113,8 +113,15 @@ const HCMModule = () => {
 
   const handleConfirmDelete = async () => {
     try {
+      if (!deleteItem || !deleteItem.id) {
+        showSnackbar('Cannot delete: Invalid employee data', 'error');
+        setDeleteDialogOpen(false);
+        setDeleteItem(null);
+        return;
+      }
+      
       await deleteEmployee(deleteItem.id);
-      showSnackbar(`${deleteItem?.name || 'Employee'} deleted successfully`);
+      showSnackbar(`${deleteItem?.first_name || deleteItem?.name || 'Employee'} deleted successfully`);
       setDeleteDialogOpen(false);
       setDeleteItem(null);
     } catch (error) {
@@ -298,21 +305,21 @@ const HCMModule = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {employees.map((employee) => (
-                      <TableRow key={employee.id}>
+                    {employees.map((employee, index) => (
+                      <TableRow key={employee.id || `employee-${index}`}>
                         <TableCell>
                           <Box display="flex" alignItems="center" gap={2}>
                             <Avatar sx={{ width: 32, height: 32 }}>
-                              {employee.name.charAt(0)}
+                              {employee.name ? employee.name.charAt(0) : '?'}
                             </Avatar>
                             <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                              {employee.name}
+                              {employee.name || 'Unknown Employee'}
                             </Typography>
                           </Box>
                         </TableCell>
                         <TableCell>{employee.position}</TableCell>
                         <TableCell>{employee.department}</TableCell>
-                        <TableCell>${employee.salary.toLocaleString()}</TableCell>
+                        <TableCell>${employee.salary ? employee.salary.toLocaleString() : '0'}</TableCell>
                         <TableCell>
                           <Chip 
                             label={employee.status} 
@@ -331,7 +338,11 @@ const HCMModule = () => {
                           }}>
                             <ViewIcon />
                           </IconButton>
-                          <IconButton onClick={() => handleEmployeeDelete(employee)} color="error">
+                          <IconButton 
+                            onClick={() => employee && employee.id ? handleEmployeeDelete(employee) : showSnackbar('Cannot delete: Invalid employee data', 'error')} 
+                            color="error"
+                            disabled={!employee || !employee.id}
+                          >
                             <DeleteIcon />
                           </IconButton>
                         </TableCell>
@@ -370,12 +381,12 @@ const HCMModule = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {payroll.map((pay) => (
-                      <TableRow key={pay.id}>
+                    {payroll.map((pay, index) => (
+                      <TableRow key={pay.id || `payroll-${index}`}>
                         <TableCell>{pay.employee}</TableCell>
                         <TableCell>{pay.period}</TableCell>
-                        <TableCell align="right">${pay.grossPay.toLocaleString()}</TableCell>
-                        <TableCell align="right">${pay.netPay.toLocaleString()}</TableCell>
+                        <TableCell align="right">${pay.grossPay ? pay.grossPay.toLocaleString() : '0'}</TableCell>
+                        <TableCell align="right">${pay.netPay ? pay.netPay.toLocaleString() : '0'}</TableCell>
                         <TableCell>
                           <Chip 
                             label={pay.status} 
@@ -425,8 +436,8 @@ const HCMModule = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {recruitment.map((job) => (
-                      <TableRow key={job.id}>
+                    {recruitment.map((job, index) => (
+                      <TableRow key={job.id || `job-${index}`}>
                         <TableCell>{job.position}</TableCell>
                         <TableCell>{job.department}</TableCell>
                         <TableCell>
@@ -541,7 +552,7 @@ const HCMModule = () => {
           setDetailViewOpen(false);
           handleEmployeeEdit(item);
         }}
-        title={`${selectedItemType.charAt(0).toUpperCase() + selectedItemType.slice(1)} Details`}
+        title={`${selectedItemType ? selectedItemType.charAt(0).toUpperCase() + selectedItemType.slice(1) : 'Item'} Details`}
       />
 
       {/* Improved Form for Employee Management */}

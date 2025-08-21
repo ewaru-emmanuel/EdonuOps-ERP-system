@@ -18,6 +18,22 @@ class Contact(db.Model):
     def full_name(self):
         return f"{self.first_name} {self.last_name}"
 
+class Customer(db.Model):
+    __tablename__ = 'customers'
+    id = db.Column(db.Integer, primary_key=True)
+    contact_id = db.Column(db.Integer, db.ForeignKey('contacts.id'), nullable=False)
+    customer_number = db.Column(db.String(50), unique=True, nullable=False)
+    credit_limit = db.Column(db.Numeric(15, 2), default=0.0)
+    payment_terms = db.Column(db.String(50), default='Net 30')
+    tax_exempt = db.Column(db.Boolean, default=False)
+    tax_id = db.Column(db.String(50))
+    status = db.Column(db.String(20), default='active')  # active, inactive, suspended
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationship
+    contact = db.relationship('Contact', backref='customer_profile')
+
 class Lead(db.Model):
     __tablename__ = 'leads'
     id = db.Column(db.Integer, primary_key=True)
@@ -62,7 +78,7 @@ class Communication(db.Model):
     content = db.Column(db.Text)
     duration = db.Column(db.Integer)  # for calls in seconds
     status = db.Column(db.String(20))  # completed, missed, scheduled
-    created_by = db.Column(db.Integer, db.ForeignKey('crm_users.id'))
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     scheduled_for = db.Column(db.DateTime)  # for scheduled communications
 
@@ -76,8 +92,8 @@ class FollowUp(db.Model):
     due_date = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.String(20), default='pending')  # pending, completed, overdue
     notes = db.Column(db.Text)
-    assigned_to = db.Column(db.Integer, db.ForeignKey('crm_users.id'))
-    created_by = db.Column(db.Integer, db.ForeignKey('crm_users.id'))
+    assigned_to = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime)
 
@@ -94,8 +110,8 @@ class LeadIntake(db.Model):
     __tablename__ = 'lead_intakes'
     id = db.Column(db.Integer, primary_key=True)
     source = db.Column(db.String(100))  # Microsoft Forms, Website, Puzzel Agent
-    form_data = db.Column(db.JSON)  # Store all form fields
+    form_data = db.Column(db.Text)  # Store all form fields as JSON string
     status = db.Column(db.String(20), default='new')  # new, processed, converted
-    assigned_to = db.Column(db.Integer, db.ForeignKey('crm_users.id'))
+    assigned_to = db.Column(db.Integer, db.ForeignKey('users.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     processed_at = db.Column(db.DateTime)

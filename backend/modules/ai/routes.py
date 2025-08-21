@@ -1,209 +1,285 @@
-from flask import Blueprint, request, jsonify
+# AI routes for EdonuOps ERP
+from flask import Blueprint, jsonify, request
 from app import db
-from .models import AIPrediction, AIInsight, AIRecommendation
+from modules.ai.models import AIPrediction, AIInsight, AIRecommendation
 from datetime import datetime
 
 ai_bp = Blueprint('ai', __name__)
 
-# Predictions
 @ai_bp.route('/predictions', methods=['GET'])
 def get_predictions():
+    """Get all AI predictions from database"""
     try:
         predictions = AIPrediction.query.all()
         return jsonify([{
-            'id': p.id,
-            'title': p.title,
-            'description': p.description,
-            'prediction_type': p.prediction_type,
-            'accuracy': p.accuracy,
-            'confidence_score': p.confidence_score,
-            'status': p.status,
-            'created_at': p.created_at.isoformat()
-        } for p in predictions]), 200
+            "id": prediction.id,
+            "type": prediction.type,
+            "title": prediction.title,
+            "description": prediction.description,
+            "accuracy": float(prediction.accuracy) if prediction.accuracy else 0.0,
+            "status": prediction.status,
+            "created_at": prediction.created_at.isoformat() if prediction.created_at else None
+        } for prediction in predictions]), 200
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Error fetching AI predictions: {e}")
+        return jsonify({"error": "Failed to fetch AI predictions"}), 500
+
+@ai_bp.route('/insights', methods=['GET'])
+def get_insights():
+    """Get all AI insights from database"""
+    try:
+        insights = AIInsight.query.all()
+        return jsonify([{
+            "id": insight.id,
+            "category": insight.category,
+            "title": insight.title,
+            "description": insight.description,
+            "impact_score": float(insight.impact_score) if insight.impact_score else 0.0,
+            "status": insight.status,
+            "created_at": insight.created_at.isoformat() if insight.created_at else None
+        } for insight in insights]), 200
+    except Exception as e:
+        print(f"Error fetching AI insights: {e}")
+        return jsonify({"error": "Failed to fetch AI insights"}), 500
+
+@ai_bp.route('/recommendations', methods=['GET'])
+def get_recommendations():
+    """Get all AI recommendations from database"""
+    try:
+        recommendations = AIRecommendation.query.all()
+        return jsonify([{
+            "id": recommendation.id,
+            "type": recommendation.type,
+            "title": recommendation.title,
+            "description": recommendation.description,
+            "confidence": float(recommendation.confidence) if recommendation.confidence else 0.0,
+            "status": recommendation.status,
+            "created_at": recommendation.created_at.isoformat() if recommendation.created_at else None
+        } for recommendation in recommendations]), 200
+    except Exception as e:
+        print(f"Error fetching AI recommendations: {e}")
+        return jsonify({"error": "Failed to fetch AI recommendations"}), 500
 
 @ai_bp.route('/predictions', methods=['POST'])
 def create_prediction():
+    """Create a new AI prediction in database"""
     try:
         data = request.get_json()
-        prediction = AIPrediction(
-            title=data['title'],
-            description=data.get('description', ''),
-            prediction_type=data['prediction_type'],
+        new_prediction = AIPrediction(
+            type=data.get('type'),
+            title=data.get('title'),
+            description=data.get('description'),
             accuracy=data.get('accuracy', 0.0),
-            confidence_score=data.get('confidence_score', 0.0),
-            status=data.get('status', 'Active')
+            status=data.get('status', 'active')
         )
-        db.session.add(prediction)
+        db.session.add(new_prediction)
         db.session.commit()
-        return jsonify({'message': 'Prediction created successfully', 'id': prediction.id}), 201
+        return jsonify({
+            "message": "AI prediction created successfully",
+            "id": new_prediction.id,
+            "prediction": {
+                "id": new_prediction.id,
+                "type": new_prediction.type,
+                "title": new_prediction.title,
+                "description": new_prediction.description,
+                "accuracy": float(new_prediction.accuracy) if new_prediction.accuracy else 0.0,
+                "status": new_prediction.status
+            }
+        }), 201
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        print(f"Error creating AI prediction: {e}")
+        return jsonify({"error": "Failed to create AI prediction"}), 500
 
 @ai_bp.route('/predictions/<int:prediction_id>', methods=['PUT'])
 def update_prediction(prediction_id):
+    """Update an AI prediction in database"""
     try:
         prediction = AIPrediction.query.get_or_404(prediction_id)
         data = request.get_json()
         
+        prediction.type = data.get('type', prediction.type)
         prediction.title = data.get('title', prediction.title)
         prediction.description = data.get('description', prediction.description)
-        prediction.prediction_type = data.get('prediction_type', prediction.prediction_type)
         prediction.accuracy = data.get('accuracy', prediction.accuracy)
-        prediction.confidence_score = data.get('confidence_score', prediction.confidence_score)
         prediction.status = data.get('status', prediction.status)
-        prediction.updated_at = datetime.utcnow()
         
         db.session.commit()
-        return jsonify({'message': 'Prediction updated successfully'}), 200
+        return jsonify({
+            "message": "AI prediction updated successfully",
+            "prediction": {
+                "id": prediction.id,
+                "type": prediction.type,
+                "title": prediction.title,
+                "description": prediction.description,
+                "accuracy": float(prediction.accuracy) if prediction.accuracy else 0.0,
+                "status": prediction.status
+            }
+        }), 200
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        print(f"Error updating AI prediction: {e}")
+        return jsonify({"error": "Failed to update AI prediction"}), 500
 
 @ai_bp.route('/predictions/<int:prediction_id>', methods=['DELETE'])
 def delete_prediction(prediction_id):
+    """Delete an AI prediction from database"""
     try:
         prediction = AIPrediction.query.get_or_404(prediction_id)
         db.session.delete(prediction)
         db.session.commit()
-        return jsonify({'message': 'Prediction deleted successfully'}), 200
+        return jsonify({"message": "AI prediction deleted successfully"}), 200
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-# Insights
-@ai_bp.route('/insights', methods=['GET'])
-def get_insights():
-    try:
-        insights = AIInsight.query.all()
-        return jsonify([{
-            'id': i.id,
-            'title': i.title,
-            'description': i.description,
-            'insight_type': i.insight_type,
-            'impact_score': i.impact_score,
-            'category': i.category,
-            'status': i.status,
-            'created_at': i.created_at.isoformat()
-        } for i in insights]), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Error deleting AI prediction: {e}")
+        return jsonify({"error": "Failed to delete AI prediction"}), 500
 
 @ai_bp.route('/insights', methods=['POST'])
 def create_insight():
+    """Create a new AI insight in database"""
     try:
         data = request.get_json()
-        insight = AIInsight(
-            title=data['title'],
-            description=data.get('description', ''),
-            insight_type=data['insight_type'],
+        new_insight = AIInsight(
+            category=data.get('category'),
+            title=data.get('title'),
+            description=data.get('description'),
             impact_score=data.get('impact_score', 0.0),
-            category=data.get('category', ''),
-            status=data.get('status', 'Active')
+            status=data.get('status', 'active')
         )
-        db.session.add(insight)
+        db.session.add(new_insight)
         db.session.commit()
-        return jsonify({'message': 'Insight created successfully', 'id': insight.id}), 201
+        return jsonify({
+            "message": "AI insight created successfully",
+            "id": new_insight.id,
+            "insight": {
+                "id": new_insight.id,
+                "category": new_insight.category,
+                "title": new_insight.title,
+                "description": new_insight.description,
+                "impact_score": float(new_insight.impact_score) if new_insight.impact_score else 0.0,
+                "status": new_insight.status
+            }
+        }), 201
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        print(f"Error creating AI insight: {e}")
+        return jsonify({"error": "Failed to create AI insight"}), 500
 
 @ai_bp.route('/insights/<int:insight_id>', methods=['PUT'])
 def update_insight(insight_id):
+    """Update an AI insight in database"""
     try:
         insight = AIInsight.query.get_or_404(insight_id)
         data = request.get_json()
         
+        insight.category = data.get('category', insight.category)
         insight.title = data.get('title', insight.title)
         insight.description = data.get('description', insight.description)
-        insight.insight_type = data.get('insight_type', insight.insight_type)
         insight.impact_score = data.get('impact_score', insight.impact_score)
-        insight.category = data.get('category', insight.category)
         insight.status = data.get('status', insight.status)
-        insight.updated_at = datetime.utcnow()
         
         db.session.commit()
-        return jsonify({'message': 'Insight updated successfully'}), 200
+        return jsonify({
+            "message": "AI insight updated successfully",
+            "insight": {
+                "id": insight.id,
+                "category": insight.category,
+                "title": insight.title,
+                "description": insight.description,
+                "impact_score": float(insight.impact_score) if insight.impact_score else 0.0,
+                "status": insight.status
+            }
+        }), 200
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        print(f"Error updating AI insight: {e}")
+        return jsonify({"error": "Failed to update AI insight"}), 500
 
 @ai_bp.route('/insights/<int:insight_id>', methods=['DELETE'])
 def delete_insight(insight_id):
+    """Delete an AI insight from database"""
     try:
         insight = AIInsight.query.get_or_404(insight_id)
         db.session.delete(insight)
         db.session.commit()
-        return jsonify({'message': 'Insight deleted successfully'}), 200
+        return jsonify({"message": "AI insight deleted successfully"}), 200
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-# Recommendations
-@ai_bp.route('/recommendations', methods=['GET'])
-def get_recommendations():
-    try:
-        recommendations = AIRecommendation.query.all()
-        return jsonify([{
-            'id': r.id,
-            'title': r.title,
-            'description': r.description,
-            'recommendation_type': r.recommendation_type,
-            'priority': r.priority,
-            'implementation_status': r.implementation_status,
-            'created_at': r.created_at.isoformat()
-        } for r in recommendations]), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Error deleting AI insight: {e}")
+        return jsonify({"error": "Failed to delete AI insight"}), 500
 
 @ai_bp.route('/recommendations', methods=['POST'])
 def create_recommendation():
+    """Create a new AI recommendation in database"""
     try:
         data = request.get_json()
-        recommendation = AIRecommendation(
-            title=data['title'],
-            description=data.get('description', ''),
-            recommendation_type=data['recommendation_type'],
-            priority=data.get('priority', 'Medium'),
-            implementation_status=data.get('implementation_status', 'Pending')
+        new_recommendation = AIRecommendation(
+            type=data.get('type'),
+            title=data.get('title'),
+            description=data.get('description'),
+            confidence=data.get('confidence', 0.0),
+            status=data.get('status', 'active')
         )
-        db.session.add(recommendation)
+        db.session.add(new_recommendation)
         db.session.commit()
-        return jsonify({'message': 'Recommendation created successfully', 'id': recommendation.id}), 201
+        return jsonify({
+            "message": "AI recommendation created successfully",
+            "id": new_recommendation.id,
+            "recommendation": {
+                "id": new_recommendation.id,
+                "type": new_recommendation.type,
+                "title": new_recommendation.title,
+                "description": new_recommendation.description,
+                "confidence": float(new_recommendation.confidence) if new_recommendation.confidence else 0.0,
+                "status": new_recommendation.status
+            }
+        }), 201
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        print(f"Error creating AI recommendation: {e}")
+        return jsonify({"error": "Failed to create AI recommendation"}), 500
 
 @ai_bp.route('/recommendations/<int:recommendation_id>', methods=['PUT'])
 def update_recommendation(recommendation_id):
+    """Update an AI recommendation in database"""
     try:
         recommendation = AIRecommendation.query.get_or_404(recommendation_id)
         data = request.get_json()
         
+        recommendation.type = data.get('type', recommendation.type)
         recommendation.title = data.get('title', recommendation.title)
         recommendation.description = data.get('description', recommendation.description)
-        recommendation.recommendation_type = data.get('recommendation_type', recommendation.recommendation_type)
-        recommendation.priority = data.get('priority', recommendation.priority)
-        recommendation.implementation_status = data.get('implementation_status', recommendation.implementation_status)
-        recommendation.updated_at = datetime.utcnow()
+        recommendation.confidence = data.get('confidence', recommendation.confidence)
+        recommendation.status = data.get('status', recommendation.status)
         
         db.session.commit()
-        return jsonify({'message': 'Recommendation updated successfully'}), 200
+        return jsonify({
+            "message": "AI recommendation updated successfully",
+            "recommendation": {
+                "id": recommendation.id,
+                "type": recommendation.type,
+                "title": recommendation.title,
+                "description": recommendation.description,
+                "confidence": float(recommendation.confidence) if recommendation.confidence else 0.0,
+                "status": recommendation.status
+            }
+        }), 200
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        print(f"Error updating AI recommendation: {e}")
+        return jsonify({"error": "Failed to update AI recommendation"}), 500
 
 @ai_bp.route('/recommendations/<int:recommendation_id>', methods=['DELETE'])
 def delete_recommendation(recommendation_id):
+    """Delete an AI recommendation from database"""
     try:
         recommendation = AIRecommendation.query.get_or_404(recommendation_id)
         db.session.delete(recommendation)
         db.session.commit()
-        return jsonify({'message': 'Recommendation deleted successfully'}), 200
+        return jsonify({"message": "AI recommendation deleted successfully"}), 200
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        print(f"Error deleting AI recommendation: {e}")
+        return jsonify({"error": "Failed to delete AI recommendation"}), 500
 
 
