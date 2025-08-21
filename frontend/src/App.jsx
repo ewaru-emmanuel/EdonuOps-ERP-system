@@ -326,8 +326,9 @@ const Navigation = () => {
           '& .MuiDrawer-paper': {
             width: 250,
             boxSizing: 'border-box',
-            top: 64,
-            height: 'calc(100% - 64px)',
+            top: { xs: 56, md: 64 },
+            height: { xs: 'calc(100% - 56px)', md: 'calc(100% - 64px)' },
+            zIndex: theme.zIndex.drawer,
           },
         }}
       >
@@ -404,11 +405,12 @@ const App = () => {
               component="main"
               sx={{
                 flexGrow: 1,
-                p: 3,
-                mt: 8,
-                ml: { xs: 0, md: 0 },
+                p: { xs: 2, md: 3 },
+                mt: { xs: 7, md: 8 },
+                ml: { xs: 0, md: '250px' },
                 minHeight: '100vh',
-                backgroundColor: 'grey.50'
+                backgroundColor: 'grey.50',
+                width: { xs: '100%', md: 'calc(100% - 250px)' }
               }}
             >
                       <Routes>
