@@ -1,27 +1,94 @@
 # Dashboard routes for EdonuOps ERP
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, current_app
+from modules.finance.models import JournalEntry, JournalLine, Account
+from modules.crm.models import Contact, Lead, Opportunity
+from modules.inventory.models import Product
+from modules.hcm.models import Employee
+from datetime import datetime, timedelta
+import sqlalchemy as sa
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
 @dashboard_bp.route('/summary', methods=['GET'])
 def get_dashboard_summary():
-    """Get dashboard summary data"""
-    return jsonify({
-        'status': 'success',
-        'data': {
-            'totalRevenue': 1250000,
-            'totalOrders': 1250,
-            'totalCustomers': 850,
-            'totalProducts': 450,
-            'totalEmployees': 120,
-            'totalLeads': 250,
-            'totalOpportunities': 75,
-            'systemStatus': 'operational',
-            'recentActivity': [
-                {'type': 'order', 'message': 'New order #1234 received', 'time': '2 minutes ago'},
-                {'type': 'customer', 'message': 'New customer registered', 'time': '5 minutes ago'},
-                {'type': 'payment', 'message': 'Payment processed for order #1233', 'time': '10 minutes ago'}
-            ]
-        },
-        'message': 'Dashboard summary ready'
-    })
+    """Get dashboard summary data with real calculations"""
+    try:
+        # Calculate total revenue from journal entries
+        revenue_query = current_app.db.session.query(
+            sa.func.sum(JournalLine.amount).label('total_revenue')
+        ).join(JournalEntry).join(Account).filter(
+            Account.account_type == 'revenue'
+        ).scalar()
+        total_revenue = float(revenue_query) if revenue_query else 0.0
+
+        # Get counts from database
+        total_customers = Contact.query.filter_by(contact_type='customer').count()
+        total_leads = Lead.query.count()
+        total_opportunities = Opportunity.query.count()
+        total_products = Product.query.count()
+        total_employees = Employee.query.count()
+
+        # Get recent activities (last 7 days)
+        recent_activities = []
+        
+        # Recent contacts
+        recent_contacts = Contact.query.order_by(Contact.created_at.desc()).limit(3).all()
+        for contact in recent_contacts:
+            recent_activities.append({
+                'type': 'customer',
+                'message': f'New {contact.contact_type} added: {contact.first_name} {contact.last_name}',
+                'time': contact.created_at.strftime('%Y-%m-%d %H:%M') if contact.created_at else 'Unknown'
+            })
+
+        # Recent products
+        recent_products = Product.query.order_by(Product.created_at.desc()).limit(3).all()
+        for product in recent_products:
+            recent_activities.append({
+                'type': 'product',
+                'message': f'New product added: {product.name}',
+                'time': product.created_at.strftime('%Y-%m-%d %H:%M') if product.created_at else 'Unknown'
+            })
+
+        # Recent journal entries
+        recent_entries = JournalEntry.query.order_by(JournalEntry.created_at.desc()).limit(3).all()
+        for entry in recent_entries:
+            recent_activities.append({
+                'type': 'finance',
+                'message': f'Journal entry created: {entry.reference}',
+                'time': entry.created_at.strftime('%Y-%m-%d %H:%M') if entry.created_at else 'Unknown'
+            })
+
+        # Sort activities by time (most recent first)
+        recent_activities.sort(key=lambda x: x['time'], reverse=True)
+        recent_activities = recent_activities[:5]  # Limit to 5 most recent
+
+        return jsonify({
+            'status': 'success',
+            'data': {
+                'totalRevenue': total_revenue,
+                'totalCustomers': total_customers,
+                'totalLeads': total_leads,
+                'totalOpportunities': total_opportunities,
+                'totalProducts': total_products,
+                'totalEmployees': total_employees,
+                'systemStatus': 'operational',
+                'recentActivity': recent_activities
+            },
+            'message': 'Dashboard summary ready'
+        })
+    except Exception as e:
+        print(f"Error fetching dashboard data: {e}")
+        return jsonify({
+            'status': 'error',
+            'data': {
+                'totalRevenue': 0,
+                'totalCustomers': 0,
+                'totalLeads': 0,
+                'totalOpportunities': 0,
+                'totalProducts': 0,
+                'totalEmployees': 0,
+                'systemStatus': 'operational',
+                'recentActivity': []
+            },
+            'message': 'Dashboard data unavailable'
+        }), 500
