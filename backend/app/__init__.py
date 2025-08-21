@@ -64,6 +64,21 @@ def create_app(config_name='development'):
     except Exception as e:
         print(f"Warning: Could not initialize modules: {e}")
     
+    # Add root endpoint
+    @app.route('/')
+    def root():
+        return jsonify({
+            "message": "EdonuOps ERP Backend API",
+            "status": "running",
+            "version": "1.0.0",
+            "endpoints": {
+                "health": "/health",
+                "test": "/test",
+                "api": "/api"
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }), 200
+    
     # Add test endpoint
     @app.route('/test')
     def test():
