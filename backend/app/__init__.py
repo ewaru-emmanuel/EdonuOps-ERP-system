@@ -268,11 +268,6 @@ def register_blueprints(app):
         print(f"Warning: Could not import cross-module integration blueprint: {e}")
     
     # Load all new modules
-    try:
-        from modules.inventory.valuation import inventory_valuation
-        print("✓ Inventory Valuation Engine loaded")
-    except ImportError as e:
-        print(f"Warning: Could not import inventory valuation: {e}")
     
     try:
         from modules.integration.auto_journal import auto_journal_engine
@@ -339,12 +334,7 @@ def register_blueprints(app):
     except ImportError as e:
         print(f"Warning: Could not import inventory analytics routes: {e}")
     
-    try:
-        from modules.inventory.data_integrity_routes import data_integrity_bp
-        app.register_blueprint(data_integrity_bp, url_prefix='/api/inventory/data-integrity')
-        print("✓ Data Integrity API loaded")
-    except ImportError as e:
-        print(f"Warning: Could not import data integrity routes: {e}")
+
     
     try:
         from modules.inventory.core_routes import core_inventory_bp

@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 import json
 
 # Import all the new modules
-from modules.inventory.valuation import inventory_valuation
 from modules.integration.auto_journal import auto_journal_engine
 from modules.integration.cogs_reconciliation import cogs_reconciliation
 from modules.inventory.adjustments import stock_adjustment
@@ -20,57 +19,57 @@ from modules.workflows.approval_engine import approval_workflow
 cross_module_bp = Blueprint('cross_module', __name__)
 
 # ============================================================================
-# INVENTORY VALUATION ENDPOINTS
+# INVENTORY VALUATION ENDPOINTS (DISABLED - MODULE NOT AVAILABLE)
 # ============================================================================
 
-@cross_module_bp.route('/inventory/valuation/calculate', methods=['POST'])
-def calculate_inventory_value():
-    """Calculate inventory value using specified valuation method"""
-    try:
-        data = request.get_json()
-        item_id = data.get('item_id')
-        method = data.get('method', 'fifo')
-        as_of_date = data.get('as_of_date')
-        
-        if as_of_date:
-            as_of_date = datetime.fromisoformat(as_of_date.replace('Z', '+00:00'))
-        
-        result = inventory_valuation.get_inventory_value(item_id, method, as_of_date)
-        
-        return jsonify({
-            'success': True,
-            'data': result
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 400
+# @cross_module_bp.route('/inventory/valuation/calculate', methods=['POST'])
+# def calculate_inventory_value():
+#     """Calculate inventory value using specified valuation method"""
+#     try:
+#         data = request.get_json()
+#         item_id = data.get('item_id')
+#         method = data.get('method', 'fifo')
+#         as_of_date = data.get('as_of_date')
+#         
+#         if as_of_date:
+#             as_of_date = datetime.fromisoformat(as_of_date.replace('Z', '+00:00'))
+#         
+#         result = inventory_valuation.get_inventory_value(item_id, method, as_of_date)
+#         
+#         return jsonify({
+#             'success': True,
+#             'data': result
+#         })
+#     except Exception as e:
+#         return jsonify({
+#             'success': False,
+#             'error': str(e)
+#         }), 400
 
-@cross_module_bp.route('/inventory/valuation/cogs', methods=['POST'])
-def calculate_cogs():
-    """Calculate Cost of Goods Sold for a sale"""
-    try:
-        data = request.get_json()
-        item_id = data.get('item_id')
-        quantity = data.get('quantity', 0)
-        method = data.get('method', 'fifo')
-        sale_date = data.get('sale_date')
-        
-        if sale_date:
-            sale_date = datetime.fromisoformat(sale_date.replace('Z', '+00:00'))
-        
-        result = inventory_valuation.calculate_cogs_for_sale(item_id, quantity, method, sale_date)
-        
-        return jsonify({
-            'success': True,
-            'data': result
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 400
+# @cross_module_bp.route('/inventory/valuation/cogs', methods=['POST'])
+# def calculate_cogs():
+#     """Calculate Cost of Goods Sold for a sale"""
+#     try:
+#         data = request.get_json()
+#         item_id = data.get('item_id')
+#         quantity = data.get('quantity', 0)
+#         method = data.get('method', 'fifo')
+#         sale_date = data.get('sale_date')
+#         
+#         if sale_date:
+#             sale_date = datetime.fromisoformat(sale_date.replace('Z', '+00:00'))
+#         
+#         result = inventory_valuation.calculate_cogs_for_sale(item_id, quantity, method, sale_date)
+#         
+#         return jsonify({
+#             'success': True,
+#             'data': result
+#         })
+#     except Exception as e:
+#         return jsonify({
+#             'success': False,
+#             'error': str(e)
+#         }), 400
 
 # ============================================================================
 # AUTOMATED JOURNAL ENTRY ENDPOINTS
