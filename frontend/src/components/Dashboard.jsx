@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useCurrency } from './GlobalCurrencySettings';
 import { useNavigate } from 'react-router-dom';
+import { useForm, ValidationError } from '@formspree/react';
 import {
   Box,
   Container,
@@ -34,7 +35,9 @@ import {
   Tab,
   Switch,
   FormControlLabel,
-  Divider
+  Divider,
+  TextField,
+  Snackbar
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
@@ -61,6 +64,70 @@ import { useAuth } from '../App';
 import { useUserPreferences } from '../hooks/useUserPreferences';
 import { useVisitorSession } from '../hooks/useVisitorSession';
 
+// Feedback Form Component using Formspree
+const FeedbackForm = () => {
+  const [state, handleSubmit] = useForm("xqadyknr");
+  
+  if (state.succeeded) {
+    return (
+      <Box sx={{ textAlign: 'center', py: 3 }}>
+        <Typography variant="h6" color="success.main" sx={{ fontWeight: 'bold' }}>
+          ✅ Thank you for your feedback!
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          We'll use it to improve EdonuOps for you.
+        </Typography>
+      </Box>
+    );
+  }
+  
+  return (
+    <Box component="form" onSubmit={handleSubmit} sx={{ maxWidth: 600, mx: 'auto' }}>
+      <Grid container spacing={2}>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            fullWidth
+            label="Your Email (optional)"
+            type="email"
+            name="email"
+            placeholder="your@email.com"
+            variant="outlined"
+            size="small"
+          />
+          <ValidationError prefix="Email" field="email" errors={state.errors} />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            fullWidth
+            label="Message"
+            multiline
+            rows={2}
+            name="message"
+            placeholder="Tell us what you think..."
+            variant="outlined"
+            size="small"
+            required
+          />
+          <ValidationError prefix="Message" field="message" errors={state.errors} />
+        </Grid>
+        <Grid item xs={12}>
+          <Box sx={{ textAlign: 'center' }}>
+            <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              disabled={state.submitting}
+              sx={{ px: 4, py: 1.5 }}
+            >
+              {state.submitting ? 'Sending...' : 'Send Feedback'}
+            </Button>
+          </Box>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+};
+
 const Dashboard = () => {
   const { apiClient } = useAuth();
   const navigate = useNavigate();
@@ -77,7 +144,7 @@ const Dashboard = () => {
       id: 'financials',
       name: 'Financials',
       icon: <FinanceIcon sx={{ fontSize: 20 }} />,
-      description: 'Complete financial management suite',
+      description: 'Complete financial management suite (auto-enables Procurement)',
       category: 'Core Business'
     },
     {
@@ -133,7 +200,7 @@ const Dashboard = () => {
       id: 'procurement',
       name: 'Procurement & Purchasing',
       icon: <StoreIcon sx={{ fontSize: 20 }} />,
-      description: 'Streamlined procurement processes',
+      description: 'Streamlined procurement processes (auto-enabled with Finance)',
       category: 'Operations'
     },
     {
@@ -142,13 +209,6 @@ const Dashboard = () => {
       icon: <ProductsIcon sx={{ fontSize: 20 }} />,
       description: 'Professional warehouse operations',
       category: 'Operations'
-    },
-    {
-      id: 'adminsettings',
-      name: 'Administrative Settings',
-      icon: <AdminPanelSettingsIcon sx={{ fontSize: 20 }} />,
-      description: 'System configuration and control',
-      category: 'System'
     },
     {
       id: 'dashboardai',
@@ -171,6 +231,10 @@ const Dashboard = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
+  
+
+  
+
 
   const fetchDashboardData = async () => {
     try {
@@ -192,6 +256,37 @@ const Dashboard = () => {
   const handleRefresh = () => {
     setRefreshing(true);
     fetchDashboardData();
+  };
+
+  // Auto-enable procurement when finance is selected
+  const handleModuleToggle = (moduleId, isEnabled) => {
+    let newModules = [...selectedModules];
+    
+    if (isEnabled) {
+      // Adding a module
+      if (moduleId === 'financials' && !newModules.includes('procurement')) {
+        // Auto-enable procurement when finance is enabled
+        newModules = [...newModules, 'financials', 'procurement'];
+      } else if (moduleId === 'procurement' && !newModules.includes('financials')) {
+        // Auto-enable finance when procurement is enabled
+        newModules = [...newModules, 'procurement', 'financials'];
+      } else if (!newModules.includes(moduleId)) {
+        newModules.push(moduleId);
+      }
+    } else {
+      // Removing a module
+      if (moduleId === 'financials' && newModules.includes('procurement')) {
+        // Auto-disable procurement when finance is disabled
+        newModules = newModules.filter(id => id !== 'financials' && id !== 'procurement');
+      } else if (moduleId === 'procurement' && newModules.includes('financials')) {
+        // Auto-disable finance when procurement is disabled
+        newModules = newModules.filter(id => id !== 'procurement' && id !== 'financials');
+      } else {
+        newModules = newModules.filter(id => id !== moduleId);
+      }
+    }
+    
+    updatePreferences({ selectedModules: newModules });
   };
 
   const handleGettingStarted = (action) => {
@@ -216,6 +311,10 @@ const Dashboard = () => {
     alert('Session refreshed successfully!');
   };
 
+
+
+
+
   if (loading) {
     return (
       <Container maxWidth="xl" sx={{ py: 2 }}>
@@ -239,21 +338,23 @@ const Dashboard = () => {
 
   // Define all available modules with their details
   const quickActionModules = [
-    { id: 'financials', name: 'Add Customer', icon: <PeopleIcon />, color: 'primary', path: '/crm', module: 'crm' },
+    { id: 'crm', name: 'Add Customer', icon: <PeopleIcon />, color: 'primary', path: '/crm', module: 'crm' },
     { id: 'financials', name: 'Create Invoice', icon: <FinanceIcon />, color: 'success', path: '/finance', module: 'financials' },
     { id: 'inventory', name: 'Add Product', icon: <ProductsIcon />, color: 'warning', path: '/inventory', module: 'inventory' },
-    { id: 'erp', name: 'New Order', icon: <OrdersIcon />, color: 'info', path: '/erp', module: 'erp' },
-    { id: 'hcm', name: 'Add Employee', icon: <PeopleIcon />, color: 'secondary', path: '/hcm', module: 'hcm' },
     { id: 'procurement', name: 'Create PO', icon: <StoreIcon />, color: 'warning', path: '/procurement', module: 'procurement' },
+    { id: 'hcm', name: 'Add Employee', icon: <PeopleIcon />, color: 'secondary', path: '/hcm', module: 'hcm' },
     { id: 'sustainability', name: 'ESG Report', icon: <TrendingUpIcon />, color: 'success', path: '/sustainability', module: 'sustainability' },
-    { id: 'ai', name: 'AI Insights', icon: <TrendingUpIcon />, color: 'purple', path: '/ai', module: 'ai' }
+    { id: 'ai', name: 'AI Insights', icon: <PsychologyIcon />, color: 'purple', path: '/ai', module: 'ai' },
+    { id: 'ecommerce', name: 'New Order', icon: <ShoppingCartIcon />, color: 'info', path: '/ecommerce', module: 'ecommerce' }
   ];
 
-  // Filter quick actions based on user's selected modules
-  const quickActions = quickActionModules.filter(action => {
-    if (!hasPreferences) return true; // Show all if no preferences set
-    return isModuleEnabled(action.module);
-  });
+  // Filter quick actions based on user's selected modules and limit to 3
+  const quickActions = quickActionModules
+    .filter(action => {
+      if (!hasPreferences) return true; // Show all if no preferences set
+      return isModuleEnabled(action.module);
+    })
+    .slice(0, 3); // Limit to 3 actions
 
   const systemStatus = [
     { name: 'Database', status: 'Online', color: 'success' },
@@ -281,14 +382,17 @@ const Dashboard = () => {
               gutterBottom 
               sx={{ fontWeight: 'bold' }}
             >
-              Welcome to EdonuOps
+              Dashboard
             </Typography>
             <Typography 
               variant={isMobile ? "body1" : "h6"} 
               color="text.secondary" 
               gutterBottom
             >
-              Enterprise management platform
+              {hasPreferences 
+                ? `Your personalized business overview with ${selectedModules.length} enabled modules`
+                : 'Complete business management platform'
+              }
             </Typography>
           </Box>
           
@@ -307,6 +411,8 @@ const Dashboard = () => {
           >
             <SettingsIcon />
           </IconButton>
+          
+
         </Box>
         
         <Alert severity="success" sx={{ mt: 2 }}>
@@ -355,7 +461,7 @@ const Dashboard = () => {
         {/* Visitor Privacy Status */}
         <Alert severity="info" sx={{ mt: 2 }}>
           <Typography variant="body2">
-            🔒 <strong>Privacy Protected:</strong> Your data is isolated with unique visitor ID: <strong>{visitorId}</strong>
+            🔒 <strong>Privacy Protected:</strong> Your data is completely isolated and private
             {!isSessionValid && (
               <Chip 
                 label="Session Expired" 
@@ -380,7 +486,7 @@ const Dashboard = () => {
                     color="primary" 
                     sx={{ fontWeight: 'bold' }}
                   >
-                    {formatCurrency(data.totalRevenue)}
+                    {data.totalRevenue > 0 ? formatCurrency(data.totalRevenue) : 'No Data'}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Total Revenue
@@ -390,7 +496,9 @@ const Dashboard = () => {
                   <TrendingUpIcon />
                 </Avatar>
               </Box>
-              <LinearProgress variant="determinate" value={75} sx={{ mt: 2 }} />
+              {data.totalRevenue > 0 && (
+                <LinearProgress variant="determinate" value={75} sx={{ mt: 2 }} />
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -405,7 +513,7 @@ const Dashboard = () => {
                     color="primary" 
                     sx={{ fontWeight: 'bold' }}
                   >
-                    {data.totalCustomers}
+                    {data.totalCustomers > 0 ? data.totalCustomers : 'No Data'}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Active Customers
@@ -415,7 +523,9 @@ const Dashboard = () => {
                   <PeopleIcon />
                 </Avatar>
               </Box>
-              <LinearProgress variant="determinate" value={85} sx={{ mt: 2 }} />
+              {data.totalCustomers > 0 && (
+                <LinearProgress variant="determinate" value={85} sx={{ mt: 2 }} />
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -430,7 +540,7 @@ const Dashboard = () => {
                     color="primary" 
                     sx={{ fontWeight: 'bold' }}
                   >
-                    {data.totalProducts}
+                    {data.totalProducts > 0 ? data.totalProducts : 'No Data'}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Total Products
@@ -440,7 +550,9 @@ const Dashboard = () => {
                   <ProductsIcon />
                 </Avatar>
               </Box>
-              <LinearProgress variant="determinate" value={60} sx={{ mt: 2 }} />
+              {data.totalProducts > 0 && (
+                <LinearProgress variant="determinate" value={60} sx={{ mt: 2 }} />
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -455,7 +567,7 @@ const Dashboard = () => {
                     color="primary" 
                     sx={{ fontWeight: 'bold' }}
                   >
-                    {data.totalEmployees}
+                    {data.totalEmployees > 0 ? data.totalEmployees : 'No Data'}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Employees
@@ -465,7 +577,9 @@ const Dashboard = () => {
                   <PeopleIcon />
                 </Avatar>
               </Box>
-              <LinearProgress variant="determinate" value={90} sx={{ mt: 2 }} />
+              {data.totalEmployees > 0 && (
+                <LinearProgress variant="determinate" value={90} sx={{ mt: 2 }} />
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -487,16 +601,16 @@ const Dashboard = () => {
             </Box>
             <Grid container spacing={2}>
               {allModules.map((module) => (
-                <Grid item xs={12} sm={6} md={4} key={module.module}>
+                <Grid item xs={12} sm={6} md={4} key={module.id}>
                   <Box sx={{ 
                     display: 'flex', 
                     alignItems: 'center', 
                     gap: 1,
                     p: 1,
                     borderRadius: 1,
-                    backgroundColor: isModuleEnabled(module.module) ? 'success.light' : 'grey.100',
+                    backgroundColor: isModuleEnabled(module.id) ? 'success.light' : 'grey.100',
                     border: 1,
-                    borderColor: isModuleEnabled(module.module) ? 'success.main' : 'grey.300',
+                    borderColor: isModuleEnabled(module.id) ? 'success.main' : 'grey.300',
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
                     '&:hover': {
@@ -512,13 +626,24 @@ const Dashboard = () => {
                         {module.name}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        {isModuleEnabled(module.module) ? 'Enabled' : 'Click to enable'}
+                        {isModuleEnabled(module.id) ? 'Enabled' : 'Click to enable'}
                       </Typography>
+                      {/* Show auto-enable relationship */}
+                      {module.id === 'procurement' && isModuleEnabled('financials') && (
+                        <Typography variant="caption" color="primary" display="block">
+                          Auto-enabled with Finance
+                        </Typography>
+                      )}
+                      {module.id === 'financials' && isModuleEnabled('procurement') && (
+                        <Typography variant="caption" color="primary" display="block">
+                          Auto-enables Procurement
+                        </Typography>
+                      )}
                     </Box>
                     <Chip 
-                      label={isModuleEnabled(module.module) ? '✓' : '✗'} 
+                      label={isModuleEnabled(module.id) ? '✓' : '✗'} 
                       size="small" 
-                      color={isModuleEnabled(module.module) ? 'success' : 'default'}
+                      color={isModuleEnabled(module.id) ? 'success' : 'default'}
                       variant="outlined"
                     />
                   </Box>
@@ -528,6 +653,9 @@ const Dashboard = () => {
             <Box sx={{ mt: 2, textAlign: 'center' }}>
               <Typography variant="body2" color="text.secondary">
                 💡 Click on any disabled module to enable it through onboarding
+              </Typography>
+              <Typography variant="caption" color="primary" display="block" sx={{ mt: 1 }}>
+                🔗 <strong>Note:</strong> Finance and Procurement are linked - enabling one automatically enables the other
               </Typography>
             </Box>
           </CardContent>
@@ -542,31 +670,47 @@ const Dashboard = () => {
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
                 Quick Actions
               </Typography>
-              <Grid container spacing={1}>
-                {quickActions.map((action, index) => (
-                  <Grid item xs={6} key={index}>
-                    <Button
-                      variant="outlined"
-                      startIcon={action.icon}
-                      fullWidth
-                      onClick={() => navigate(action.path)}
-                      sx={{ 
-                        justifyContent: 'flex-start',
-                        borderColor: `${action.color}.main`,
-                        color: `${action.color}.main`,
-                        fontSize: { xs: '0.75rem', md: '0.875rem' },
-                        py: { xs: 1, md: 1.5 },
-                        '&:hover': {
-                          borderColor: `${action.color}.dark`,
-                          backgroundColor: `${action.color}.light`,
-                        }
-                      }}
-                    >
-                      {action.name}
-                    </Button>
-                  </Grid>
-                ))}
-              </Grid>
+              {quickActions.length > 0 ? (
+                <Grid container spacing={1}>
+                  {quickActions.map((action, index) => (
+                    <Grid item xs={12} key={index}>
+                      <Button
+                        variant="outlined"
+                        startIcon={action.icon}
+                        fullWidth
+                        onClick={() => navigate(action.path)}
+                        sx={{ 
+                          justifyContent: 'flex-start',
+                          borderColor: `${action.color}.main`,
+                          color: `${action.color}.main`,
+                          fontSize: { xs: '0.75rem', md: '0.875rem' },
+                          py: { xs: 1, md: 1.5 },
+                          '&:hover': {
+                            borderColor: `${action.color}.dark`,
+                            backgroundColor: `${action.color}.light`,
+                          }
+                        }}
+                      >
+                        {action.name}
+                      </Button>
+                    </Grid>
+                  ))}
+                </Grid>
+              ) : (
+                <Box sx={{ textAlign: 'center', py: 2 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    No modules enabled. Enable modules in onboarding to see quick actions.
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    sx={{ mt: 1 }}
+                    onClick={() => navigate('/onboarding')}
+                  >
+                    Go to Onboarding
+                  </Button>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -709,6 +853,20 @@ const Dashboard = () => {
         </Grid>
       </Grid>
 
+      {/* Feedback Form */}
+      <Card elevation={2} sx={{ mb: 4 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', textAlign: 'center', mb: 3 }}>
+            💬 We'd Love Your Feedback
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mb: 3 }}>
+            Help us improve EdonuOps for your business needs
+          </Typography>
+          
+          <FeedbackForm />
+        </CardContent>
+      </Card>
+
       {/* Footer */}
       <Box sx={{ mt: 4, textAlign: 'center' }}>
         <Typography variant="body2" color="text.secondary">
@@ -721,15 +879,7 @@ const Dashboard = () => {
           <Chip label="Enterprise Grade" size="small" color="primary" />
         </Box>
         
-        {/* Visitor Session Info */}
-        <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 2, display: 'inline-block' }}>
-          <Typography variant="caption" color="text.secondary">
-            <strong>Visitor Session:</strong> {visitorId} | Session: {sessionId}
-          </Typography>
-          <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
-            Your data is completely isolated from other visitors
-          </Typography>
-        </Box>
+
       </Box>
 
       {/* Settings Dialog */}
@@ -794,15 +944,7 @@ const Dashboard = () => {
                           control={
                             <Switch
                               checked={selectedModules.includes(module.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  const newModules = [...selectedModules, module.id];
-                                  updatePreferences({ selectedModules: newModules });
-                                } else {
-                                  const newModules = selectedModules.filter(id => id !== module.id);
-                                  updatePreferences({ selectedModules: newModules });
-                                }
-                              }}
+                              onChange={(e) => handleModuleToggle(module.id, e.target.checked)}
                               color="primary"
                             />
                           }
@@ -951,6 +1093,13 @@ const Dashboard = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+
+
+
+
+      {/* Success Notifications */}
+
     </Container>
   );
 };

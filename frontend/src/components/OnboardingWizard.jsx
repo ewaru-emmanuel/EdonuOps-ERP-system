@@ -501,22 +501,11 @@ const OnboardingWizard = () => {
         {/* Header */}
         <Box sx={{ textAlign: 'center', mb: 4 }}>
           <Typography variant="h3" component="h1" sx={{ fontWeight: 'bold', mb: 2 }}>
-            Welcome to EdonuOps! 🚀
+            Welcome to EdonuOps!
           </Typography>
           <Typography variant="body1" color="text.secondary">
             Let's get your business set up in just a few minutes
           </Typography>
-          
-          {visitorId && (
-            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 2, display: 'inline-block' }}>
-              <Typography variant="caption" color="text.secondary">
-                Your unique visitor ID: <strong>{visitorId}</strong>
-              </Typography>
-              <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
-                This ensures your data stays private and separate from other visitors
-              </Typography>
-            </Box>
-          )}
         </Box>
 
         {/* Stepper */}

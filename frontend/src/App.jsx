@@ -1,5 +1,5 @@
 import React, { useState, createContext, useContext, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { CurrencyProvider, useCurrency } from './components/GlobalCurrencySettings';
 import {
   AppBar,
@@ -21,7 +21,15 @@ import {
   Menu,
   MenuItem,
   Divider,
-  Chip
+  Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
+  Snackbar,
+  Alert
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -39,7 +47,8 @@ import {
   Psychology as PsychologyIcon,
   Nature as NatureIcon,
   CurrencyExchange as CurrencyIcon,
-  ShoppingCart
+  ShoppingCart,
+  AdminPanelSettings as AdminPanelSettingsIcon
 } from '@mui/icons-material';
 
 // Import components
@@ -55,9 +64,7 @@ import EcommerceModule from './modules/ecommerce/EcommerceModule';
 import AIModule from './modules/ai/AIModule';
 import SustainabilityModule from './modules/sustainability/SustainabilityModule';
 import ProcurementModule from './modules/erp/procurement/ProcurementModule';
-import LandingPage from './components/LandingPage';
 import OnboardingWizard from './components/OnboardingWizard';
-import MagicDashboard from './components/MagicDashboard';
 
 // Import API service
 import { initializeERPApiService } from './services/erpApiService';
@@ -120,20 +127,20 @@ const AppContent = () => {
   return (
     <Box sx={{ display: 'flex' }}>
       <Navigation />
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          p: { xs: 2, md: 3 },
-          mt: (location.pathname === '/' || location.pathname === '/onboarding') ? 0 : { xs: 7, md: 8 },
-          minHeight: '100vh',
-          backgroundColor: (location.pathname === '/' || location.pathname === '/onboarding') ? 'transparent' : 'grey.50'
-        }}
-      >
+              <Box
+          component="main"
+          sx={{
+            flexGrow: 1,
+            p: { xs: 2, md: 3 },
+            mt: location.pathname === '/onboarding' ? 0 : { xs: 7, md: 8 },
+            minHeight: '100vh',
+            backgroundColor: location.pathname === '/onboarding' ? 'transparent' : 'grey.50'
+          }}
+        >
         <Routes>
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={<Dashboard />} />
           <Route path="/onboarding" element={<OnboardingWizard />} />
-          <Route path="/dashboard" element={<MagicDashboard />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/finance" element={<FinanceModule />} />
           <Route path="/crm" element={<CRMModule />} />
           <Route path="/procurement" element={<ProcurementModule />} />
@@ -145,7 +152,7 @@ const AppContent = () => {
           <Route path="/ai" element={<AIModule />} />
           <Route path="/sustainability" element={<SustainabilityModule />} />
           {/* Catch-all route for direct URL access */}
-          <Route path="*" element={<LandingPage />} />
+          <Route path="*" element={<Dashboard />} />
         </Routes>
       </Box>
     </Box>
@@ -155,20 +162,25 @@ const AppContent = () => {
 // Navigation Component
 const Navigation = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuAnchor, setUserMenuAnchor] = useState(null);
+  const [waitingListOpen, setWaitingListOpen] = useState(false);
+  const [waitingListEmail, setWaitingListEmail] = useState('');
+  const [waitingListLoading, setWaitingListLoading] = useState(false);
+  const [waitingListSuccess, setWaitingListSuccess] = useState(false);
   const { logout } = useAuth();
   const { baseCurrency, setShowChangeDialog } = useCurrency();
   const { isModuleEnabled, hasPreferences } = useUserPreferences();
 
-  // Hide navigation on landing page and onboarding
-  const hideNavigation = location.pathname === '/' || location.pathname === '/onboarding';
+  // Hide navigation only on onboarding
+  const hideNavigation = location.pathname === '/onboarding';
 
   // Define all navigation links with their module IDs
   const allNavLinks = [
-    { name: 'Dashboard', path: '/', icon: <DashboardIcon />, moduleId: 'dashboard' },
+    { name: 'Dashboard', path: '/dashboard', icon: <DashboardIcon />, moduleId: 'dashboard' },
     { name: 'Finance', path: '/finance', icon: <FinanceIcon />, moduleId: 'financials' },
     { name: 'CRM', path: '/crm', icon: <CRMIcon />, moduleId: 'crm' },
     { name: 'Procurement', path: '/procurement', icon: <ShoppingCart />, moduleId: 'procurement' },
@@ -177,7 +189,7 @@ const Navigation = () => {
     { name: 'E-commerce', path: '/ecommerce', icon: <StoreIcon />, moduleId: 'ecommerce' },
     { name: 'AI Intelligence', path: '/ai', icon: <PsychologyIcon />, moduleId: 'ai' },
     { name: 'Sustainability', path: '/sustainability', icon: <NatureIcon />, moduleId: 'sustainability' },
-    { name: '📦 Inventory', path: '/inventory', icon: <InventoryIcon />, moduleId: 'inventory' },
+    { name: ' Inventory', path: '/inventory', icon: <InventoryIcon />, moduleId: 'inventory' },
     { name: '🏭 Warehouse', path: '/warehouse', icon: <InventoryIcon />, moduleId: 'inventorywms' }
   ];
 
@@ -198,6 +210,37 @@ const Navigation = () => {
 
   const handleUserMenuClose = () => {
     setUserMenuAnchor(null);
+  };
+
+  const handleWaitingListSubmit = async (e) => {
+    e.preventDefault();
+    setWaitingListLoading(true);
+    
+    try {
+      const response = await fetch('https://formspree.io/f/xqadyknr', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: waitingListEmail,
+          type: 'Waiting List Signup',
+          visitorId: 'navigation-user'
+        }),
+      });
+      
+      if (response.ok) {
+        setWaitingListSuccess(true);
+        setWaitingListEmail('');
+        setWaitingListOpen(false);
+      } else {
+        throw new Error('Failed to join waiting list');
+      }
+    } catch (error) {
+      console.error('Error joining waiting list:', error);
+    } finally {
+      setWaitingListLoading(false);
+    }
   };
 
   const handleLogout = () => {
@@ -275,12 +318,26 @@ const Navigation = () => {
           </Typography>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Chip 
-              label="Ready to Use" 
-              color="success" 
-              size="small" 
-              variant="outlined"
-            />
+            <Button
+              variant="contained"
+              onClick={() => setWaitingListOpen(true)}
+              sx={{
+                bgcolor: '#FFD700',
+                color: '#8B4513',
+                '&:hover': {
+                  bgcolor: '#FFA500',
+                },
+                px: 2,
+                py: 0.5,
+                fontWeight: 'bold',
+                fontSize: '0.75rem',
+                boxShadow: 1,
+                height: 32
+              }}
+              title="Join our exclusive waiting list"
+            >
+              Join Waiting List
+            </Button>
             <Chip
               label={baseCurrency}
               color="primary"
@@ -321,11 +378,23 @@ const Navigation = () => {
           </ListItemIcon>
           Profile
         </MenuItem>
-        <MenuItem>
+        <MenuItem onClick={() => {
+          handleUserMenuClose();
+          navigate('/dashboard');
+        }}>
           <ListItemIcon>
             <SettingsIcon fontSize="small" />
           </ListItemIcon>
-          Settings
+          Dashboard Settings
+        </MenuItem>
+        <MenuItem onClick={() => {
+          handleUserMenuClose();
+          navigate('/dashboard');
+        }}>
+          <ListItemIcon>
+            <AdminPanelSettingsIcon fontSize="small" />
+          </ListItemIcon>
+          Administrative Settings
         </MenuItem>
         <Divider />
         <MenuItem onClick={handleLogout}>
@@ -354,6 +423,66 @@ const Navigation = () => {
       >
         {drawer}
       </Drawer>
+
+      {/* Waiting List Dialog */}
+      <Dialog 
+        open={waitingListOpen} 
+        onClose={() => setWaitingListOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          🚀 Join Our Exclusive Waiting List
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Be among the first to experience the next generation of EdonuOps features and get early access to premium modules.
+          </Typography>
+          
+          <Box component="form" onSubmit={handleWaitingListSubmit}>
+            <TextField
+              fullWidth
+              label="Your Email Address"
+              type="email"
+              value={waitingListEmail}
+              onChange={(e) => setWaitingListEmail(e.target.value)}
+              placeholder="your@email.com"
+              variant="outlined"
+              required
+              sx={{ mb: 2 }}
+            />
+            
+            <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
+              We'll notify you about new features, updates, and exclusive offers.
+            </Typography>
+          </Box>
+        </DialogContent>
+        
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={() => setWaitingListOpen(false)}>
+            Cancel
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={handleWaitingListSubmit}
+            disabled={waitingListLoading || !waitingListEmail.trim()}
+          >
+            {waitingListLoading ? 'Joining...' : 'Join Waiting List'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Success Notifications */}
+      <Snackbar
+        open={waitingListSuccess}
+        autoHideDuration={6000}
+        onClose={() => setWaitingListSuccess(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setWaitingListSuccess(false)} severity="success" sx={{ width: '100%' }}>
+          🎉 Welcome to the waiting list! We'll keep you updated on new features.
+        </Alert>
+      </Snackbar>
     </>
   );
 };
