@@ -140,6 +140,7 @@ const GLLineItems = ({ lineItems, onChange, onAdd, onRemove, readOnly = false })
                 onInputChange={(_, value) => handleAccountSearch(value)}
                 disabled={readOnly}
                 loading={loadingAccounts || suggestionsLoading}
+                isOptionEqualToValue={(option, value) => option === value}
                 renderInput={(params) => (
                   <TextField
                     {...params}
@@ -205,6 +206,7 @@ const GLLineItems = ({ lineItems, onChange, onAdd, onRemove, readOnly = false })
                       value={line.dimensions?.[dimId] || null}
                       onChange={(_, newVal) => handleDimensionChange(idx, dimId, newVal)}
                       disabled={readOnly}
+                      isOptionEqualToValue={(option, value) => option === value}
                       renderInput={(params) => (
                         <TextField
                           {...params}
@@ -247,6 +249,7 @@ const GLLineItems = ({ lineItems, onChange, onAdd, onRemove, readOnly = false })
                   onInputChange={(_, value) => searchSourceDocs(value)}
                   disabled={readOnly}
                   loading={loadingDocs}
+                  isOptionEqualToValue={(option, value) => option.id === value?.id}
                   renderInput={(params) => (
                     <TextField
                       {...params}

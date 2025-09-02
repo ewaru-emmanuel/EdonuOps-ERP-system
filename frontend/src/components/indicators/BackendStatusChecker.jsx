@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Alert, Button, Box, Typography } from '@mui/material';
 import { Refresh, CheckCircle, Error } from '@mui/icons-material';
+import apiClient from '../../services/apiClient';
 
 const BackendStatusChecker = () => {
   const [status, setStatus] = useState('checking');
@@ -14,49 +15,19 @@ const BackendStatusChecker = () => {
       console.log('🔍 Checking backend health...');
       
       // Check if backend is running
-      const healthResponse = await fetch('http://127.0.0.1:5000/health', {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-
-      if (healthResponse.ok) {
-        const healthData = await healthResponse.json();
-        console.log('✅ Backend health check successful:', healthData);
-        
-        // Test a finance endpoint
-        const financeResponse = await fetch('http://127.0.0.1:5000/finance/ar', {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-          },
-        });
-
-        if (financeResponse.ok) {
-          const financeData = await financeResponse.json();
-          console.log('✅ Finance endpoint test successful:', financeData);
-          setStatus('success');
-          setMessage(`Backend is running and responsive. Finance endpoints working. (${financeData.length} records available)`);
-        } else {
-          console.error('❌ Finance endpoint failed:', financeResponse.status);
-          setStatus('warning');
-          setMessage(`Backend is running but finance endpoints returning ${financeResponse.status}. Check backend logs.`);
-        }
-      } else {
-        console.error('❌ Backend health check failed:', healthResponse.status);
-        setStatus('error');
-        setMessage(`Backend responded with ${healthResponse.status}. Check if backend is configured correctly.`);
-      }
+      const healthData = await apiClient.healthCheck();
+      console.log('✅ Backend health check successful:', healthData);
+      
+      // Test a finance endpoint
+      const financeData = await apiClient.get('/finance/ar');
+      console.log('✅ Finance endpoint test successful:', financeData);
+      setStatus('success');
+      setMessage(`Backend is running and responsive. Finance endpoints working. (${financeData.length} records available)`);
     } catch (error) {
       console.error('❌ Backend connection failed:', error);
       setStatus('error');
       
-      if (error.message.includes('fetch')) {
-        setMessage('Cannot connect to backend. Please ensure backend is running on http://127.0.0.1:5000');
-      } else {
-        setMessage(`Connection error: ${error.message}`);
-      }
+      setMessage('Cannot connect to backend. Please ensure backend is running.');
     }
   };
 

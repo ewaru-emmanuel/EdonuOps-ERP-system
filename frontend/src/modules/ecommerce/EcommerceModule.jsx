@@ -21,7 +21,9 @@ import {
   Alert,
   LinearProgress,
   Avatar,
-  Snackbar
+  Snackbar,
+  useMediaQuery,
+  useTheme
 } from '@mui/material';
 import {
   ShoppingCart as ShoppingCartIcon,
@@ -40,6 +42,10 @@ import DetailViewModal from '../../components/DetailViewModal';
 import { useRealTimeData } from '../../hooks/useRealTimeData';
 
 const EcommerceModule = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
+  
   const [activeTab, setActiveTab] = useState(0);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [formOpen, setFormOpen] = useState(false);
@@ -133,18 +139,18 @@ const EcommerceModule = () => {
   };
 
   return (
-    <Container maxWidth="xl">
+    <Container maxWidth="xl" sx={{ p: { xs: 2, md: 3 } }}>
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Box display="flex" alignItems="center" gap={2} mb={2}>
-          <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56 }}>
+      <Box sx={{ mb: { xs: 3, md: 4 } }}>
+        <Box display="flex" alignItems="center" gap={2} mb={2} flexDirection={isMobile ? "column" : "row"}>
+          <Avatar sx={{ bgcolor: 'primary.main', width: { xs: 48, md: 56 }, height: { xs: 48, md: 56 } }}>
             <StoreIcon />
           </Avatar>
           <Box>
-            <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
+            <Typography variant={isMobile ? "h5" : "h4"} component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
               E-commerce Platform
             </Typography>
-            <Typography variant="h6" color="text.secondary">
+            <Typography variant={isMobile ? "body1" : "h6"} color="text.secondary">
               Complete online store with product management, order processing & customer analytics
             </Typography>
           </Box>
@@ -161,20 +167,20 @@ const EcommerceModule = () => {
       </Box>
 
       {/* E-commerce Metrics */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
+      <Grid container spacing={2} sx={{ mb: { xs: 3, md: 4 } }}>
         <Grid item xs={12} sm={6} md={3}>
           <Card elevation={2}>
-            <CardContent>
+            <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
-                  <Typography variant="h4" color="primary" sx={{ fontWeight: 'bold' }}>
+                  <Typography variant={isMobile ? "h5" : "h4"} color="primary" sx={{ fontWeight: 'bold' }}>
                     ${(analytics.totalRevenue / 1000).toFixed(1)}K
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Total Revenue
                   </Typography>
                 </Box>
-                <Avatar sx={{ bgcolor: 'success.main' }}>
+                <Avatar sx={{ bgcolor: 'success.main', width: { xs: 32, md: 40 }, height: { xs: 32, md: 40 } }}>
                   <MonetizationIcon />
                 </Avatar>
               </Box>

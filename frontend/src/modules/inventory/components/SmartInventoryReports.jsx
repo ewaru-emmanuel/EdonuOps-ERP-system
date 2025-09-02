@@ -1,0 +1,257 @@
+import React, { useState } from 'react';
+import {
+  Box, Typography, Paper, Grid, Card, CardContent, Button, Chip,
+  Alert, CircularProgress, FormControl, InputLabel, Select, MenuItem
+} from '@mui/material';
+import {
+  Assessment as AssessmentIcon,
+  TrendingUp as TrendingUpIcon,
+  Warning as WarningIcon,
+  CheckCircle as CheckCircleIcon,
+  Download as DownloadIcon
+} from '@mui/icons-material';
+import { useRealTimeData } from '../../../hooks/useRealTimeData';
+
+const SmartInventoryReports = () => {
+  const [selectedReport, setSelectedReport] = useState('overview');
+  const { data: kpis, loading: kpisLoading } = useRealTimeData('/api/inventory/core/reports/kpis');
+  const { data: stockLevels, loading: stockLoading } = useRealTimeData('/api/inventory/core/reports/stock-levels');
+  const { data: trends, loading: trendsLoading } = useRealTimeData('/api/inventory/core/reports/trends');
+
+  const loading = kpisLoading || stockLoading || trendsLoading;
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  return (
+    <Box>
+      {/* Header */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" gutterBottom>
+          Inventory Reports
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Track performance and analyze your inventory data
+        </Typography>
+      </Box>
+
+      {/* Report Type Selector */}
+      <Box sx={{ mb: 3 }}>
+        <FormControl sx={{ minWidth: 200 }}>
+          <InputLabel>Report Type</InputLabel>
+          <Select
+            value={selectedReport}
+            label="Report Type"
+            onChange={(e) => setSelectedReport(e.target.value)}
+          >
+            <MenuItem value="overview">Overview Dashboard</MenuItem>
+            <MenuItem value="stock">Stock Levels Report</MenuItem>
+            <MenuItem value="trends">Trends Analysis</MenuItem>
+            <MenuItem value="low-stock">Low Stock Report</MenuItem>
+          </Select>
+        </FormControl>
+      </Box>
+
+      {/* Overview Dashboard */}
+      {selectedReport === 'overview' && (
+        <Grid container spacing={3}>
+          {/* KPIs */}
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Key Performance Indicators
+                </Typography>
+                <Grid container spacing={3}>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="h4" color="primary">
+                        {kpis?.total_products || 0}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Total Products
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="h4" color="success.main">
+                        ${(kpis?.total_stock_value || 0).toLocaleString()}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Total Stock Value
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="h4" color="warning.main">
+                        {kpis?.low_stock_items || 0}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Low Stock Items
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="h4" color="info.main">
+                        {kpis?.turnover_rate || 0}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Turnover Rate
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Performance Metrics */}
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Performance Metrics
+                </Typography>
+                <Box sx={{ mb: 2 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Stock Accuracy</Typography>
+                    <Typography variant="body2" fontWeight="bold">
+                      {kpis?.stock_accuracy || 0}%
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Order Fulfillment</Typography>
+                    <Typography variant="body2" fontWeight="bold">
+                      {kpis?.order_fulfillment_rate || 0}%
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">Warehouse Utilization</Typography>
+                    <Typography variant="body2" fontWeight="bold">
+                      {kpis?.warehouse_utilization || 0}%
+                    </Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Recent Activity */}
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Recent Activity
+                </Typography>
+                <Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <CheckCircleIcon sx={{ color: 'success.main', mr: 1, fontSize: 16 }} />
+                    <Typography variant="body2">
+                      Stock count completed for 15 items
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <WarningIcon sx={{ color: 'warning.main', mr: 1, fontSize: 16 }} />
+                    <Typography variant="body2">
+                      3 items reached reorder point
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <TrendingUpIcon sx={{ color: 'info.main', mr: 1, fontSize: 16 }} />
+                    <Typography variant="body2">
+                      Inventory value increased by 12%
+                    </Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* Stock Levels Report */}
+      {selectedReport === 'stock' && (
+        <Card>
+          <CardContent>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6">
+                Stock Levels Report
+              </Typography>
+              <Button startIcon={<DownloadIcon />} variant="outlined">
+                Export Report
+              </Button>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              {stockLevels?.length || 0} products in inventory
+            </Typography>
+            {/* Stock levels table would go here */}
+            <Typography variant="body2" color="text.secondary">
+              Detailed stock levels report with current quantities, reorder points, and status.
+            </Typography>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Trends Analysis */}
+      {selectedReport === 'trends' && (
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Inventory Trends
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Analyze inventory movement patterns and trends over time.
+            </Typography>
+            {/* Trends chart would go here */}
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <TrendingUpIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+              <Typography variant="h6" color="text.secondary">
+                Trends Analysis
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                View inventory movement trends and patterns
+              </Typography>
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Low Stock Report */}
+      {selectedReport === 'low-stock' && (
+        <Card>
+          <CardContent>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6">
+                Low Stock Report
+              </Typography>
+              <Chip label={`${kpis?.low_stock_items || 0} items`} color="warning" />
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Products that have reached or fallen below their reorder points.
+            </Typography>
+            {/* Low stock items table would go here */}
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <WarningIcon sx={{ fontSize: 48, color: 'warning.main', mb: 2 }} />
+              <Typography variant="h6" color="warning.main">
+                Low Stock Items
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {kpis?.low_stock_items || 0} items need reordering
+              </Typography>
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+    </Box>
+  );
+};
+
+export default SmartInventoryReports;

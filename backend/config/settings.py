@@ -63,10 +63,19 @@ class Config:
 
 class DevelopmentConfig(Config):
     DEBUG = True
-    SQLALCHEMY_DATABASE_URI = os.getenv('DEV_DATABASE_URL', 'sqlite:///edonuops.db')
+    # Use absolute path for SQLite database
+    import os
+    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'edonuops.db')
+    SQLALCHEMY_DATABASE_URI = os.getenv('DEV_DATABASE_URL', f'sqlite:///{db_path}')
     REDIS_URL = os.getenv('DEV_REDIS_URL', 'redis://localhost:6379/1')
-    # Remove pool settings for SQLite
-    SQLALCHEMY_ENGINE_OPTIONS = {}
+    # SQLite-specific settings for proper transaction handling
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'isolation_level': 'SERIALIZABLE',  # Highest isolation level
+        'connect_args': {
+            'timeout': 30,  # Connection timeout
+            'check_same_thread': False,  # Allow multi-threading
+        }
+    }
 
 class ProductionConfig(Config):
     DEBUG = False

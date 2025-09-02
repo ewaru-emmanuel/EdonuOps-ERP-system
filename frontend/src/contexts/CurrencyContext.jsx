@@ -35,7 +35,7 @@ export const CurrencyProvider = ({ children }) => {
   });
 
   // Base API URL
-  const API_BASE = 'http://127.0.0.1:5000/api/currency';
+  import apiClient from '../services/apiClient';
 
   // Save preferences to localStorage
   useEffect(() => {
@@ -45,19 +45,8 @@ export const CurrencyProvider = ({ children }) => {
   // API call helper
   const apiCall = useCallback(async (endpoint, options = {}) => {
     try {
-      const response = await fetch(`${API_BASE}${endpoint}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers
-        },
-        ...options
-      });
-      
-      if (!response.ok) {
-        throw new Error(`API call failed: ${response.status}`);
-      }
-      
-      return await response.json();
+      const response = await apiClient.get(`/api/currency${endpoint}`, options);
+      return response;
     } catch (error) {
       console.error(`Currency API Error (${endpoint}):`, error);
       throw error;
@@ -135,14 +124,11 @@ export const CurrencyProvider = ({ children }) => {
   // Convert amount with API call for accuracy (for important conversions)
   const convertAmountAPI = useCallback(async (amount, fromCurrency, toCurrency) => {
     try {
-      const response = await apiCall('/convert', {
-        method: 'POST',
-        body: JSON.stringify({
-          amount: parseFloat(amount),
-          from_currency: fromCurrency,
-          to_currency: toCurrency,
-          record_conversion: false // Don't record UI conversions
-        })
+      const response = await apiClient.post('/api/currency/convert', {
+        amount: parseFloat(amount),
+        from_currency: fromCurrency,
+        to_currency: toCurrency,
+        record_conversion: false // Don't record UI conversions
       });
       
       return response.converted_amount;

@@ -110,34 +110,7 @@ def update_exchange_rates():
         logger.error(f"❌ Error updating exchange rates: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@currency_bp.route('/exchange-rates', methods=['GET'])
-# @jwt_required()  # Temporarily disabled for testing
-def get_exchange_rates():
-    """
-    Get current exchange rates
-    Query params:
-    - from_currency: string (optional)
-    - to_currency: string (optional)
-    """
-    try:
-        from_currency = request.args.get('from_currency')
-        to_currency = request.args.get('to_currency')
-        
-        query = ExchangeRate.query.filter_by(is_current=True)
-        
-        if from_currency:
-            query = query.join(Currency, ExchangeRate.from_currency_id == Currency.id).filter(Currency.code == from_currency)
-        
-        if to_currency:
-            query = query.join(Currency, ExchangeRate.to_currency_id == Currency.id).filter(Currency.code == to_currency)
-        
-        rates = query.all()
-        
-        return jsonify([rate.to_dict() for rate in rates]), 200
-        
-    except Exception as e:
-        logger.error(f"❌ Error fetching exchange rates: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+
 
 @currency_bp.route('/exchange-rates/history', methods=['GET'])
 # @jwt_required()  # Temporarily disabled for testing

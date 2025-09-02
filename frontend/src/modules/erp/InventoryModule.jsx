@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Box, Typography, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, Tab, Tabs, Alert, Snackbar, LinearProgress, Tooltip
+  Box, Typography, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, Tab, Tabs, Alert, Snackbar, LinearProgress, Tooltip, useMediaQuery, useTheme
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -19,6 +19,10 @@ import DetailViewModal from '../../components/DetailViewModal';
 import { useRealTimeData } from '../../hooks/useRealTimeData';
 
 const InventoryModule = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
+  
   const [activeTab, setActiveTab] = useState(0);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   
@@ -446,20 +450,20 @@ const InventoryModule = () => {
   );
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom>
+    <Box sx={{ p: { xs: 2, md: 3 } }}>
+      <Typography variant={isMobile ? "h5" : "h4"} gutterBottom>
         Inventory Management
       </Typography>
 
       {/* Metrics Cards */}
-      <Grid container spacing={3} mb={3}>
+      <Grid container spacing={2} mb={3}>
         <Grid item xs={12} sm={6} md={3}>
           <Card>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
+            <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
+              <Typography color="textSecondary" gutterBottom variant="body2">
                 Total Products
               </Typography>
-              <Typography variant="h4">
+              <Typography variant={isMobile ? "h5" : "h4"}>
                 {inventoryMetrics.totalProducts}
               </Typography>
             </CardContent>
@@ -467,11 +471,11 @@ const InventoryModule = () => {
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <Card>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
+            <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
+              <Typography color="textSecondary" gutterBottom variant="body2">
                 Total Categories
               </Typography>
-              <Typography variant="h4">
+              <Typography variant={isMobile ? "h5" : "h4"}>
                 {inventoryMetrics.totalCategories}
               </Typography>
             </CardContent>
@@ -479,11 +483,11 @@ const InventoryModule = () => {
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <Card>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
+            <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
+              <Typography color="textSecondary" gutterBottom variant="body2">
                 Low Stock Items
               </Typography>
-              <Typography variant="h4" color="error">
+              <Typography variant={isMobile ? "h5" : "h4"} color="error">
                 {inventoryMetrics.lowStockCount}
               </Typography>
             </CardContent>
@@ -491,12 +495,12 @@ const InventoryModule = () => {
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <Card>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
+            <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
+              <Typography color="textSecondary" gutterBottom variant="body2">
                 Total Value
               </Typography>
-              <Typography variant="h4">
-                                                                   ${inventoryMetrics.totalValue ? inventoryMetrics.totalValue.toLocaleString() : ''}
+              <Typography variant={isMobile ? "h5" : "h4"}>
+                ${inventoryMetrics.totalValue ? inventoryMetrics.totalValue.toLocaleString() : ''}
               </Typography>
             </CardContent>
           </Card>

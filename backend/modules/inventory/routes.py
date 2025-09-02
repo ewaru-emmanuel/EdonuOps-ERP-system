@@ -1,7 +1,7 @@
 # Inventory routes for EdonuOps ERP
 from flask import Blueprint, jsonify, request
 from app import db
-from modules.inventory.models import Product, Category, Warehouse, InventoryTransaction
+from modules.inventory.models import Product, Category, Warehouse, BasicInventoryTransaction
 from datetime import datetime
 
 inventory_bp = Blueprint('inventory', __name__)
@@ -66,7 +66,7 @@ def get_warehouses():
 def get_transactions():
     """Get all inventory transactions from database"""
     try:
-        transactions = InventoryTransaction.query.all()
+        transactions = BasicInventoryTransaction.query.all()
         return jsonify([{
             "id": transaction.id,
             "product_id": transaction.product_id,

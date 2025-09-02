@@ -250,6 +250,7 @@ const InvoiceForm = ({ open, onClose, invoice = null, onSave }) => {
                   options={customers}
                   getOptionLabel={(option) => option.name}
                   onChange={(e, newValue) => handleCustomerSelect(newValue)}
+                  isOptionEqualToValue={(option, value) => option.id === value?.id}
                   renderInput={(params) => (
                     <TextField
                       {...params}

@@ -21,7 +21,10 @@ import {
   Alert,
   LinearProgress,
   Avatar,
-  Snackbar
+  Snackbar,
+  useMediaQuery,
+  useTheme,
+  Tooltip
 } from '@mui/material';
 import {
   People as PeopleIcon,
@@ -42,6 +45,10 @@ import DetailViewModal from '../../components/DetailViewModal';
 import { useRealTimeData } from '../../hooks/useRealTimeData';
 
 const HCMModule = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
+  
   const [activeTab, setActiveTab] = useState(0);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   
@@ -146,18 +153,18 @@ const HCMModule = () => {
   };
 
   return (
-    <Container maxWidth="xl">
+    <Container maxWidth="xl" sx={{ p: { xs: 2, md: 3 } }}>
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Box display="flex" alignItems="center" gap={2} mb={2}>
-          <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56 }}>
+      <Box sx={{ mb: { xs: 3, md: 4 } }}>
+        <Box display="flex" alignItems="center" gap={2} mb={2} flexDirection={isMobile ? "column" : "row"}>
+          <Avatar sx={{ bgcolor: 'primary.main', width: { xs: 48, md: 56 }, height: { xs: 48, md: 56 } }}>
             <PeopleIcon />
           </Avatar>
           <Box>
-            <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
+            <Typography variant={isMobile ? "h5" : "h4"} component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
               Human Capital Management
             </Typography>
-            <Typography variant="h6" color="text.secondary">
+            <Typography variant={isMobile ? "body1" : "h6"} color="text.secondary">
               Complete workforce management with HR, Payroll, Recruitment & Performance
             </Typography>
           </Box>
@@ -174,20 +181,20 @@ const HCMModule = () => {
       </Box>
 
       {/* HCM Metrics */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
+      <Grid container spacing={2} sx={{ mb: { xs: 3, md: 4 } }}>
         <Grid item xs={12} sm={6} md={3}>
           <Card elevation={2}>
-            <CardContent>
+            <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
-                  <Typography variant="h4" color="primary" sx={{ fontWeight: 'bold' }}>
+                  <Typography variant={isMobile ? "h5" : "h4"} color="primary" sx={{ fontWeight: 'bold' }}>
                     {hcmMetrics.totalEmployees}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Total Employees
                   </Typography>
                 </Box>
-                <Avatar sx={{ bgcolor: 'success.main' }}>
+                <Avatar sx={{ bgcolor: 'success.main', width: { xs: 32, md: 40 }, height: { xs: 32, md: 40 } }}>
                   <PeopleIcon />
                 </Avatar>
               </Box>
@@ -198,17 +205,17 @@ const HCMModule = () => {
 
         <Grid item xs={12} sm={6} md={3}>
           <Card elevation={2}>
-            <CardContent>
+            <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
-                  <Typography variant="h4" color="primary" sx={{ fontWeight: 'bold' }}>
+                  <Typography variant={isMobile ? "h5" : "h4"} color="primary" sx={{ fontWeight: 'bold' }}>
                     {hcmMetrics.newHires}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     New Hires (30d)
                   </Typography>
                 </Box>
-                <Avatar sx={{ bgcolor: 'primary.main' }}>
+                <Avatar sx={{ bgcolor: 'primary.main', width: { xs: 32, md: 40 }, height: { xs: 32, md: 40 } }}>
                   <PersonAddIcon />
                 </Avatar>
               </Box>
@@ -219,17 +226,17 @@ const HCMModule = () => {
 
         <Grid item xs={12} sm={6} md={3}>
           <Card elevation={2}>
-            <CardContent>
+            <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
-                  <Typography variant="h4" color="primary" sx={{ fontWeight: 'bold' }}>
+                  <Typography variant={isMobile ? "h5" : "h4"} color="primary" sx={{ fontWeight: 'bold' }}>
                     ${(hcmMetrics.avgSalary / 1000).toFixed(0)}K
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Avg Salary
                   </Typography>
                 </Box>
-                <Avatar sx={{ bgcolor: 'warning.main' }}>
+                <Avatar sx={{ bgcolor: 'warning.main', width: { xs: 32, md: 40 }, height: { xs: 32, md: 40 } }}>
                   <PaymentIcon />
                 </Avatar>
               </Box>
@@ -328,23 +335,30 @@ const HCMModule = () => {
                           />
                         </TableCell>
                         <TableCell>
-                          <IconButton onClick={() => handleEmployeeEdit(employee)}>
-                            <EditIcon />
-                          </IconButton>
-                          <IconButton onClick={() => {
-                            setSelectedItem(employee);
-                            setSelectedItemType('employee');
-                            setDetailViewOpen(true);
-                          }}>
-                            <ViewIcon />
-                          </IconButton>
-                          <IconButton 
-                            onClick={() => employee && employee.id ? handleEmployeeDelete(employee) : showSnackbar('Cannot delete: Invalid employee data', 'error')} 
-                            color="error"
-                            disabled={!employee || !employee.id}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
+                          <Tooltip title="View Details">
+                            <IconButton onClick={() => {
+                              setSelectedItem(employee);
+                              setSelectedItemType('employee');
+                              setDetailViewOpen(true);
+                            }} size="small">
+                              <ViewIcon />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Edit">
+                            <IconButton onClick={() => handleEmployeeEdit(employee)} size="small">
+                              <EditIcon />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete">
+                            <IconButton 
+                              onClick={() => employee && employee.id ? handleEmployeeDelete(employee) : showSnackbar('Cannot delete: Invalid employee data', 'error')} 
+                              color="error"
+                              disabled={!employee || !employee.id}
+                              size="small"
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </Tooltip>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -395,12 +409,16 @@ const HCMModule = () => {
                           />
                         </TableCell>
                         <TableCell>
-                          <IconButton onClick={() => showSnackbar('Payroll details would open here')}>
-                            <ViewIcon />
-                          </IconButton>
-                          <IconButton onClick={() => showSnackbar('Payroll slip would download here')}>
-                            <DownloadIcon />
-                          </IconButton>
+                          <Tooltip title="View Details">
+                            <IconButton onClick={() => showSnackbar('Payroll details would open here')} size="small">
+                              <ViewIcon />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Download Slip">
+                            <IconButton onClick={() => showSnackbar('Payroll slip would download here')} size="small">
+                              <DownloadIcon />
+                            </IconButton>
+                          </Tooltip>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -449,12 +467,16 @@ const HCMModule = () => {
                         </TableCell>
                         <TableCell>{job.applications}</TableCell>
                         <TableCell>
-                          <IconButton onClick={() => showSnackbar('Edit job posting would open here')}>
-                            <EditIcon />
-                          </IconButton>
-                          <IconButton onClick={() => showSnackbar('View applications would open here')}>
-                            <ViewIcon />
-                          </IconButton>
+                          <Tooltip title="View Applications">
+                            <IconButton onClick={() => showSnackbar('View applications would open here')} size="small">
+                              <ViewIcon />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Edit">
+                            <IconButton onClick={() => showSnackbar('Edit job posting would open here')} size="small">
+                              <EditIcon />
+                            </IconButton>
+                          </Tooltip>
                         </TableCell>
                       </TableRow>
                     ))}

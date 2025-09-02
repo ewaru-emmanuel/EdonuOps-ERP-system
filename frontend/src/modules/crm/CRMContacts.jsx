@@ -23,8 +23,7 @@ import {
   Chip,
   Alert,
   Snackbar,
-  Tooltip,
-  Fab
+  Tooltip
 } from '@mui/material';
 import {
   Add,

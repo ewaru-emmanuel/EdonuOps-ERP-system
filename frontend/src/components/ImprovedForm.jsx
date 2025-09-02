@@ -85,7 +85,7 @@ const ImprovedForm = ({
           email: '',
           phone: '',
           position: '',
-          department_id: '',
+          department_id: null,
           salary: '',
           hire_date: '',
           status: 'active'

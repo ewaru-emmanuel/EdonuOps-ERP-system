@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useRealTimeData } from '../../../hooks/useRealTimeData';
 import {
   Box,
   Grid,
@@ -25,7 +26,10 @@ import {
   Select,
   MenuItem,
   Avatar,
-  Tooltip
+  Tooltip,
+  Snackbar,
+  Alert,
+  CircularProgress
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -41,10 +45,11 @@ import {
 const VendorManagement = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [editingVendor, setEditingVendor] = useState(null);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [submitting, setSubmitting] = useState(false);
   
   const showSnackbar = (message, severity = 'success') => {
-    // For now, just log to console. In a real app, this would show a snackbar
-    console.log(`${severity.toUpperCase()}: ${message}`);
+    setSnackbar({ open: true, message, severity });
   };
   const [formData, setFormData] = useState({
     name: '',
@@ -57,47 +62,8 @@ const VendorManagement = () => {
     is_active: true
   });
 
-  const vendors = [
-    {
-      id: 1,
-      name: 'Tech Supplies Co.',
-      email: 'contact@techsupplies.com',
-      phone: '+1 (555) 123-4567',
-      address: '123 Tech Street, Silicon Valley, CA',
-      tax_id: 'TAX-001-234',
-      payment_terms: 'Net 30',
-      credit_limit: 50000,
-      is_active: true,
-      total_orders: 45,
-      total_spent: 125000
-    },
-    {
-      id: 2,
-      name: 'Office Solutions Inc.',
-      email: 'sales@officesolutions.com',
-      phone: '+1 (555) 987-6543',
-      address: '456 Office Ave, Business District, NY',
-      tax_id: 'TAX-002-567',
-      payment_terms: 'Net 45',
-      credit_limit: 75000,
-      is_active: true,
-      total_orders: 32,
-      total_spent: 89000
-    },
-    {
-      id: 3,
-      name: 'Industrial Parts Ltd.',
-      email: 'info@industrialparts.com',
-      phone: '+1 (555) 456-7890',
-      address: '789 Industrial Blvd, Manufacturing Zone, TX',
-      tax_id: 'TAX-003-890',
-      payment_terms: 'Net 30',
-      credit_limit: 100000,
-      is_active: false,
-      total_orders: 18,
-      total_spent: 67000
-    }
-  ];
+    // Real-time data hook for vendors
+  const { data: vendors, loading: vendorsLoading, error: vendorsError, create, update, remove } = useRealTimeData('/api/procurement/vendors');
 
   const handleOpenDialog = (vendor = null) => {
     if (vendor) {
@@ -124,10 +90,36 @@ const VendorManagement = () => {
     setEditingVendor(null);
   };
 
-  const handleSubmit = () => {
-    // TODO: Implement API call to save vendor
-    console.log('Saving vendor:', formData);
-    handleCloseDialog();
+  const handleSubmit = async () => {
+    // Form validation
+    if (!formData.name?.trim()) {
+      showSnackbar('Vendor name is required', 'error');
+      return;
+    }
+    if (!formData.email?.trim()) {
+      showSnackbar('Email is required', 'error');
+      return;
+    }
+    if (!formData.phone?.trim()) {
+      showSnackbar('Phone is required', 'error');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      if (editingVendor) {
+        await update(editingVendor.id, formData);
+        showSnackbar('Vendor updated successfully!');
+      } else {
+        await create(formData);
+        showSnackbar('Vendor created successfully!');
+      }
+      handleCloseDialog();
+    } catch (error) {
+      showSnackbar('Error saving vendor: ' + error.message, 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleInputChange = (field, value) => {
@@ -137,6 +129,20 @@ const VendorManagement = () => {
     }));
   };
 
+  const handleDeleteVendor = async (vendorId) => {
+    if (window.confirm('Are you sure you want to delete this vendor?')) {
+      setSubmitting(true);
+      try {
+        await remove(vendorId);
+        showSnackbar('Vendor deleted successfully!');
+      } catch (error) {
+        showSnackbar('Error deleting vendor: ' + error.message, 'error');
+      } finally {
+        setSubmitting(false);
+      }
+    }
+  };
+
   return (
     <Box>
       {/* Header */}
@@ -144,14 +150,15 @@ const VendorManagement = () => {
         <Typography variant="h5" component="h3" sx={{ fontWeight: 'bold' }}>
           Vendor Management
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenDialog()}
-          sx={{ textTransform: 'none' }}
-        >
-          Add New Vendor
-        </Button>
+                 <Button
+           variant="contained"
+           startIcon={vendorsLoading ? <CircularProgress size={20} /> : <AddIcon />}
+           onClick={() => handleOpenDialog()}
+           disabled={vendorsLoading}
+           sx={{ textTransform: 'none' }}
+         >
+           Add New Vendor
+         </Button>
       </Box>
 
       {/* Vendor Statistics */}
@@ -160,7 +167,7 @@ const VendorManagement = () => {
           <Card elevation={2}>
             <CardContent>
               <Typography variant="h4" component="div" sx={{ fontWeight: 'bold', mb: 1 }}>
-                {vendors.length}
+                {vendors?.length || 0}
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 Total Vendors
@@ -172,7 +179,7 @@ const VendorManagement = () => {
           <Card elevation={2}>
             <CardContent>
               <Typography variant="h4" component="div" sx={{ fontWeight: 'bold', mb: 1, color: 'success.main' }}>
-                {vendors.filter(v => v.is_active).length}
+                {vendors?.filter(v => v.is_active).length || 0}
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 Active Vendors
@@ -184,7 +191,7 @@ const VendorManagement = () => {
           <Card elevation={2}>
             <CardContent>
               <Typography variant="h4" component="div" sx={{ fontWeight: 'bold', mb: 1 }}>
-                {vendors.reduce((sum, v) => sum + v.total_orders, 0)}
+                {vendors?.reduce((sum, v) => sum + (v.total_orders || 0), 0) || 0}
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 Total Orders
@@ -196,7 +203,7 @@ const VendorManagement = () => {
           <Card elevation={2}>
             <CardContent>
               <Typography variant="h4" component="div" sx={{ fontWeight: 'bold', mb: 1 }}>
-                ${vendors.reduce((sum, v) => sum + v.total_spent, 0).toLocaleString()}
+                ${(vendors?.reduce((sum, v) => sum + (v.total_spent || 0), 0) || 0).toLocaleString()}
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 Total Spent
@@ -226,8 +233,27 @@ const VendorManagement = () => {
                   <TableCell sx={{ fontWeight: 'bold' }}>Actions</TableCell>
                 </TableRow>
               </TableHead>
-              <TableBody>
-                {vendors.map((vendor) => (
+                             <TableBody>
+                 {vendorsLoading ? (
+                   <TableRow>
+                     <TableCell colSpan={7} align="center">
+                       <Typography>Loading vendors...</Typography>
+                     </TableCell>
+                   </TableRow>
+                 ) : vendorsError ? (
+                   <TableRow>
+                     <TableCell colSpan={7} align="center">
+                       <Typography color="error">Error loading vendors: {vendorsError.message}</Typography>
+                     </TableCell>
+                   </TableRow>
+                 ) : !vendors || vendors.length === 0 ? (
+                   <TableRow>
+                     <TableCell colSpan={7} align="center">
+                       <Typography color="text.secondary">No vendors found. Add your first vendor to get started.</Typography>
+                     </TableCell>
+                   </TableRow>
+                 ) : (
+                   vendors.map((vendor) => (
                   <TableRow key={vendor.id} hover>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -261,7 +287,7 @@ const VendorManagement = () => {
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        ${vendor.credit_limit.toLocaleString()}
+                        ${(Number(vendor.credit_limit) || 0).toLocaleString()}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -277,32 +303,33 @@ const VendorManagement = () => {
                           {vendor.total_orders}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          ${vendor.total_spent.toLocaleString()}
+                          ${(Number(vendor.total_spent) || 0).toLocaleString()}
                         </Typography>
                       </Box>
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Tooltip title="View Details">
-                          <IconButton size="small" color="primary" onClick={() => showSnackbar(`Viewing vendor details for ${vendor.name}`)}>
-                            <ViewIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Edit Vendor">
-                          <IconButton size="small" color="primary" onClick={() => handleOpenDialog(vendor)}>
-                            <EditIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete Vendor">
-                          <IconButton size="small" color="error" onClick={() => showSnackbar(`Delete vendor ${vendor.name} would open confirmation dialog`)}>
-                            <DeleteIcon />
-                          </IconButton>
-                        </Tooltip>
+                                                 <Tooltip title="View Details">
+                           <IconButton size="small" color="primary" disabled={submitting} onClick={() => showSnackbar(`Viewing vendor details for ${vendor.name}`)}>
+                             <ViewIcon />
+                           </IconButton>
+                         </Tooltip>
+                         <Tooltip title="Edit Vendor">
+                           <IconButton size="small" color="primary" disabled={submitting} onClick={() => handleOpenDialog(vendor)}>
+                             <EditIcon />
+                           </IconButton>
+                         </Tooltip>
+                         <Tooltip title="Delete Vendor">
+                           <IconButton size="small" color="error" disabled={submitting} onClick={() => handleDeleteVendor(vendor.id)}>
+                             <DeleteIcon />
+                           </IconButton>
+                         </Tooltip>
                       </Box>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
+                                         </TableCell>
+                   </TableRow>
+                 ))
+                 )}
+               </TableBody>
             </Table>
           </TableContainer>
         </CardContent>
@@ -388,15 +415,35 @@ const VendorManagement = () => {
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancel</Button>
-          <Button onClick={handleSubmit} variant="contained">
-            {editingVendor ? 'Update' : 'Create'} Vendor
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
-  );
-};
+                 <DialogActions>
+           <Button onClick={handleCloseDialog} disabled={submitting}>Cancel</Button>
+           <Button 
+             onClick={handleSubmit} 
+             variant="contained"
+             disabled={submitting}
+             startIcon={submitting ? <CircularProgress size={20} /> : null}
+           >
+             {submitting ? 'Saving...' : (editingVendor ? 'Update' : 'Create') + ' Vendor'}
+           </Button>
+         </DialogActions>
+       </Dialog>
+
+       {/* Snackbar for notifications */}
+       <Snackbar
+         open={snackbar.open}
+         autoHideDuration={6000}
+         onClose={() => setSnackbar({ ...snackbar, open: false })}
+       >
+         <Alert 
+           onClose={() => setSnackbar({ ...snackbar, open: false })} 
+           severity={snackbar.severity}
+           sx={{ width: '100%' }}
+         >
+           {snackbar.message}
+         </Alert>
+       </Snackbar>
+     </Box>
+   );
+ };
 
 export default VendorManagement;

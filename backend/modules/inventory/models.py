@@ -36,10 +36,10 @@ class Product(db.Model):
     
     # Relationships
     category = db.relationship('Category', backref='products')
-    inventory_transactions = db.relationship('InventoryTransaction', backref='product')
+    inventory_transactions = db.relationship('BasicInventoryTransaction', backref='product')
 
-class InventoryTransaction(db.Model):
-    __tablename__ = 'inventory_transactions'
+class BasicInventoryTransaction(db.Model):
+    __tablename__ = 'basic_inventory_transactions'
     id = db.Column(db.Integer, primary_key=True)
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
     transaction_type = db.Column(db.String(20), nullable=False)  # IN, OUT, ADJUSTMENT
@@ -54,7 +54,7 @@ class InventoryTransaction(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
-    warehouse = db.relationship('Warehouse', backref='inventory_transactions')
+    warehouse = db.relationship('Warehouse', backref='basic_inventory_transactions')
 
 class StockMovement(db.Model):
     __tablename__ = 'stock_movements'

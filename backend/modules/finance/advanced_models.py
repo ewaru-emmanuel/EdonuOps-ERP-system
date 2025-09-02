@@ -1,0 +1,547 @@
+from app import db
+from datetime import datetime
+from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy import text
+
+# Chart of Accounts
+class ChartOfAccounts(db.Model):
+    __tablename__ = 'advanced_chart_of_accounts'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    account_code = db.Column(db.String(20), unique=True, nullable=False)
+    account_name = db.Column(db.String(100), nullable=False)
+    account_type = db.Column(db.String(50), nullable=False)  # Asset, Liability, Equity, Revenue, Expense
+    account_category = db.Column(db.String(50))  # Current Assets, Fixed Assets, etc.
+    parent_account_id = db.Column(db.Integer, db.ForeignKey('advanced_chart_of_accounts.id'))
+    description = db.Column(db.Text)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    parent_account = db.relationship('ChartOfAccounts', remote_side=[id], backref='sub_accounts')
+    journal_entries = db.relationship('GeneralLedgerEntry', backref='account', lazy='dynamic')
+
+# General Ledger - Enhanced
+class GeneralLedgerEntry(db.Model):
+    __tablename__ = 'advanced_general_ledger_entries'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    journal_header_id = db.Column(db.Integer, db.ForeignKey('advanced_journal_headers.id'))
+    entry_date = db.Column(db.Date, nullable=False)
+    reference = db.Column(db.String(50), nullable=False)
+    description = db.Column(db.Text)
+    account_id = db.Column(db.Integer, db.ForeignKey('advanced_chart_of_accounts.id'), nullable=False)
+    debit_amount = db.Column(db.Float, default=0.0)
+    credit_amount = db.Column(db.Float, default=0.0)
+    balance = db.Column(db.Float, default=0.0)
+    status = db.Column(db.String(20), default='posted')  # draft, posted, void
+    journal_type = db.Column(db.String(50))  # manual, system, recurring
+    fiscal_period = db.Column(db.String(10))  # YYYY-MM
+    created_by = db.Column(db.String(100))
+    approved_by = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships are defined in ChartOfAccounts model
+    
+    # Audit fields
+    audit_trail = db.Column(db.Text)  # JSON string for audit trail
+
+# Company Settings - Base Currency
+class CompanySettings(db.Model):
+    __tablename__ = 'advanced_company_settings'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    setting_key = db.Column(db.String(100), unique=True, nullable=False)
+    setting_value = db.Column(db.Text)
+    setting_type = db.Column(db.String(20), default='string')  # string, number, boolean, json
+    description = db.Column(db.Text)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# Accounts Payable - Enhanced
+class AccountsPayable(db.Model):
+    __tablename__ = 'advanced_accounts_payable'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_number = db.Column(db.String(50), unique=True, nullable=False)
+    vendor_id = db.Column(db.Integer, db.ForeignKey('finance_vendors.id'), nullable=False)
+    vendor_name = db.Column(db.String(100))
+    invoice_date = db.Column(db.Date, nullable=False)
+    due_date = db.Column(db.Date, nullable=False)
+    total_amount = db.Column(db.Float, nullable=False)
+    tax_amount = db.Column(db.Float, default=0.0)
+    discount_amount = db.Column(db.Float, default=0.0)
+    outstanding_amount = db.Column(db.Float, nullable=False)
+    currency = db.Column(db.String(3), default='USD')
+    exchange_rate = db.Column(db.Float, default=1.0)
+    status = db.Column(db.String(20), default='pending')  # pending, approved, paid, overdue, void
+    payment_terms = db.Column(db.String(50))
+    approval_status = db.Column(db.String(20), default='pending')  # pending, approved, rejected
+    approved_by = db.Column(db.String(100))
+    approved_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    vendor = db.relationship('FinanceVendor', backref='payables')
+    payments = db.relationship('APPayment', backref='invoice', lazy='dynamic')
+
+# Accounts Receivable - Enhanced
+class AccountsReceivable(db.Model):
+    __tablename__ = 'advanced_accounts_receivable'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_number = db.Column(db.String(50), unique=True, nullable=False)
+    customer_id = db.Column(db.Integer, db.ForeignKey('finance_customers.id'), nullable=False)
+    customer_name = db.Column(db.String(100))
+    invoice_date = db.Column(db.Date, nullable=False)
+    due_date = db.Column(db.Date, nullable=False)
+    total_amount = db.Column(db.Float, nullable=False)
+    tax_amount = db.Column(db.Float, default=0.0)
+    discount_amount = db.Column(db.Float, default=0.0)
+    outstanding_amount = db.Column(db.Float, nullable=False)
+    currency = db.Column(db.String(3), default='USD')
+    exchange_rate = db.Column(db.Float, default=1.0)
+    status = db.Column(db.String(20), default='pending')  # pending, paid, overdue, void
+    payment_terms = db.Column(db.String(50))
+    credit_limit = db.Column(db.Float)
+    dunning_level = db.Column(db.Integer, default=0)
+    last_reminder_date = db.Column(db.Date)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    customer = db.relationship('FinanceCustomer', backref='receivables')
+    payments = db.relationship('ARPayment', backref='invoice', lazy='dynamic')
+
+# Fixed Assets - Enhanced
+class FixedAsset(db.Model):
+    __tablename__ = 'advanced_fixed_assets'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    asset_id = db.Column(db.String(50), unique=True, nullable=False)
+    asset_name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    category = db.Column(db.String(50), nullable=False)
+    subcategory = db.Column(db.String(50))
+    purchase_date = db.Column(db.Date, nullable=False)
+    purchase_value = db.Column(db.Float, nullable=False)
+    current_value = db.Column(db.Float, nullable=False)
+    salvage_value = db.Column(db.Float, default=0.0)
+    useful_life = db.Column(db.Integer)  # in years
+    depreciation_method = db.Column(db.String(50))  # straight-line, declining-balance, etc.
+    depreciation_rate = db.Column(db.Float)
+    accumulated_depreciation = db.Column(db.Float, default=0.0)
+    location = db.Column(db.String(100))
+    department = db.Column(db.String(50))
+    assigned_to = db.Column(db.String(100))
+    status = db.Column(db.String(20), default='active')  # active, disposed, sold, stolen
+    disposal_date = db.Column(db.Date)
+    disposal_value = db.Column(db.Float)
+    insurance_info = db.Column(db.Text)
+    warranty_info = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# Budget Management - Enhanced
+class Budget(db.Model):
+    __tablename__ = 'advanced_budgets'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    fiscal_year = db.Column(db.String(4), nullable=False)
+    period = db.Column(db.String(10))  # YYYY-MM
+    department = db.Column(db.String(50))
+    account_id = db.Column(db.Integer, db.ForeignKey('advanced_chart_of_accounts.id'))
+    budgeted_amount = db.Column(db.Float, nullable=False)
+    actual_amount = db.Column(db.Float, default=0.0)
+    variance_amount = db.Column(db.Float, default=0.0)
+    variance_percentage = db.Column(db.Float, default=0.0)
+    budget_type = db.Column(db.String(50))  # operating, capital, project
+    status = db.Column(db.String(20), default='active')  # active, inactive, archived
+    approved_by = db.Column(db.String(100))
+    approved_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    account = db.relationship('ChartOfAccounts', backref='budgets')
+
+# Tax Management - Enhanced
+class TaxRecord(db.Model):
+    __tablename__ = 'advanced_tax_records'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    tax_type = db.Column(db.String(50), nullable=False)  # VAT, GST, Sales Tax, Income Tax
+    tax_code = db.Column(db.String(20))
+    jurisdiction = db.Column(db.String(100))
+    period = db.Column(db.String(10))  # YYYY-MM
+    taxable_amount = db.Column(db.Float, nullable=False)
+    tax_amount = db.Column(db.Float, nullable=False)
+    tax_rate = db.Column(db.Float)
+    due_date = db.Column(db.Date, nullable=False)
+    filing_date = db.Column(db.Date)
+    payment_date = db.Column(db.Date)
+    status = db.Column(db.String(20), default='pending')  # pending, filed, paid, overdue
+    filing_reference = db.Column(db.String(50))
+    payment_reference = db.Column(db.String(50))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# Bank Reconciliation - Enhanced
+class BankReconciliation(db.Model):
+    __tablename__ = 'advanced_bank_reconciliations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    bank_account = db.Column(db.String(50), nullable=False)
+    statement_date = db.Column(db.Date, nullable=False)
+    book_balance = db.Column(db.Float, nullable=False)
+    bank_balance = db.Column(db.Float, nullable=False)
+    difference = db.Column(db.Float, default=0.0)
+    outstanding_deposits = db.Column(db.Float, default=0.0)
+    outstanding_checks = db.Column(db.Float, default=0.0)
+    bank_charges = db.Column(db.Float, default=0.0)
+    bank_interest = db.Column(db.Float, default=0.0)
+    status = db.Column(db.String(20), default='pending')  # pending, reconciled, cleared
+    reconciled_by = db.Column(db.String(100))
+    reconciled_at = db.Column(db.DateTime)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# Payment Management
+class APPayment(db.Model):
+    __tablename__ = 'advanced_ap_payments'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    payment_reference = db.Column(db.String(50), unique=True, nullable=False)
+    invoice_id = db.Column(db.Integer, db.ForeignKey('advanced_accounts_payable.id'), nullable=False)
+    payment_date = db.Column(db.Date, nullable=False)
+    payment_amount = db.Column(db.Float, nullable=False)
+    payment_method = db.Column(db.String(50))  # check, wire, ach, credit_card
+    payment_reference = db.Column(db.String(50))
+    bank_account = db.Column(db.String(50))
+    status = db.Column(db.String(20), default='pending')  # pending, processed, cleared, void
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class ARPayment(db.Model):
+    __tablename__ = 'advanced_ar_payments'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    payment_reference = db.Column(db.String(50), unique=True, nullable=False)
+    invoice_id = db.Column(db.Integer, db.ForeignKey('advanced_accounts_receivable.id'), nullable=False)
+    payment_date = db.Column(db.Date, nullable=False)
+    payment_amount = db.Column(db.Float, nullable=False)
+    payment_method = db.Column(db.String(50))  # check, wire, ach, credit_card
+    payment_reference = db.Column(db.String(50))
+    bank_account = db.Column(db.String(50))
+    status = db.Column(db.String(20), default='pending')  # pending, processed, cleared, void
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# Vendor and Customer Management
+class FinanceVendor(db.Model):
+    __tablename__ = 'finance_vendors'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    vendor_code = db.Column(db.String(20), unique=True, nullable=False)
+    vendor_name = db.Column(db.String(100), nullable=False)
+    contact_person = db.Column(db.String(100))
+    email = db.Column(db.String(100))
+    phone = db.Column(db.String(20))
+    address = db.Column(db.Text)
+    tax_id = db.Column(db.String(50))
+    payment_terms = db.Column(db.String(50))
+    credit_limit = db.Column(db.Float)
+    status = db.Column(db.String(20), default='active')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class FinanceCustomer(db.Model):
+    __tablename__ = 'finance_customers'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    customer_code = db.Column(db.String(20), unique=True, nullable=False)
+    customer_name = db.Column(db.String(100), nullable=False)
+    contact_person = db.Column(db.String(100))
+    email = db.Column(db.String(100))
+    phone = db.Column(db.String(20))
+    address = db.Column(db.Text)
+    tax_id = db.Column(db.String(50))
+    payment_terms = db.Column(db.String(50))
+    credit_limit = db.Column(db.Float)
+    status = db.Column(db.String(20), default='active')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# Audit Trail
+class AuditTrail(db.Model):
+    __tablename__ = 'advanced_audit_trail'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    table_name = db.Column(db.String(50), nullable=False)
+    record_id = db.Column(db.Integer, nullable=False)
+    action = db.Column(db.String(20), nullable=False)  # create, update, delete
+    old_values = db.Column(db.Text)  # JSON string
+    new_values = db.Column(db.Text)  # JSON string
+    user_id = db.Column(db.String(100))
+    ip_address = db.Column(db.String(45))
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+# Multi-Currency Support
+class Currency(db.Model):
+    __tablename__ = 'advanced_currencies'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    currency_code = db.Column(db.String(3), unique=True, nullable=False)
+    currency_name = db.Column(db.String(50), nullable=False)
+    symbol = db.Column(db.String(5))
+    is_base_currency = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class ExchangeRate(db.Model):
+    __tablename__ = 'advanced_exchange_rates'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    from_currency = db.Column(db.String(3), nullable=False)  # USD, EUR, GBP, etc.
+    to_currency = db.Column(db.String(3), nullable=False)
+    rate = db.Column(db.Float, nullable=False)
+    effective_date = db.Column(db.Date, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Composite unique constraint
+    __table_args__ = (
+        db.UniqueConstraint('from_currency', 'to_currency', 'effective_date', name='unique_exchange_rate'),
+    )
+
+# Depreciation Schedule
+class DepreciationSchedule(db.Model):
+    __tablename__ = 'advanced_depreciation_schedules'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    asset_id = db.Column(db.Integer, db.ForeignKey('advanced_fixed_assets.id'), nullable=False)
+    period = db.Column(db.String(10), nullable=False)  # YYYY-MM
+    depreciation_amount = db.Column(db.Float, nullable=False)
+    accumulated_depreciation = db.Column(db.Float, nullable=False)
+    book_value = db.Column(db.Float, nullable=False)
+    is_posted = db.Column(db.Boolean, default=False)
+    posted_date = db.Column(db.Date)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    asset = db.relationship('FixedAsset', backref='depreciation_schedules')
+
+# Invoice Line Items
+class InvoiceLineItem(db.Model):
+    __tablename__ = 'advanced_invoice_line_items'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_id = db.Column(db.Integer, nullable=False)
+    invoice_type = db.Column(db.String(20), nullable=False)  # ap, ar
+    line_number = db.Column(db.Integer, nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    quantity = db.Column(db.Float, default=1.0)
+    unit_price = db.Column(db.Float, nullable=False)
+    tax_rate = db.Column(db.Float, default=0.0)
+    tax_amount = db.Column(db.Float, default=0.0)
+    discount_rate = db.Column(db.Float, default=0.0)
+    discount_amount = db.Column(db.Float, default=0.0)
+    total_amount = db.Column(db.Float, nullable=False)
+    account_id = db.Column(db.Integer, db.ForeignKey('advanced_chart_of_accounts.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    account = db.relationship('ChartOfAccounts', backref='invoice_line_items')
+
+# Financial Periods
+class FinancialPeriod(db.Model):
+    __tablename__ = 'advanced_financial_periods'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    period_code = db.Column(db.String(10), unique=True, nullable=False)  # YYYY-MM
+    period_name = db.Column(db.String(50), nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=False)
+    is_open = db.Column(db.Boolean, default=True)
+    is_closed = db.Column(db.Boolean, default=False)
+    closed_by = db.Column(db.String(100))
+    closed_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# Maintenance Records for Fixed Assets
+class MaintenanceRecord(db.Model):
+    __tablename__ = 'advanced_maintenance_records'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    asset_id = db.Column(db.Integer, db.ForeignKey('advanced_fixed_assets.id'), nullable=False)
+    maintenance_type = db.Column(db.String(50), nullable=False)  # preventive, corrective, emergency, inspection
+    maintenance_date = db.Column(db.Date, nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    cost = db.Column(db.Float, default=0.0)
+    performed_by = db.Column(db.String(100))
+    vendor = db.Column(db.String(100))
+    next_maintenance_date = db.Column(db.Date)
+    status = db.Column(db.String(20), default='completed')  # scheduled, in_progress, completed, cancelled
+    priority = db.Column(db.String(20), default='normal')  # low, normal, high, critical
+    parts_used = db.Column(db.Text)  # JSON string for parts list
+    labor_hours = db.Column(db.Float, default=0.0)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    asset = db.relationship('FixedAsset', backref='maintenance_records')
+
+# Journal Headers
+class JournalHeader(db.Model):
+    __tablename__ = 'advanced_journal_headers'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    journal_number = db.Column(db.String(50), unique=True, nullable=False)
+    journal_date = db.Column(db.Date, nullable=False)
+    reference = db.Column(db.String(100))
+    description = db.Column(db.Text)
+    journal_type = db.Column(db.String(50), nullable=False)  # manual, system, recurring
+    status = db.Column(db.String(20), default='draft')  # draft, posted, void
+    total_debit = db.Column(db.Float, default=0.0)
+    total_credit = db.Column(db.Float, default=0.0)
+    fiscal_period = db.Column(db.String(10))
+    created_by = db.Column(db.String(100))
+    posted_by = db.Column(db.String(100))
+    posted_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    lines = db.relationship('GeneralLedgerEntry', backref='journal_header', lazy='dynamic')
+
+# Tax Filing History
+class TaxFilingHistory(db.Model):
+    __tablename__ = 'advanced_tax_filing_history'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    tax_type = db.Column(db.String(50), nullable=False)  # income_tax, sales_tax, payroll_tax, etc.
+    filing_period = db.Column(db.String(10), nullable=False)  # YYYY-MM
+    filing_date = db.Column(db.Date, nullable=False)
+    due_date = db.Column(db.Date, nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    reference_number = db.Column(db.String(100))
+    status = db.Column(db.String(20), default='pending')  # pending, filed, accepted, rejected
+    jurisdiction = db.Column(db.String(100))
+    filing_method = db.Column(db.String(50))  # electronic, paper
+    confirmation_number = db.Column(db.String(100))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# Compliance Reports
+class ComplianceReport(db.Model):
+    __tablename__ = 'advanced_compliance_reports'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    report_type = db.Column(db.String(50), nullable=False)  # sox, gdpr, pci, etc.
+    report_period = db.Column(db.String(10), nullable=False)  # YYYY-MM
+    report_date = db.Column(db.Date, nullable=False)
+    status = db.Column(db.String(20), default='pending')  # pending, in_progress, completed, failed
+    compliance_score = db.Column(db.Float, default=0.0)
+    total_checks = db.Column(db.Integer, default=0)
+    passed_checks = db.Column(db.Integer, default=0)
+    failed_checks = db.Column(db.Integer, default=0)
+    description = db.Column(db.Text)
+    findings = db.Column(db.Text)  # JSON string for findings
+    recommendations = db.Column(db.Text)
+    auditor = db.Column(db.String(100))
+    next_review_date = db.Column(db.Date)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# User Activity for Audit Trail
+class UserActivity(db.Model):
+    __tablename__ = 'advanced_user_activity'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_name = db.Column(db.String(100), nullable=False)
+    user_id = db.Column(db.String(50))
+    action_type = db.Column(db.String(50), nullable=False)  # login, logout, create, update, delete, view
+    module = db.Column(db.String(50), nullable=False)  # finance, hcm, crm, etc.
+    record_id = db.Column(db.String(50))
+    record_type = db.Column(db.String(50))
+    description = db.Column(db.Text)
+    ip_address = db.Column(db.String(45))
+    user_agent = db.Column(db.Text)
+    session_id = db.Column(db.String(100))
+    last_activity = db.Column(db.DateTime, default=datetime.utcnow)
+    action_count = db.Column(db.Integer, default=1)
+    status = db.Column(db.String(20), default='active')  # active, inactive, suspended
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# Bank Statements
+class BankStatement(db.Model):
+    __tablename__ = 'advanced_bank_statements'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    bank_account = db.Column(db.String(50), nullable=False)
+    statement_date = db.Column(db.Date, nullable=False)
+    transaction_date = db.Column(db.Date, nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    reference = db.Column(db.String(100))
+    debit_amount = db.Column(db.Float, default=0.0)
+    credit_amount = db.Column(db.Float, default=0.0)
+    balance = db.Column(db.Float, nullable=False)
+    transaction_type = db.Column(db.String(50))  # deposit, withdrawal, transfer, fee, interest
+    category = db.Column(db.String(50))
+    is_reconciled = db.Column(db.Boolean, default=False)
+    reconciled_date = db.Column(db.Date)
+    reconciled_by = db.Column(db.String(100))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# Financial Reports (Enhanced)
+class FinancialReport(db.Model):
+    __tablename__ = 'advanced_financial_reports'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    report_type = db.Column(db.String(50), nullable=False)  # p&l, balance_sheet, cash_flow, kpi
+    report_period = db.Column(db.String(10), nullable=False)  # YYYY-MM
+    report_date = db.Column(db.Date, nullable=False)
+    report_data = db.Column(db.Text)  # JSON string
+    generated_at = db.Column(db.DateTime, default=datetime.utcnow)
+    generated_by = db.Column(db.String(100))
+    is_latest = db.Column(db.Boolean, default=True)
+    version = db.Column(db.String(10), default='1.0')
+    status = db.Column(db.String(20), default='draft')  # draft, final, approved
+    approved_by = db.Column(db.String(100))
+    approved_at = db.Column(db.DateTime)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# Key Performance Indicators (KPIs)
+class KPI(db.Model):
+    __tablename__ = 'advanced_kpis'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    kpi_code = db.Column(db.String(50), unique=True, nullable=False)
+    kpi_name = db.Column(db.String(100), nullable=False)
+    kpi_category = db.Column(db.String(50), nullable=False)  # financial, operational, customer, employee
+    description = db.Column(db.Text)
+    calculation_formula = db.Column(db.Text)
+    target_value = db.Column(db.Float)
+    current_value = db.Column(db.Float, default=0.0)
+    previous_value = db.Column(db.Float, default=0.0)
+    unit = db.Column(db.String(20))  # %, $, number, ratio
+    frequency = db.Column(db.String(20), default='monthly')  # daily, weekly, monthly, quarterly, yearly
+    trend = db.Column(db.String(20))  # increasing, decreasing, stable
+    status = db.Column(db.String(20), default='active')  # active, inactive, archived
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

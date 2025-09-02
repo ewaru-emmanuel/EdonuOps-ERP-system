@@ -1,0 +1,14 @@
+{
+  "development": [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000"
+  ],
+  "production": [
+    "https://edonuops.com",
+    "https://www.edonuops.com"
+  ],
+  "aws": [
+    "https://my-aws-app.com",
+    "https://your-aws-domain.com"
+  ]
+}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Box, Typography, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions, Tab, Tabs, Alert, Snackbar, LinearProgress, Tooltip
+  Box, Typography, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions, Tab, Tabs, Alert, Snackbar, LinearProgress, Tooltip, useMediaQuery, useTheme
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -18,6 +18,10 @@ import DetailViewModal from '../../components/DetailViewModal';
 import { useRealTimeData } from '../../hooks/useRealTimeData';
 
 const CRMModule = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
+  
   const [activeTab, setActiveTab] = useState(0);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   
@@ -413,20 +417,20 @@ const CRMModule = () => {
   );
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom>
+    <Box sx={{ p: { xs: 2, md: 3 } }}>
+      <Typography variant={isMobile ? "h5" : "h4"} gutterBottom>
         Customer Relationship Management
       </Typography>
 
       {/* Metrics Cards */}
-      <Grid container spacing={3} mb={3}>
+      <Grid container spacing={2} mb={3}>
         <Grid item xs={12} sm={6} md={3}>
           <Card>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
+            <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
+              <Typography color="textSecondary" gutterBottom variant="body2">
                 Total Contacts
               </Typography>
-              <Typography variant="h4">
+              <Typography variant={isMobile ? "h5" : "h4"}>
                 {crmMetrics.totalContacts}
               </Typography>
             </CardContent>
@@ -434,11 +438,11 @@ const CRMModule = () => {
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <Card>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
+            <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
+              <Typography color="textSecondary" gutterBottom variant="body2">
                 Total Leads
               </Typography>
-              <Typography variant="h4">
+              <Typography variant={isMobile ? "h5" : "h4"}>
                 {crmMetrics.totalLeads}
               </Typography>
             </CardContent>
@@ -446,11 +450,11 @@ const CRMModule = () => {
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <Card>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
+            <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
+              <Typography color="textSecondary" gutterBottom variant="body2">
                 Total Opportunities
               </Typography>
-              <Typography variant="h4">
+              <Typography variant={isMobile ? "h5" : "h4"}>
                 {crmMetrics.totalOpportunities}
               </Typography>
             </CardContent>
@@ -458,12 +462,12 @@ const CRMModule = () => {
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <Card>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
+            <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
+              <Typography color="textSecondary" gutterBottom variant="body2">
                 Pipeline Value
               </Typography>
-              <Typography variant="h4">
-                                                                       ${crmMetrics.totalValue ? crmMetrics.totalValue.toLocaleString() : ''}
+              <Typography variant={isMobile ? "h5" : "h4"}>
+                ${crmMetrics.totalValue ? crmMetrics.totalValue.toLocaleString() : ''}
               </Typography>
             </CardContent>
           </Card>

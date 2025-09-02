@@ -83,6 +83,7 @@ def create_purchase_order():
         "total_amount": data.get('total_amount', 0.0),
         "tax_amount": data.get('tax_amount', 0.0),
         "notes": data.get('notes'),
+        "items": data.get('items', []),  # Store the items array
         "created_by": data.get('created_by'),
         "created_at": datetime.utcnow().isoformat()
     }
@@ -103,6 +104,16 @@ def update_purchase_order(po_id):
         po.update(data)
         po['updated_at'] = datetime.utcnow().isoformat()
         return jsonify(po)
+    return jsonify({"error": "Purchase Order not found"}), 404
+
+@bp.route('/purchase-orders/<int:po_id>', methods=['DELETE'])
+def delete_purchase_order(po_id):
+    """Delete a purchase order"""
+    global purchase_orders
+    po = next((p for p in purchase_orders if p['id'] == po_id), None)
+    if po:
+        purchase_orders = [p for p in purchase_orders if p['id'] != po_id]
+        return jsonify({"message": "Purchase Order deleted successfully"}), 200
     return jsonify({"error": "Purchase Order not found"}), 404
 
 @bp.route('/purchase-orders/<int:po_id>/approve', methods=['POST'])

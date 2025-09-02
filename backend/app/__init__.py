@@ -28,13 +28,11 @@ def create_app(config_name='development'):
     # Initialize extensions
     db.init_app(app)
     jwt.init_app(app)
-    # Configure CORS for both local development and production
-    cors_origins = [
-        'http://localhost:3000',  # Local development
-        'https://edonuops-erp-system.onrender.com',  # Render frontend
-        'https://edonuops-frontend.onrender.com',  # Alternative Render frontend
-        'https://*.onrender.com'  # Any Render subdomain
-    ]
+    # Import environment configuration
+    from config.environments import EnvironmentConfig
+    
+    # Configure CORS based on environment
+    cors_origins = EnvironmentConfig.get_cors_origins()
     CORS(app, origins=cors_origins, supports_credentials=True, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
     
     # Setup logging
@@ -44,7 +42,22 @@ def create_app(config_name='development'):
     try:
         from modules.core.models import User, Role, Organization
         from modules.finance.models import Account, JournalEntry, JournalLine
-        from modules.inventory.models import Category, Product, Warehouse, InventoryTransaction
+        # Import advanced finance models
+        from modules.finance.advanced_models import (
+            ChartOfAccounts, GeneralLedgerEntry, AccountsPayable, AccountsReceivable,
+            FixedAsset, Budget, TaxRecord, BankReconciliation, APPayment, ARPayment,
+            FinanceVendor, FinanceCustomer, AuditTrail, FinancialReport, Currency, ExchangeRate,
+            DepreciationSchedule, InvoiceLineItem, FinancialPeriod, JournalHeader, MaintenanceRecord,
+            TaxFilingHistory, ComplianceReport, UserActivity, BankStatement, KPI, CompanySettings
+        )
+        from modules.inventory.models import Category, Product, Warehouse, BasicInventoryTransaction
+        # Import advanced inventory models
+        from modules.inventory.advanced_models import (
+            InventoryProduct, ProductVariant, SerialNumber, LotBatch,
+            AdvancedWarehouse, AdvancedLocation, Zone, Aisle,
+            UnitOfMeasure, ProductCategory, InventorySupplier,
+            InventoryTransaction
+        )
         from modules.crm.models import Contact, Lead, Opportunity
         from modules.hcm.models import Employee, Department, Payroll, Recruitment
     except ImportError as e:
@@ -183,8 +196,16 @@ def register_blueprints(app):
         print(f"Warning: Could not import core blueprint: {e}")
     
     try:
-        from modules.finance.routes import finance_bp
-        app.register_blueprint(finance_bp, url_prefix='/api/finance')
+        from modules.core.visitor_routes import visitor_bp
+        app.register_blueprint(visitor_bp, url_prefix='/api')
+        print("✓ Visitor Management API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import visitor blueprint: {e}")
+    
+    try:
+        from modules.finance.advanced_routes import advanced_finance_bp
+        app.register_blueprint(advanced_finance_bp, url_prefix='/api/finance')
+        print("✓ Finance API loaded")
     except ImportError as e:
         print(f"Warning: Could not import finance blueprint: {e}")
     
@@ -207,6 +228,151 @@ def register_blueprints(app):
         print(f"Warning: Could not import inventory blueprint: {e}")
     
     try:
+        from modules.inventory.advanced_routes import advanced_inventory_bp
+        app.register_blueprint(advanced_inventory_bp, url_prefix='/api/inventory/advanced')
+    except ImportError as e:
+        print(f"Warning: Could not import advanced inventory blueprint: {e}")
+    
+    try:
+        from modules.onboarding.onboarding_routes import onboarding_bp
+        app.register_blueprint(onboarding_bp, url_prefix='/api/onboarding')
+        print("✓ Onboarding System API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import onboarding blueprint: {e}")
+    
+    # Register enterprise admin APIs
+    try:
+        from api.admin.cors_management import cors_admin_bp
+        app.register_blueprint(cors_admin_bp, url_prefix='/api/admin')
+        print("✓ CORS Management API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import CORS management blueprint: {e}")
+    
+    try:
+        from modules.inventory.data_integrity_routes import data_integrity_bp
+        app.register_blueprint(data_integrity_bp, url_prefix='/api/inventory/data-integrity')
+    except ImportError as e:
+        print(f"Warning: Could not import data integrity blueprint: {e}")
+    
+    try:
+        from modules.inventory.inventory_taking import inventory_taking_bp
+        app.register_blueprint(inventory_taking_bp, url_prefix='/api/inventory/taking')
+    except ImportError as e:
+        print(f"Warning: Could not import inventory taking blueprint: {e}")
+    
+    try:
+        from modules.integration.cross_module_routes import cross_module_bp
+        app.register_blueprint(cross_module_bp, url_prefix='/api/integration')
+        print("✓ Cross-Module Integration API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import cross-module integration blueprint: {e}")
+    
+    # Load all new modules
+    try:
+        from modules.inventory.valuation import inventory_valuation
+        print("✓ Inventory Valuation Engine loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import inventory valuation: {e}")
+    
+    try:
+        from modules.integration.auto_journal import auto_journal_engine
+        print("✓ Automated Journal Entry Engine loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import auto journal engine: {e}")
+    
+    try:
+        from modules.integration.cogs_reconciliation import cogs_reconciliation
+        print("✓ COGS Reconciliation System loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import COGS reconciliation: {e}")
+    
+    try:
+        from modules.inventory.adjustments import stock_adjustment
+        print("✓ Stock Adjustment System loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import stock adjustments: {e}")
+    
+    try:
+        from modules.finance.aging_reports import aging_reports
+        print("✓ Aging Reports System loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import aging reports: {e}")
+    
+    try:
+        from modules.finance.multi_currency import multi_currency
+        print("✓ Multi-Currency Support loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import multi-currency: {e}")
+    
+    try:
+        from modules.workflows.approval_engine import approval_workflow
+        print("✓ Approval Workflow Engine loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import approval workflows: {e}")
+    
+    # Load Enterprise Hardening Systems
+    try:
+        from modules.inventory.enterprise_routes import enterprise_bp
+        app.register_blueprint(enterprise_bp, url_prefix='/api/enterprise')
+        print("✓ Enterprise Hardening Systems loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import enterprise hardening systems: {e}")
+    
+    try:
+        from modules.inventory.manager_dashboard_routes import manager_dashboard_bp
+        app.register_blueprint(manager_dashboard_bp, url_prefix='/api/inventory/manager')
+        print("✓ Manager Dashboard API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import manager dashboard routes: {e}")
+    
+    try:
+        from modules.inventory.warehouse_operations_routes import warehouse_ops_bp
+        app.register_blueprint(warehouse_ops_bp, url_prefix='/api/inventory/warehouse')
+        print("✓ Warehouse Operations API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import warehouse operations routes: {e}")
+    
+    try:
+        from modules.inventory.analytics_routes import analytics_bp
+        app.register_blueprint(analytics_bp, url_prefix='/api/inventory/analytics')
+        print("✓ Inventory Analytics API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import inventory analytics routes: {e}")
+    
+    try:
+        from modules.inventory.data_integrity_routes import data_integrity_bp
+        app.register_blueprint(data_integrity_bp, url_prefix='/api/inventory/data-integrity')
+        print("✓ Data Integrity API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import data integrity routes: {e}")
+    
+    try:
+        from modules.inventory.core_routes import core_inventory_bp
+        app.register_blueprint(core_inventory_bp, url_prefix='/api/inventory/core')
+        print("✓ Core Inventory API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import core inventory routes: {e}")
+    
+    try:
+        from modules.inventory.wms_routes import wms_bp
+        app.register_blueprint(wms_bp, url_prefix='/api/inventory/wms')
+        print("✓ WMS API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import WMS routes: {e}")
+    
+    try:
+        from routes.performance_routes import performance_bp
+        app.register_blueprint(performance_bp, url_prefix='/api/performance')
+    except ImportError as e:
+        print(f"Warning: Could not import performance blueprint: {e}")
+    
+    try:
+        from routes.security_routes import security_bp
+        app.register_blueprint(security_bp, url_prefix='/api/security')
+    except ImportError as e:
+        print(f"Warning: Could not import security blueprint: {e}")
+    
+    try:
         from modules.ecommerce.routes import ecommerce_bp
         app.register_blueprint(ecommerce_bp, url_prefix='/api/ecommerce')
     except ImportError as e:
@@ -217,6 +383,13 @@ def register_blueprints(app):
         app.register_blueprint(ai_bp, url_prefix='/api/ai')
     except ImportError as e:
         print(f"Warning: Could not import AI blueprint: {e}")
+    
+    try:
+        from modules.procurement.routes import bp as procurement_bp
+        app.register_blueprint(procurement_bp, url_prefix='/api/procurement')
+        print("✓ Procurement API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import procurement blueprint: {e}")
     
     try:
         from modules.sustainability.routes import sustainability_bp

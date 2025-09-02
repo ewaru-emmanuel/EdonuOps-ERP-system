@@ -48,6 +48,23 @@ const DetailViewModal = ({
 }) => {
   if (!data) return null;
 
+  // Helper function to render status chip without DOM nesting issues
+  const renderStatusChip = (status, isActive = null) => {
+    const label = isActive !== null ? (isActive ? 'Active' : 'Inactive') : (status || 'Active');
+    const color = isActive !== null ? (isActive ? 'success' : 'default') : 
+                  (status === 'active' || status === 'Active' ? 'success' : 'default');
+    
+    return (
+      <Box component="span" sx={{ display: 'flex', alignItems: 'center' }}>
+        <Chip 
+          label={label} 
+          color={color}
+          size="small"
+        />
+      </Box>
+    );
+  };
+
   const getIcon = (type) => {
     switch (type) {
       case 'employee': return <PersonIcon />;
@@ -137,15 +154,7 @@ const DetailViewModal = ({
               <ListItemIcon><AssessmentIcon /></ListItemIcon>
               <ListItemText 
                 primary="Status" 
-                secondary={
-                  <Box component="span">
-                    <Chip 
-                      label={data.status || 'Active'} 
-                      color={data.status === 'active' ? 'success' : 'default'}
-                      size="small"
-                    />
-                  </Box>
-                } 
+                secondary={renderStatusChip(data.status)} 
               />
             </ListItem>
           </List>
@@ -223,15 +232,7 @@ const DetailViewModal = ({
               <ListItemIcon><AssessmentIcon /></ListItemIcon>
               <ListItemText 
                 primary="Status" 
-                secondary={
-                  <Box component="span">
-                    <Chip 
-                      label={data.is_active ? 'Active' : 'Inactive'} 
-                      color={data.is_active ? 'success' : 'default'}
-                      size="small"
-                    />
-                  </Box>
-                } 
+                secondary={renderStatusChip(null, data.is_active)} 
               />
             </ListItem>
             <ListItem>
@@ -276,15 +277,7 @@ const DetailViewModal = ({
               <ListItemIcon><AssessmentIcon /></ListItemIcon>
               <ListItemText 
                 primary="Status" 
-                secondary={
-                  <Box component="span">
-                    <Chip 
-                      label={data.is_active ? 'Active' : 'Inactive'} 
-                      color={data.is_active ? 'success' : 'default'}
-                      size="small"
-                    />
-                  </Box>
-                } 
+                secondary={renderStatusChip(null, data.is_active)} 
               />
             </ListItem>
             <ListItem>
@@ -344,7 +337,7 @@ const DetailViewModal = ({
               <ListItemText 
                 primary="Status" 
                 secondary={
-                  <Box component="span">
+                  <Box component="span" sx={{ display: 'flex', alignItems: 'center' }}>
                     <Chip 
                       label={data.status || 'Pending'} 
                       color={data.status === 'Paid' ? 'success' : 'warning'}
@@ -401,15 +394,7 @@ const DetailViewModal = ({
               <ListItemIcon><AssessmentIcon /></ListItemIcon>
               <ListItemText
                 primary="Status"
-                secondary={
-                  <Box component="span">
-                    <Chip
-                      label={data.status || 'Active'}
-                      color={data.status === 'active' ? 'success' : 'default'}
-                      size="small"
-                    />
-                  </Box>
-                }
+                secondary={renderStatusChip(data.status)}
               />
             </ListItem>
             <ListItem>
@@ -467,7 +452,7 @@ const DetailViewModal = ({
               <ListItemText
                 primary="Status"
                 secondary={
-                  <Box component="span">
+                  <Box component="span" sx={{ display: 'flex', alignItems: 'center' }}>
                     <Chip
                       label={data.status || 'New'}
                       color={data.status === 'new' ? 'warning' : 'success'}
@@ -581,15 +566,7 @@ const DetailViewModal = ({
               <ListItemIcon><AssessmentIcon /></ListItemIcon>
               <ListItemText
                 primary="Status"
-                secondary={
-                  <Box component="span">
-                    <Chip
-                      label={data.is_active ? 'Active' : 'Inactive'}
-                      color={data.is_active ? 'success' : 'default'}
-                      size="small"
-                    />
-                  </Box>
-                }
+                secondary={renderStatusChip(null, data.is_active)}
               />
             </ListItem>
             <ListItem>
@@ -702,15 +679,7 @@ const DetailViewModal = ({
               <ListItemIcon><AssessmentIcon /></ListItemIcon>
               <ListItemText
                 primary="Status"
-                secondary={
-                  <Box component="span">
-                    <Chip
-                      label={data.is_active ? 'Active' : 'Inactive'}
-                      color={data.is_active ? 'success' : 'default'}
-                      size="small"
-                    />
-                  </Box>
-                }
+                secondary={renderStatusChip(null, data.is_active)}
               />
             </ListItem>
             <ListItem>

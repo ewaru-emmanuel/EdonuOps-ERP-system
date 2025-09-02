@@ -1,5 +1,6 @@
 import React, { useState, createContext, useContext, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { CurrencyProvider, useCurrency } from './components/GlobalCurrencySettings';
 import {
   AppBar,
   Toolbar,
@@ -36,7 +37,9 @@ import {
   People as PeopleIcon,
   Store as StoreIcon,
   Psychology as PsychologyIcon,
-  Nature as NatureIcon
+  Nature as NatureIcon,
+  CurrencyExchange as CurrencyIcon,
+  ShoppingCart
 } from '@mui/icons-material';
 
 // Import components
@@ -45,13 +48,25 @@ import FinanceModule from './modules/finance/FinanceModule';
 import CRMModule from './modules/crm/CRMModule';
 import ERPMainModule from './modules/erp/ERPMainModule';
 import InventoryModule from './modules/erp/InventoryModule';
+import CoreInventoryModule from './modules/inventory/CoreInventoryModule';
+import WarehouseManagementModule from './modules/inventory/WarehouseManagementModule';
 import HCMModule from './modules/hcm/HCMModule';
 import EcommerceModule from './modules/ecommerce/EcommerceModule';
 import AIModule from './modules/ai/AIModule';
 import SustainabilityModule from './modules/sustainability/SustainabilityModule';
+import ProcurementModule from './modules/erp/procurement/ProcurementModule';
+import LandingPage from './components/LandingPage';
+import OnboardingWizard from './components/OnboardingWizard';
+import MagicDashboard from './components/MagicDashboard';
 
 // Import API service
 import { initializeERPApiService } from './services/erpApiService';
+
+// Import centralized API client
+import apiClient from './services/apiClient';
+
+// Import user preferences hook
+import { useUserPreferences } from './hooks/useUserPreferences';
 
 // Create Auth Context
 const AuthContext = createContext();
@@ -62,78 +77,6 @@ export const useAuth = () => {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-};
-
-// Get API base URL from environment variable or default to localhost
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-
-// API client for making HTTP requests
-const apiClient = {
-  async get(endpoint) {
-    try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return await response.json();
-    } catch (error) {
-      console.error(`Error fetching ${endpoint}:`, error);
-      throw error;
-    }
-  },
-
-  async post(endpoint, data) {
-    try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return await response.json();
-    } catch (error) {
-      console.error(`Error posting to ${endpoint}:`, error);
-      throw error;
-    }
-  },
-
-  async put(endpoint, data) {
-    try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return await response.json();
-    } catch (error) {
-      console.error(`Error putting to ${endpoint}:`, error);
-      throw error;
-    }
-  },
-
-  async delete(endpoint) {
-    try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return await response.json();
-    } catch (error) {
-      console.error(`Error deleting ${endpoint}:`, error);
-      throw error;
-    }
-  }
 };
 
 const AuthProvider = ({ children }) => {
@@ -170,6 +113,45 @@ const AuthProvider = ({ children }) => {
   );
 };
 
+// App Content Component (inside Router)
+const AppContent = () => {
+  const location = useLocation();
+  
+  return (
+    <Box sx={{ display: 'flex' }}>
+      <Navigation />
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          p: { xs: 2, md: 3 },
+          mt: (location.pathname === '/' || location.pathname === '/onboarding') ? 0 : { xs: 7, md: 8 },
+          minHeight: '100vh',
+          backgroundColor: (location.pathname === '/' || location.pathname === '/onboarding') ? 'transparent' : 'grey.50'
+        }}
+      >
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/onboarding" element={<OnboardingWizard />} />
+          <Route path="/dashboard" element={<MagicDashboard />} />
+          <Route path="/finance" element={<FinanceModule />} />
+          <Route path="/crm" element={<CRMModule />} />
+          <Route path="/procurement" element={<ProcurementModule />} />
+          <Route path="/erp" element={<ERPMainModule />} />
+          <Route path="/inventory" element={<CoreInventoryModule />} />
+          <Route path="/warehouse" element={<WarehouseManagementModule />} />
+          <Route path="/hcm" element={<HCMModule />} />
+          <Route path="/ecommerce" element={<EcommerceModule />} />
+          <Route path="/ai" element={<AIModule />} />
+          <Route path="/sustainability" element={<SustainabilityModule />} />
+          {/* Catch-all route for direct URL access */}
+          <Route path="*" element={<LandingPage />} />
+        </Routes>
+      </Box>
+    </Box>
+  );
+};
+
 // Navigation Component
 const Navigation = () => {
   const location = useLocation();
@@ -178,18 +160,33 @@ const Navigation = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuAnchor, setUserMenuAnchor] = useState(null);
   const { logout } = useAuth();
+  const { baseCurrency, setShowChangeDialog } = useCurrency();
+  const { isModuleEnabled, hasPreferences } = useUserPreferences();
 
-  const navLinks = [
-    { name: 'Dashboard', path: '/', icon: <DashboardIcon /> },
-    { name: 'Finance', path: '/finance', icon: <FinanceIcon /> },
-    { name: 'CRM', path: '/crm', icon: <CRMIcon /> },
-    { name: 'ERP', path: '/erp', icon: <BusinessIcon /> },
-    { name: 'HCM', path: '/hcm', icon: <PeopleIcon /> },
-    { name: 'E-commerce', path: '/ecommerce', icon: <StoreIcon /> },
-    { name: 'AI Intelligence', path: '/ai', icon: <PsychologyIcon /> },
-    { name: 'Sustainability', path: '/sustainability', icon: <NatureIcon /> },
-    { name: 'Inventory', path: '/inventory', icon: <InventoryIcon /> }
+  // Hide navigation on landing page and onboarding
+  const hideNavigation = location.pathname === '/' || location.pathname === '/onboarding';
+
+  // Define all navigation links with their module IDs
+  const allNavLinks = [
+    { name: 'Dashboard', path: '/', icon: <DashboardIcon />, moduleId: 'dashboard' },
+    { name: 'Finance', path: '/finance', icon: <FinanceIcon />, moduleId: 'financials' },
+    { name: 'CRM', path: '/crm', icon: <CRMIcon />, moduleId: 'crm' },
+    { name: 'Procurement', path: '/procurement', icon: <ShoppingCart />, moduleId: 'procurement' },
+    { name: 'ERP', path: '/erp', icon: <BusinessIcon />, moduleId: 'erp' },
+    { name: 'HCM', path: '/hcm', icon: <PeopleIcon />, moduleId: 'hcm' },
+    { name: 'E-commerce', path: '/ecommerce', icon: <StoreIcon />, moduleId: 'ecommerce' },
+    { name: 'AI Intelligence', path: '/ai', icon: <PsychologyIcon />, moduleId: 'ai' },
+    { name: 'Sustainability', path: '/sustainability', icon: <NatureIcon />, moduleId: 'sustainability' },
+    { name: '📦 Inventory', path: '/inventory', icon: <InventoryIcon />, moduleId: 'inventory' },
+    { name: '🏭 Warehouse', path: '/warehouse', icon: <InventoryIcon />, moduleId: 'inventorywms' }
   ];
+
+  // Filter navigation links based on user's selected modules
+  const navLinks = allNavLinks.filter(link => {
+    if (!hasPreferences) return true; // Show all if no preferences set
+    if (link.moduleId === 'dashboard') return true; // Always show dashboard
+    return isModuleEnabled(link.moduleId);
+  });
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -217,6 +214,15 @@ const Navigation = () => {
         <Typography variant="caption" color="text.secondary">
           Enterprise SaaS Platform
         </Typography>
+        {hasPreferences && (
+          <Chip 
+            label={`${navLinks.length - 1} modules enabled`} 
+            size="small" 
+            color="primary" 
+            variant="outlined"
+            sx={{ mt: 1 }}
+          />
+        )}
       </Box>
       <List>
         {navLinks.map((link) => (
@@ -244,6 +250,11 @@ const Navigation = () => {
     </Box>
   );
 
+  // Don't render navigation on landing page or onboarding
+  if (hideNavigation) {
+    return null;
+  }
+
   return (
     <>
       <AppBar position="fixed" sx={{ zIndex: theme.zIndex.drawer + 1 }}>
@@ -269,6 +280,15 @@ const Navigation = () => {
               color="success" 
               size="small" 
               variant="outlined"
+            />
+            <Chip
+              label={baseCurrency}
+              color="primary"
+              variant="outlined"
+              size="small"
+              onClick={() => setShowChangeDialog(true)}
+              clickable
+              icon={<CurrencyIcon />}
             />
             <IconButton color="inherit">
               <NotificationsIcon />
@@ -397,39 +417,13 @@ const App = () => {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <AuthProvider>
-        <Router>
-          <Box sx={{ display: 'flex' }}>
-            <Navigation />
-            <Box
-              component="main"
-              sx={{
-                flexGrow: 1,
-                p: { xs: 2, md: 3 },
-                mt: { xs: 7, md: 8 },
-                ml: { xs: 0, md: '250px' },
-                minHeight: '100vh',
-                backgroundColor: 'grey.50',
-                width: { xs: '100%', md: 'calc(100% - 250px)' }
-              }}
-            >
-                      <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/finance" element={<FinanceModule />} />
-          <Route path="/crm" element={<CRMModule />} />
-          <Route path="/erp" element={<ERPMainModule />} />
-          <Route path="/inventory" element={<InventoryModule />} />
-          <Route path="/hcm" element={<HCMModule />} />
-          <Route path="/ecommerce" element={<EcommerceModule />} />
-          <Route path="/ai" element={<AIModule />} />
-          <Route path="/sustainability" element={<SustainabilityModule />} />
-          {/* Catch-all route for direct URL access */}
-          <Route path="*" element={<Dashboard />} />
-        </Routes>
-            </Box>
-          </Box>
-        </Router>
-      </AuthProvider>
+      <CurrencyProvider>
+        <AuthProvider>
+          <Router>
+            <AppContent />
+          </Router>
+        </AuthProvider>
+      </CurrencyProvider>
     </ThemeProvider>
   );
 };

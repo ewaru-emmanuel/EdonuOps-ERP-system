@@ -1,5 +1,6 @@
 # Dashboard routes for EdonuOps ERP
-from flask import Blueprint, jsonify, current_app
+from flask import Blueprint, jsonify
+from app import db
 from modules.finance.models import JournalEntry, JournalLine, Account
 from modules.crm.models import Contact, Lead, Opportunity
 from modules.inventory.models import Product
@@ -13,16 +14,16 @@ dashboard_bp = Blueprint('dashboard', __name__)
 def get_dashboard_summary():
     """Get dashboard summary data with real calculations"""
     try:
-        # Calculate total revenue from journal entries
-        revenue_query = current_app.db.session.query(
-            sa.func.sum(JournalLine.amount).label('total_revenue')
+        # Calculate total revenue from journal entries (sum of credit amounts for revenue accounts)
+        revenue_query = db.session.query(
+            sa.func.sum(JournalLine.credit_amount).label('total_revenue')
         ).join(JournalEntry).join(Account).filter(
-            Account.account_type == 'revenue'
+            Account.type == 'revenue'
         ).scalar()
         total_revenue = float(revenue_query) if revenue_query else 0.0
 
         # Get counts from database
-        total_customers = Contact.query.filter_by(contact_type='customer').count()
+        total_customers = Contact.query.filter_by(type='customer').count()
         total_leads = Lead.query.count()
         total_opportunities = Opportunity.query.count()
         total_products = Product.query.count()
@@ -36,7 +37,7 @@ def get_dashboard_summary():
         for contact in recent_contacts:
             recent_activities.append({
                 'type': 'customer',
-                'message': f'New {contact.contact_type} added: {contact.first_name} {contact.last_name}',
+                'message': f'New {contact.type} added: {contact.first_name} {contact.last_name}',
                 'time': contact.created_at.strftime('%Y-%m-%d %H:%M') if contact.created_at else 'Unknown'
             })
 

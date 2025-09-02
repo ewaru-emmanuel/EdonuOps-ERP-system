@@ -195,3 +195,4 @@ def delete_journal_entry(entry_id):
         db.session.rollback()
         print(f"Error deleting journal entry: {e}")
         return jsonify({"error": "Failed to delete journal entry"}), 500
+

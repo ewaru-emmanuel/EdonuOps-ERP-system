@@ -14,7 +14,6 @@ import {
   Alert,
   Typography,
   Chip,
-  Fab,
   Card,
   CardContent,
   Grid,
@@ -605,13 +604,13 @@ const ChartOfAccountsContent = () => {
 
       {/* Floating Action Button for quick actions */}
       {(convertedAccounts || []).length > 0 && (
-        <Fab
-          color="secondary"
+        <Button
+          variant="contained"
           sx={{ position: 'fixed', bottom: 24, right: 24 }}
           onClick={() => setSetupWizardOpen(true)}
         >
           <MagicIcon />
-        </Fab>
+        </Button>
       )}
     </Box>
   );

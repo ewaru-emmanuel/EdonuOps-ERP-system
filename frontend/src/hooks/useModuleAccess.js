@@ -1,23 +1,34 @@
-// frontend/src/hooks/useModuleAccess.jsx
+// frontend/src/hooks/useModuleAccess.js
 
-import { useAuth } from './useAuth';
+import { useUserPreferences } from './useUserPreferences';
 
 export const useModuleAccess = () => {
-  const { user } = useAuth();
+  const { isModuleEnabled, hasPreferences } = useUserPreferences();
 
-  // This is a placeholder. In a real application, you would
-  // fetch user roles and permissions from the server.
-  const permissions = {
-    admin: ['finance', 'inventory', 'crm', 'manufacturing', 'vendor_portal', 'hr', 'ai', 'reporting'],
-    user: ['crm', 'inventory'],
-    vendor: ['vendor_portal'],
+  const canAccessModule = (moduleId) => {
+    if (!hasPreferences) return true; // Allow access if no preferences set
+    return isModuleEnabled(moduleId);
   };
 
-  const hasAccess = (moduleName) => {
-    if (!user) return false;
-    const userPermissions = permissions[user.role] || [];
-    return userPermissions.includes(moduleName);
+  const requireModule = (moduleId) => {
+    if (!canAccessModule(moduleId)) {
+      throw new Error(`Module ${moduleId} is not enabled for this user`);
+    }
   };
 
-  return { hasAccess };
+  const getModuleStatus = (moduleId) => {
+    return {
+      enabled: canAccessModule(moduleId),
+      hasPreferences,
+      moduleId
+    };
+  };
+
+  return {
+    canAccessModule,
+    requireModule,
+    isModuleEnabled,
+    hasPreferences,
+    getModuleStatus
+  };
 };

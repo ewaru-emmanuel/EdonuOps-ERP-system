@@ -53,7 +53,7 @@ const CRMOpportunities = () => {
     stage: 'prospecting',
     owner: '',
     expected_close_date: '',
-    contact_id: '',
+    contact_id: null,
     notes: ''
   });
 
@@ -82,7 +82,7 @@ const CRMOpportunities = () => {
         stage: opportunity.stage || 'prospecting',
         owner: opportunity.owner || '',
         expected_close_date: opportunity.expected_close_date || '',
-        contact_id: opportunity.contact_id || '',
+        contact_id: opportunity.contact_id || null,
         notes: opportunity.notes || ''
       });
     } else {
@@ -95,7 +95,7 @@ const CRMOpportunities = () => {
         stage: 'prospecting',
         owner: '',
         expected_close_date: '',
-        contact_id: '',
+        contact_id: null,
         notes: ''
       });
     }

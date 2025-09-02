@@ -47,8 +47,8 @@ const JournalEntryForm = ({ open, onClose, entry = null, onSave }) => {
     currency: 'USD',
     fx_rate: 1.0,
     lines: [
-      { account_id: '', account_code: '', account_name: '', description: '', debit_amount: '', credit_amount: '', dimensions: {} },
-      { account_id: '', account_code: '', account_name: '', description: '', debit_amount: '', credit_amount: '', dimensions: {} }
+      { account_id: null, account_code: '', account_name: '', description: '', debit_amount: '', credit_amount: '', dimensions: {} },
+      { account_id: null, account_code: '', account_name: '', description: '', debit_amount: '', credit_amount: '', dimensions: {} }
     ]
   });
 
@@ -72,8 +72,8 @@ const JournalEntryForm = ({ open, onClose, entry = null, onSave }) => {
           debit_amount: line.debit_amount || '',
           credit_amount: line.credit_amount || ''
         })) : [
-          { account_id: '', account_code: '', account_name: '', description: '', debit_amount: '', credit_amount: '', dimensions: {} },
-          { account_id: '', account_code: '', account_name: '', description: '', debit_amount: '', credit_amount: '', dimensions: {} }
+          { account_id: null, account_code: '', account_name: '', description: '', debit_amount: '', credit_amount: '', dimensions: {} },
+          { account_id: null, account_code: '', account_name: '', description: '', debit_amount: '', credit_amount: '', dimensions: {} }
         ]
       });
     }
@@ -115,7 +115,7 @@ const JournalEntryForm = ({ open, onClose, entry = null, onSave }) => {
     setFormData(prev => ({
       ...prev,
       lines: [...prev.lines, {
-        account_id: '',
+        account_id: null,
         account_code: '',
         account_name: '',
         description: '',
@@ -354,8 +354,9 @@ const JournalEntryForm = ({ open, onClose, entry = null, onSave }) => {
                           getOptionLabel={(option) => `${option.code} - ${option.name}`}
                           value={accounts.find(acc => acc.id === line.account_id) || null}
                           onChange={(e, newValue) => {
-                            handleLineChange(index, 'account_id', newValue?.id || '');
+                            handleLineChange(index, 'account_id', newValue?.id || null);
                           }}
+                          isOptionEqualToValue={(option, value) => option.id === value?.id}
                           renderInput={(params) => (
                             <TextField
                               {...params}

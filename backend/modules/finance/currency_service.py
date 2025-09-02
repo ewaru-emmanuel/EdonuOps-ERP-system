@@ -1,10 +1,13 @@
 """
 Currency Service for Exchange Rate Management
 Integrates with ExchangeRate-API (free, no API key required)
+Enhanced with ChatGPT for currency insights and market analysis
 """
 
 import requests
 import logging
+import os
+import openai
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Tuple
 from sqlalchemy.exc import IntegrityError
@@ -14,9 +17,13 @@ from .currency_models import Currency, ExchangeRate, CurrencyConversion
 # Configure logging
 logger = logging.getLogger(__name__)
 
+# Configure OpenAI
+openai.api_key = os.getenv('OPENAI_API_KEY')
+
 class CurrencyService:
     """
     Service class for currency operations and exchange rate management
+    Enhanced with AI-powered insights
     """
     
     # ExchangeRate-API endpoints (free, no API key needed)
@@ -306,4 +313,204 @@ class CurrencyService:
         except Exception as e:
             logger.error(f"❌ Failed to get exchange rate history: {str(e)}")
             return []
+    
+    @classmethod
+    def get_currency_insights(cls, base_currency: str = 'USD', target_currencies: List[str] = None) -> Dict:
+        """
+        Get AI-powered currency insights and market analysis
+        """
+        try:
+            if not openai.api_key:
+                return {'error': 'OpenAI API key not configured'}
+            
+            # Get current exchange rates
+            rate_data = cls.fetch_exchange_rates(base_currency)
+            if not rate_data:
+                return {'error': 'Failed to fetch exchange rates'}
+            
+            rates = rate_data.get('rates', {})
+            if target_currencies:
+                rates = {k: v for k, v in rates.items() if k in target_currencies}
+            
+            # Prepare data for AI analysis
+            rate_analysis = []
+            for currency, rate in rates.items():
+                if currency != base_currency:
+                    currency_info = cls.POPULAR_CURRENCIES.get(currency, {})
+                    rate_analysis.append({
+                        'currency': currency,
+                        'name': currency_info.get('name', currency),
+                        'rate': rate,
+                        'symbol': currency_info.get('symbol', '')
+                    })
+            
+            # Create prompt for ChatGPT
+            prompt = f"""
+            Analyze the following currency exchange rates for {base_currency} as the base currency:
+            
+            {rate_analysis}
+            
+            Please provide:
+            1. **Market Overview**: Brief analysis of current forex market conditions
+            2. **Key Insights**: Notable trends or patterns in the rates
+            3. **Risk Assessment**: Potential risks for businesses dealing with these currencies
+            4. **Recommendations**: Suggestions for currency management and hedging strategies
+            5. **Economic Factors**: What economic factors might be influencing these rates
+            
+            Keep the analysis professional, concise, and actionable for business decision-making.
+            """
+            
+            # Get AI insights
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a professional currency analyst providing insights for business decision-making."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=800,
+                temperature=0.7
+            )
+            
+            insights = response.choices[0].message.content
+            
+            return {
+                'base_currency': base_currency,
+                'analysis_date': datetime.now().isoformat(),
+                'rates_analyzed': len(rate_analysis),
+                'insights': insights,
+                'raw_rates': rate_analysis
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting currency insights: {str(e)}")
+            return {'error': f'Failed to get insights: {str(e)}'}
+    
+    @classmethod
+    def get_currency_forecast(cls, from_currency: str, to_currency: str, amount: float = 1000) -> Dict:
+        """
+        Get AI-powered currency forecast and conversion insights
+        """
+        try:
+            if not openai.api_key:
+                return {'error': 'OpenAI API key not configured'}
+            
+            # Get current rate
+            rate_data = cls.fetch_exchange_rates(from_currency)
+            if not rate_data:
+                return {'error': 'Failed to fetch exchange rates'}
+            
+            current_rate = rate_data.get('rates', {}).get(to_currency)
+            if not current_rate:
+                return {'error': f'Rate not available for {from_currency} to {to_currency}'}
+            
+            converted_amount = amount * current_rate
+            
+            # Create prompt for forecast
+            prompt = f"""
+            Analyze the currency conversion from {from_currency} to {to_currency}:
+            
+            - Amount: {amount} {from_currency}
+            - Current Rate: 1 {from_currency} = {current_rate} {to_currency}
+            - Converted Amount: {converted_amount:.2f} {to_currency}
+            
+            Please provide:
+            1. **Current Market Position**: Is this a good time for this conversion?
+            2. **Trend Analysis**: What's the recent trend for this currency pair?
+            3. **Risk Factors**: What could affect this currency pair in the near term?
+            4. **Timing Recommendations**: When might be the best time for this conversion?
+            5. **Alternative Strategies**: Any hedging or timing strategies to consider?
+            
+            Focus on practical business advice for currency conversion decisions.
+            """
+            
+            # Get AI forecast
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a currency trading advisor providing practical business advice."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=600,
+                temperature=0.7
+            )
+            
+            forecast = response.choices[0].message.content
+            
+            return {
+                'from_currency': from_currency,
+                'to_currency': to_currency,
+                'amount': amount,
+                'current_rate': current_rate,
+                'converted_amount': converted_amount,
+                'forecast': forecast,
+                'analysis_date': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting currency forecast: {str(e)}")
+            return {'error': f'Failed to get forecast: {str(e)}'}
+    
+    @classmethod
+    def get_market_sentiment(cls, currencies: List[str] = None) -> Dict:
+        """
+        Get AI-powered market sentiment analysis for currencies
+        """
+        try:
+            if not openai.api_key:
+                return {'error': 'OpenAI API key not configured'}
+            
+            if not currencies:
+                currencies = ['USD', 'EUR', 'GBP', 'JPY', 'CNY']
+            
+            # Get rates for all currencies against USD
+            rate_data = cls.fetch_exchange_rates('USD')
+            if not rate_data:
+                return {'error': 'Failed to fetch exchange rates'}
+            
+            rates = rate_data.get('rates', {})
+            currency_rates = {}
+            
+            for currency in currencies:
+                if currency in rates:
+                    currency_rates[currency] = rates[currency]
+            
+            # Create sentiment analysis prompt
+            prompt = f"""
+            Analyze the market sentiment for these major currencies based on their current USD exchange rates:
+            
+            {currency_rates}
+            
+            Please provide:
+            1. **Overall Market Sentiment**: Bullish, Bearish, or Neutral for USD
+            2. **Currency Strength Ranking**: Which currencies are strongest/weakest
+            3. **Market Drivers**: What's driving current currency movements
+            4. **Risk Assessment**: Which currencies pose the highest risk
+            5. **Opportunity Analysis**: Where are the best opportunities for currency operations
+            
+            Provide a concise, professional analysis suitable for business decision-making.
+            """
+            
+            # Get AI sentiment analysis
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a forex market analyst providing sentiment analysis for business clients."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=500,
+                temperature=0.6
+            )
+            
+            sentiment = response.choices[0].message.content
+            
+            return {
+                'currencies_analyzed': currencies,
+                'rates': currency_rates,
+                'sentiment_analysis': sentiment,
+                'analysis_date': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting market sentiment: {str(e)}")
+            return {'error': f'Failed to get sentiment: {str(e)}'}
 

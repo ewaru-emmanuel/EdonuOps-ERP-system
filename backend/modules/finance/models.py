@@ -97,6 +97,38 @@ class Payment(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+# Budget Models
+class Budget(db.Model):
+    __tablename__ = 'budgets'
+    id = db.Column(db.Integer, primary_key=True)
+    period = db.Column(db.String(7), nullable=False)  # YYYY-MM format
+    account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=False)
+    budget_amount = db.Column(db.Float, nullable=False, default=0.0)
+    actual_amount = db.Column(db.Float, default=0.0)
+    forecast_amount = db.Column(db.Float, default=0.0)
+    scenario = db.Column(db.String(20), default='base')  # base, optimistic, pessimistic, custom
+    notes = db.Column(db.Text)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    account = db.relationship('Account')
+
+class BudgetScenario(db.Model):
+    __tablename__ = 'budget_scenarios'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    period = db.Column(db.String(7), nullable=False)  # YYYY-MM format
+    scenario_type = db.Column(db.String(20), default='custom')  # base, optimistic, pessimistic, custom
+    growth_rate = db.Column(db.Float, default=0.0)  # Percentage change from base
+    assumptions = db.Column(get_json_type())  # JSON object for custom assumptions
+    is_active = db.Column(db.Boolean, default=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 # Indexes
 db.Index('ix_journal_lines_account_id', JournalLine.account_id)
 db.Index('ix_journal_lines_journal_entry_id', JournalLine.journal_entry_id)

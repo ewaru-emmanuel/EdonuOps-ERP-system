@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../../../App';
+import apiClient from '../../../services/apiClient';
 
 const FinanceDataContext = createContext();
 
@@ -52,13 +53,10 @@ export const FinanceDataProvider = ({ children }) => {
       
       // First check if backend is reachable
       try {
-        const healthCheck = await fetch('http://127.0.0.1:5000/health');
-        if (!healthCheck.ok) {
-          throw new Error('Backend health check failed');
-        }
+        await apiClient.healthCheck();
         console.log(`✅ Backend is reachable`);
       } catch (healthError) {
-        throw new Error('Backend server not reachable. Please ensure backend is running on http://127.0.0.1:5000');
+        throw new Error('Backend server not reachable. Please ensure backend is running.');
       }
       
       const response = await apiClient.get(`/finance/${endpoint}`);
@@ -72,14 +70,14 @@ export const FinanceDataProvider = ({ children }) => {
       
       let errorMessage = 'Network error';
       if (error.message.includes('fetch')) {
-        errorMessage = 'Backend server not reachable. Please ensure backend is running on http://127.0.0.1:5000';
+        errorMessage = 'Backend server not reachable. Please ensure backend is running.';
       } else if (error.message.includes('401')) {
         errorMessage = 'Authentication failed. Please log in again.';
       } else if (error.message.includes('404')) {
-        errorMessage = `Endpoint /finance/${endpoint} not found on server`;
+        errorMessage = 'Resource not found. Please check the endpoint.';
       } else if (error.message.includes('500')) {
-        errorMessage = 'Server error. Please check backend logs.';
-      } else if (error.message) {
+        errorMessage = 'Server error. Please try again later.';
+      } else {
         errorMessage = error.message;
       }
       
