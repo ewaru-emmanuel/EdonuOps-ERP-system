@@ -17,6 +17,10 @@ class EnvironmentConfig:
             'http://localhost:3001',
             'http://127.0.0.1:3001'
         ],
+        'render': [
+            'https://your-frontend-app.onrender.com',
+            'https://your-backend-app.onrender.com'
+        ],
         'staging': [
             'https://staging.edonuops.com',
             'https://staging-frontend.edonuops.com',
@@ -176,6 +180,9 @@ class EnvironmentConfig:
     @classmethod
     def get_environment(cls) -> str:
         """Get current environment"""
+        # Check for Render environment first
+        if os.getenv('RENDER'):
+            return 'render'
         return os.getenv('FLASK_ENV', 'development')
     
     @classmethod
@@ -229,4 +236,17 @@ class EnvironmentConfig:
         env = environment or cls.get_environment()
         if env in cls.CORS_ORIGINS and origin in cls.CORS_ORIGINS[env]:
             cls.CORS_ORIGINS[env].remove(origin)
+    
+    @classmethod
+    def setup_render_cors(cls, frontend_url: str, backend_url: str = None) -> None:
+        """Setup CORS for Render deployment"""
+        cls.CORS_ORIGINS['render'] = [frontend_url]
+        if backend_url:
+            cls.CORS_ORIGINS['render'].append(backend_url)
+        
+        # Also add to current environment if we're on Render
+        if cls.get_environment() == 'render':
+            cls.add_cors_origin(frontend_url)
+            if backend_url:
+                cls.add_cors_origin(backend_url)
 
