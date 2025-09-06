@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   Button,
+  TextField,
   Typography,
   Box,
   Grid,
@@ -46,7 +47,118 @@ const DetailViewModal = ({
   onEdit,
   title 
 }) => {
-  if (!data) return null;
+  const hasData = Boolean(data);
+
+  const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:5000/api';
+
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [aiScore, setAiScore] = useState(null);
+  const [aiReasons, setAiReasons] = useState([]);
+  const [aiActions, setAiActions] = useState([]);
+  const [dealItems, setDealItems] = useState([]);
+  const [savingItems, setSavingItems] = useState(false);
+  const [emailGenLoading, setEmailGenLoading] = useState(false);
+  const [emailDraft, setEmailDraft] = useState(null);
+
+  const fetchAiForLead = async () => {
+    try {
+      setAiLoading(true);
+      setAiError('');
+      setAiActions([]);
+
+      // Score (lead only)
+      if (type === 'lead') {
+        const scoreRes = await fetch(`${API_BASE}/crm/ai/score-lead`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lead: data })
+        });
+        const scoreJson = await scoreRes.json();
+        setAiScore(typeof scoreJson.score === 'number' ? scoreJson.score : null);
+        setAiReasons(Array.isArray(scoreJson.reasons) ? scoreJson.reasons : []);
+      }
+
+      // Next-best actions (lead or opportunity)
+      const nbaRes = await fetch(`${API_BASE}/crm/ai/next-actions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType: type === 'opportunity' ? 'deal' : type, entity: data })
+      });
+      const nbaJson = await nbaRes.json();
+      setAiActions(Array.isArray(nbaJson.actions) ? nbaJson.actions : []);
+    } catch (e) {
+      setAiError(e?.message || 'AI service unavailable');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (open && hasData && (type === 'lead' || type === 'opportunity')) {
+      fetchAiForLead();
+    } else {
+      setAiLoading(false);
+      setAiError('');
+      setAiScore(null);
+      setAiReasons([]);
+      setAiActions([]);
+      setDealItems([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, type, hasData, data?.id]);
+
+  useEffect(() => {
+    if (type === 'opportunity' && data && Array.isArray(data.products)) {
+      setDealItems(data.products);
+    }
+  }, [type, data]);
+
+  const addDealItem = () => {
+    setDealItems(prev => [...prev, { sku: '', name: '', quantity: 1, unit_price: 0 }]);
+  };
+
+  const updateDealItem = (idx, field, value) => {
+    setDealItems(prev => prev.map((it, i) => i === idx ? { ...it, [field]: value } : it));
+  };
+
+  const removeDealItem = (idx) => {
+    setDealItems(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const saveDealItems = async () => {
+    if (type !== 'opportunity' || !data?.id) return;
+    try {
+      setSavingItems(true);
+      const res = await fetch(`${API_BASE}/crm/opportunities/${data.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ products: dealItems })
+      });
+      await res.json();
+      setSavingItems(false);
+    } catch (e) {
+      setSavingItems(false);
+    }
+  };
+
+  const generateEmail = async (intent = 'follow_up') => {
+    try {
+      setEmailGenLoading(true);
+      setEmailDraft(null);
+      const res = await fetch(`${API_BASE}/crm/ai/generate-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intent, context: { type, data } })
+      });
+      const json = await res.json();
+      setEmailDraft({ subject: json.subject, body: json.body });
+    } catch (e) {
+      setEmailDraft({ subject: 'Follow up', body: 'Hello,\n\nFollowing up.\n\nBest regards,' });
+    } finally {
+      setEmailGenLoading(false);
+    }
+  };
 
   // Helper function to render status chip without DOM nesting issues
   const renderStatusChip = (status, isActive = null) => {
@@ -771,7 +883,132 @@ const DetailViewModal = ({
       </DialogTitle>
       
       <DialogContent dividers id="detail-dialog-content">
-        {renderContent()}
+        {hasData ? renderContent() : (
+          <Box>
+            <Typography variant="body2" color="text.secondary">No data available.</Typography>
+          </Box>
+        )}
+
+        {hasData && (type === 'lead' || type === 'opportunity') && (
+          <Box sx={{ mt: 3 }}>
+            <Paper elevation={1} sx={{ p: 2 }}>
+              <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+                <Typography variant="h6">AI Insights</Typography>
+                <Box>
+                  <Button onClick={fetchAiForLead} disabled={aiLoading} variant="outlined" size="small" sx={{ mr: 1 }}>
+                    {aiLoading ? 'Loading…' : 'Refresh'}
+                  </Button>
+                  <Button onClick={() => generateEmail('follow_up')} disabled={emailGenLoading} variant="contained" size="small">
+                    {emailGenLoading ? 'Generating…' : 'Generate Email'}
+                  </Button>
+                </Box>
+              </Box>
+
+              {aiError && (
+                <Typography variant="body2" color="error" sx={{ mb: 2 }}>{aiError}</Typography>
+              )}
+
+              {type === 'lead' && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                  <Typography variant="body2" color="text.secondary">Score</Typography>
+                  <Chip 
+                    label={aiScore !== null ? aiScore : (typeof data.score === 'number' ? data.score : '—')} 
+                    color={
+                      ((aiScore ?? data.score) >= 80) ? 'success' : ((aiScore ?? data.score) >= 50 ? 'info' : 'default')
+                    }
+                    size="small"
+                  />
+                </Box>
+              )}
+
+              {type === 'lead' && aiReasons?.length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>Why this score</Typography>
+                  <List dense>
+                    {aiReasons.map((r, idx) => (
+                      <ListItem key={`reason-${idx}`}>
+                        <ListItemText primary={r} />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Box>
+              )}
+
+              {aiActions?.length > 0 && (
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>Suggested next actions</Typography>
+                  <List dense>
+                    {aiActions.map((a, idx) => (
+                      <ListItem key={`nba-${idx}`}>
+                        <ListItemText 
+                          primary={a.title}
+                          secondary={`${a.description}${typeof a.dueInDays === 'number' ? ` · Due in ${a.dueInDays} day(s)` : ''}`}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Box>
+              )}
+
+              {emailDraft && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>Email Draft</Typography>
+                  <TextField
+                    label="Subject"
+                    fullWidth
+                    size="small"
+                    value={emailDraft.subject || ''}
+                    onChange={(e) => setEmailDraft({ ...emailDraft, subject: e.target.value })}
+                    sx={{ mb: 1 }}
+                  />
+                  <TextField
+                    label="Body"
+                    fullWidth
+                    multiline
+                    minRows={6}
+                    value={emailDraft.body || ''}
+                    onChange={(e) => setEmailDraft({ ...emailDraft, body: e.target.value })}
+                  />
+                </Box>
+              )}
+            </Paper>
+          </Box>
+        )}
+
+        {hasData && type === 'opportunity' && (
+          <Box sx={{ mt: 3 }}>
+            <Paper elevation={1} sx={{ p: 2 }}>
+              <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+                <Typography variant="h6">Deal Line Items</Typography>
+                <Box>
+                  <Button onClick={addDealItem} variant="outlined" size="small" sx={{ mr: 1 }}>Add Item</Button>
+                  <Button onClick={saveDealItems} disabled={savingItems} variant="contained" size="small">{savingItems ? 'Saving…' : 'Save'}</Button>
+                </Box>
+              </Box>
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr 0.8fr 0.8fr 0.6fr', gap: 1 }}>
+                <Typography variant="caption" color="text.secondary">SKU</Typography>
+                <Typography variant="caption" color="text.secondary">Name</Typography>
+                <Typography variant="caption" color="text.secondary">Qty</Typography>
+                <Typography variant="caption" color="text.secondary">Unit Price</Typography>
+                <Typography variant="caption" color="text.secondary">Actions</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
+                {dealItems.map((it, idx) => (
+                  <Box key={`it-${idx}`} sx={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr 0.8fr 0.8fr 0.6fr', gap: 1 }}>
+                    <TextField value={it.sku} size="small" onChange={(e) => updateDealItem(idx, 'sku', e.target.value)} />
+                    <TextField value={it.name} size="small" onChange={(e) => updateDealItem(idx, 'name', e.target.value)} />
+                    <TextField type="number" value={it.quantity} size="small" onChange={(e) => updateDealItem(idx, 'quantity', Number(e.target.value))} />
+                    <TextField type="number" value={it.unit_price} size="small" onChange={(e) => updateDealItem(idx, 'unit_price', Number(e.target.value))} />
+                    <Button color="error" size="small" onClick={() => removeDealItem(idx)}>Remove</Button>
+                  </Box>
+                ))}
+                {dealItems.length === 0 && (
+                  <Typography variant="body2" color="text.secondary">No items. Click Add Item.</Typography>
+                )}
+              </Box>
+            </Paper>
+          </Box>
+        )}
       </DialogContent>
       
       <DialogActions>

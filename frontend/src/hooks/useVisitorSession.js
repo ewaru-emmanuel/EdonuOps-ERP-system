@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export const useVisitorSession = () => {
   const [visitorId, setVisitorId] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:5000/api';
 
   useEffect(() => {
     // Generate or retrieve unique visitor ID
@@ -67,7 +68,7 @@ export const useVisitorSession = () => {
       console.log('Visitor initialized:', { visitorId, sessionId });
       
       // Store visitor info in backend
-      await fetch('/api/visitors/initialize', {
+      await fetch(`${API_BASE}/visitors/initialize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ visitorId, sessionId, userAgent: navigator.userAgent })
@@ -78,7 +79,7 @@ export const useVisitorSession = () => {
   };
 
   // Check if session is still valid
-  const isSessionValid = () => {
+  const isSessionValid = useCallback(() => {
     try {
       const expiry = localStorage.getItem('edonuops_session_expiry');
       if (!expiry) return false;
@@ -86,10 +87,10 @@ export const useVisitorSession = () => {
     } catch {
       return false;
     }
-  };
+  }, []);
 
   // Refresh session
-  const refreshSession = () => {
+  const refreshSession = useCallback(() => {
     const newSessionId = generateUniqueId();
     const sessionExpiry = Date.now() + (24 * 60 * 60 * 1000);
     
@@ -98,25 +99,25 @@ export const useVisitorSession = () => {
     
     setSessionId(newSessionId);
     return newSessionId;
-  };
+  }, []);
 
   // Get visitor-specific storage key
-  const getStorageKey = (key) => {
+  const getStorageKey = useCallback((key) => {
     return `edonuops_${visitorId}_${key}`;
-  };
+  }, [visitorId]);
 
   // Set visitor-specific data
-  const setVisitorData = (key, value) => {
+  const setVisitorData = useCallback((key, value) => {
     try {
       const storageKey = getStorageKey(key);
       localStorage.setItem(storageKey, JSON.stringify(value));
     } catch (error) {
       console.error('Error setting visitor data:', error);
     }
-  };
+  }, [getStorageKey]);
 
   // Get visitor-specific data
-  const getVisitorData = (key, defaultValue = null) => {
+  const getVisitorData = useCallback((key, defaultValue = null) => {
     try {
       const storageKey = getStorageKey(key);
       const data = localStorage.getItem(storageKey);
@@ -125,7 +126,7 @@ export const useVisitorSession = () => {
       console.error('Error getting visitor data:', error);
       return defaultValue;
     }
-  };
+  }, [getStorageKey]);
 
   return {
     visitorId,

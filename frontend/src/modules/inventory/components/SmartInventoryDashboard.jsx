@@ -16,6 +16,7 @@ import { useRealTimeData } from '../../../hooks/useRealTimeData';
 const SmartInventoryDashboard = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const showWms = false; // hide warehouse visuals in Inventory module
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Real-time data hooks
@@ -56,7 +57,7 @@ const SmartInventoryDashboard = () => {
       {/* Header with Refresh */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h2" sx={{ fontWeight: 'bold' }}>
-          🏭 Real-Time Warehouse Dashboard
+          Inventory Overview
         </Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Tooltip title="Refresh Data">
@@ -126,7 +127,7 @@ const SmartInventoryDashboard = () => {
                     {predictiveStockouts?.length || 8}
                   </Typography>
                   <Typography variant="body2">
-                    Stockout Alerts
+                    Low Stock Alerts
                   </Typography>
                 </Box>
               </Box>
@@ -145,7 +146,7 @@ const SmartInventoryDashboard = () => {
                     {pickerPerformance?.length || 12}
                   </Typography>
                   <Typography variant="body2">
-                    Active Pickers
+                    Active Items
                   </Typography>
                 </Box>
               </Box>
@@ -155,7 +156,8 @@ const SmartInventoryDashboard = () => {
       </Grid>
 
       <Grid container spacing={3}>
-        {/* Warehouse Map */}
+        {/* Warehouse Map (hidden in Inventory) */}
+        {showWms && (
         <Grid item xs={12} lg={8}>
           <Card>
             <CardContent>
@@ -214,8 +216,10 @@ const SmartInventoryDashboard = () => {
             </CardContent>
           </Card>
         </Grid>
+        )}
 
-        {/* Live Activity Feed */}
+        {/* Live Activity Feed (hidden in Inventory) */}
+        {showWms && (
         <Grid item xs={12} lg={4}>
           <Card>
             <CardContent>
@@ -265,15 +269,16 @@ const SmartInventoryDashboard = () => {
             </CardContent>
           </Card>
         </Grid>
+        )}
 
-        {/* Predictive Stockout Alerts */}
+        {/* Inventory Alerts */}
         <Grid item xs={12} lg={6}>
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                 <Warning color="error" />
                 <Typography variant="h6" fontWeight="bold">
-                  Predictive Stockout Alerts
+                  Inventory Alerts
                 </Typography>
                 <Chip label="AI-Powered" color="primary" size="small" />
               </Box>

@@ -27,6 +27,7 @@ export const useCurrency = () => useContext(CurrencyContext);
 
 export const CurrencyProvider = ({ children }) => {
   const [baseCurrency, setBaseCurrency] = useState('USD');
+  const [currencySettings, setCurrencySettings] = useState(null);
   const [showChangeDialog, setShowChangeDialog] = useState(false);
   const [newCurrency, setNewCurrency] = useState('USD');
   const [conversionRates, setConversionRates] = useState({});
@@ -51,9 +52,12 @@ export const CurrencyProvider = ({ children }) => {
 
   const loadCurrencySettings = async () => {
     try {
-      const data = await apiClient.getBaseCurrency();
-      setBaseCurrency(data.base_currency || 'USD');
-      setNewCurrency(data.base_currency || 'USD');
+      const res = await apiClient.getSettingsSection('currency');
+      const data = res?.data || res || {};
+      setCurrencySettings(data);
+      const bc = data.base_currency || 'USD';
+      setBaseCurrency(bc);
+      setNewCurrency(bc);
     } catch (error) {
       console.error('Error loading currency settings:', error);
     }
@@ -74,10 +78,11 @@ export const CurrencyProvider = ({ children }) => {
 
   const handleCurrencyChange = async () => {
     try {
-      await apiClient.setBaseCurrency({ base_currency: newCurrency });
+      const updated = { ...(currencySettings || {}), base_currency: newCurrency };
+      await apiClient.putSettingsSection('currency', { data: updated });
+      setCurrencySettings(updated);
       setBaseCurrency(newCurrency);
       setShowChangeDialog(false);
-      // Trigger global conversion
       await convertAllData(newCurrency);
     } catch (error) {
       console.error('Error changing currency:', error);

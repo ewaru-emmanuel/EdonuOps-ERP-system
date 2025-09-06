@@ -208,9 +208,19 @@ const CRMPipeline = () => {
           
           return (
             <Grid item xs={12} md={4} lg={2} key={stage.id}>
-              <Paper sx={{ p: 2, height: '100%', minHeight: 400 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="h6" fontWeight="medium">
+              <Paper sx={{ p: 2, height: '100%', minHeight: 400, display: 'flex', flexDirection: 'column' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 1, minWidth: 0 }}>
+                  <Typography 
+                    variant="subtitle1" 
+                    fontWeight="medium"
+                    sx={{ 
+                      flex: 1, 
+                      minWidth: 0, 
+                      overflow: 'hidden', 
+                      textOverflow: 'ellipsis', 
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
                     {stage.name}
                   </Typography>
                   <Chip 
@@ -220,22 +230,32 @@ const CRMPipeline = () => {
                   />
                 </Box>
                 
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2, wordBreak: 'break-word' }}>
                   {formatCurrency(stageValue)}
                 </Typography>
 
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, maxHeight: 300, overflow: 'auto' }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, maxHeight: 300, overflowY: 'auto', overflowX: 'hidden', pr: 0.5 }}>
                   {stageOpportunities.map((opportunity) => (
                     <Card key={opportunity.id} sx={{ mb: 1, cursor: 'pointer' }} onClick={() => handleOpenDialog(opportunity)}>
                       <CardContent sx={{ p: 2 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                          <Typography variant="subtitle2" fontWeight="medium" sx={{ flex: 1 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1, gap: 1, minWidth: 0 }}>
+                          <Typography 
+                            variant="subtitle2" 
+                            fontWeight="medium" 
+                            sx={{ 
+                              flex: 1, 
+                              minWidth: 0, 
+                              overflow: 'hidden', 
+                              textOverflow: 'ellipsis', 
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
                             {opportunity.name}
                           </Typography>
                           <DragIndicator sx={{ fontSize: 16, color: 'text.secondary' }} />
                         </Box>
                         
-                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                        <Typography variant="body2" color="text.secondary" gutterBottom sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {opportunity.company}
                         </Typography>
                         

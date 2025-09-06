@@ -124,6 +124,7 @@ const ImprovedForm = ({
           email: '',
           phone: '',
           company: '',
+          company_id: '',
           type: 'customer',
           status: 'active'
         };
@@ -140,6 +141,7 @@ const ImprovedForm = ({
       case 'opportunity':
         return {
           name: '',
+          company_id: '',
           contact_id: '',
           amount: '',
           stage: 'prospecting',
@@ -292,7 +294,7 @@ const ImprovedForm = ({
           { name: 'last_name', label: 'Last Name', type: 'text', required: true },
           { name: 'email', label: 'Email', type: 'email' },
           { name: 'phone', label: 'Phone', type: 'tel' },
-          { name: 'company', label: 'Company', type: 'text' },
+          { name: 'company_id', label: 'Company', type: 'select', options: [], apiEndpoint: '/api/crm/companies', optionValue: 'id', optionLabel: 'name' },
           { name: 'type', label: 'Type', type: 'select', options: ['customer', 'vendor', 'partner', 'prospect'] },
           { name: 'status', label: 'Status', type: 'select', options: ['active', 'inactive'] }
         ];
@@ -309,6 +311,7 @@ const ImprovedForm = ({
       case 'opportunity':
         return [
           { name: 'name', label: 'Opportunity Name', type: 'text', required: true },
+          { name: 'company_id', label: 'Company', type: 'select', options: [], apiEndpoint: '/api/crm/companies', optionValue: 'id', optionLabel: 'name' },
           { name: 'contact_id', label: 'Contact ID', type: 'number' },
           { name: 'amount', label: 'Amount', type: 'number' },
           { name: 'stage', label: 'Stage', type: 'select', options: ['prospecting', 'qualification', 'proposal', 'negotiation', 'closed_won', 'closed_lost'] },

@@ -51,8 +51,10 @@ def update_vendor(vendor_id):
     return jsonify({"error": "Vendor not found"}), 404
 
 # Purchase Order endpoints
-@bp.route('/purchase-orders', methods=['GET'])
+@bp.route('/purchase-orders', methods=['GET', 'OPTIONS'])
 def get_purchase_orders():
+    if request.method == 'OPTIONS':
+        return ('', 200)
     """Get all purchase orders with filters"""
     vendor_id = request.args.get('vendor_id', type=int)
     status = request.args.get('status')
@@ -65,14 +67,49 @@ def get_purchase_orders():
     
     return jsonify(filtered_pos)
 
-@bp.route('/purchase-orders', methods=['POST'])
+@bp.route('/purchase-orders', methods=['POST', 'OPTIONS'])
 def create_purchase_order():
+    if request.method == 'OPTIONS':
+        return ('', 200)
     """Create a new purchase order"""
     data = request.get_json()
     
     # Generate PO number
     po_number = f"PO-{datetime.utcnow().strftime('%Y%m%d')}-{len(purchase_orders) + 1:03d}"
     
+    # Currency and FX locking at PO header (can be overridden per line)
+    po_currency = data.get('currency', 'USD')
+    fx_rate = float(data.get('fx_rate') or 1.0)  # to base currency
+
+    # Build items with currency context
+    items_in = data.get('items', []) or []
+    items = []
+    total_foreign = 0.0
+    total_base = 0.0
+    for it in items_in:
+        qty = float(it.get('quantity') or 0)
+        unit_price_foreign = float(it.get('unit_price') or it.get('unit_price_foreign') or 0)
+        line_currency = it.get('currency', po_currency)
+        line_fx = float(it.get('fx_rate') or fx_rate)
+        line_total_foreign = qty * unit_price_foreign
+        line_total_base = line_total_foreign * line_fx
+        item_rec = {
+            'id': len(items) + 1,
+            'product_id': it.get('product_id'),
+            'description': it.get('description'),
+            'quantity': qty,
+            'unit_price_foreign': unit_price_foreign,
+            'currency': line_currency,
+            'fx_rate': line_fx,
+            'total_amount_foreign': line_total_foreign,
+            'total_amount_base': line_total_base,
+            'tax_rate': float(it.get('tax_rate') or 0.0),
+            'received_quantity': 0.0,
+        }
+        items.append(item_rec)
+        total_foreign += line_total_foreign
+        total_base += line_total_base
+
     new_po = {
         "id": len(purchase_orders) + 1,
         "po_number": po_number,
@@ -80,10 +117,13 @@ def create_purchase_order():
         "order_date": data.get('order_date', datetime.utcnow().date().isoformat()),
         "expected_delivery": data.get('expected_delivery'),
         "status": 'pending',
-        "total_amount": data.get('total_amount', 0.0),
+        "currency": po_currency,
+        "fx_rate": fx_rate,
+        "total_amount_foreign": round(total_foreign, 2),
+        "total_amount_base": round(total_base, 2),
         "tax_amount": data.get('tax_amount', 0.0),
         "notes": data.get('notes'),
-        "items": data.get('items', []),  # Store the items array
+        "items": items,
         "created_by": data.get('created_by'),
         "created_at": datetime.utcnow().isoformat()
     }
@@ -95,8 +135,10 @@ def create_purchase_order():
     
     return jsonify(new_po), 201
 
-@bp.route('/purchase-orders/<int:po_id>', methods=['PUT'])
+@bp.route('/purchase-orders/<int:po_id>', methods=['PUT', 'OPTIONS'])
 def update_purchase_order(po_id):
+    if request.method == 'OPTIONS':
+        return ('', 200)
     """Update a purchase order"""
     data = request.get_json()
     po = next((p for p in purchase_orders if p['id'] == po_id), None)
@@ -106,8 +148,10 @@ def update_purchase_order(po_id):
         return jsonify(po)
     return jsonify({"error": "Purchase Order not found"}), 404
 
-@bp.route('/purchase-orders/<int:po_id>', methods=['DELETE'])
+@bp.route('/purchase-orders/<int:po_id>', methods=['DELETE', 'OPTIONS'])
 def delete_purchase_order(po_id):
+    if request.method == 'OPTIONS':
+        return ('', 200)
     """Delete a purchase order"""
     global purchase_orders
     po = next((p for p in purchase_orders if p['id'] == po_id), None)
@@ -116,8 +160,10 @@ def delete_purchase_order(po_id):
         return jsonify({"message": "Purchase Order deleted successfully"}), 200
     return jsonify({"error": "Purchase Order not found"}), 404
 
-@bp.route('/purchase-orders/<int:po_id>/approve', methods=['POST'])
+@bp.route('/purchase-orders/<int:po_id>/approve', methods=['POST', 'OPTIONS'])
 def approve_purchase_order(po_id):
+    if request.method == 'OPTIONS':
+        return ('', 200)
     """Approve a purchase order"""
     data = request.get_json()
     po = next((p for p in purchase_orders if p['id'] == po_id), None)
@@ -129,8 +175,10 @@ def approve_purchase_order(po_id):
         return jsonify(po)
     return jsonify({"error": "Purchase Order not found"}), 404
 
-@bp.route('/purchase-orders/<int:po_id>/reject', methods=['POST'])
+@bp.route('/purchase-orders/<int:po_id>/reject', methods=['POST', 'OPTIONS'])
 def reject_purchase_order(po_id):
+    if request.method == 'OPTIONS':
+        return ('', 200)
     """Reject a purchase order"""
     data = request.get_json()
     po = next((p for p in purchase_orders if p['id'] == po_id), None)
@@ -178,6 +226,85 @@ def upload_po_attachment(po_id):
     }
     
     return jsonify(attachment), 201
+
+
+# Receiving endpoint: locks FX, allocates landed costs, posts inventory
+@bp.route('/purchase-orders/<int:po_id>/receive', methods=['POST', 'OPTIONS'])
+def receive_purchase_order(po_id: int):
+    if request.method == 'OPTIONS':
+        return ('', 200)
+    from modules.inventory.models import BasicInventoryTransaction
+    data = request.get_json() or {}
+    po = next((p for p in purchase_orders if p['id'] == po_id), None)
+    if not po:
+        return jsonify({'error': 'Purchase Order not found'}), 404
+    if po.get('status') == 'rejected':
+        return jsonify({'error': 'Cannot receive a rejected PO'}), 400
+
+    lines = data.get('items') or []
+    warehouse_id = int(data.get('warehouse_id') or 1)
+    landed_total = float(data.get('landed_costs_total') or 0.0)
+    # Compute proportional allocation base
+    base_sum = 0.0
+    for l in lines:
+        item = next((it for it in po['items'] if it['id'] == l.get('item_id')), None)
+        if not item:
+            continue
+        qty = float(l.get('quantity') or 0)
+        base_sum += qty * float(item.get('unit_price_foreign') or 0)
+
+    receipts = []
+    for l in lines:
+        item = next((it for it in po['items'] if it['id'] == l.get('item_id')), None)
+        if not item:
+            continue
+        qty = float(l.get('quantity') or 0)
+        if qty <= 0:
+            continue
+        # FX locked from item/PO
+        line_fx = float(item.get('fx_rate') or po.get('fx_rate') or 1.0)
+        unit_foreign = float(item.get('unit_price_foreign') or 0)
+        # Landed allocation per unit
+        allocated = 0.0
+        if landed_total > 0 and base_sum > 0:
+            share = (qty * unit_foreign) / base_sum
+            allocated = landed_total * share
+        unit_base = unit_foreign * line_fx
+        total_base = qty * unit_base + allocated
+
+        # Persist inventory transaction (SQLite via SQLAlchemy model)
+        try:
+            txn = BasicInventoryTransaction(
+                product_id=int(item.get('product_id') or 0),
+                transaction_type='IN',
+                quantity=qty,
+                unit_cost=unit_base,
+                total_cost=total_base,
+                reference_type='PO',
+                reference_id=po_id,
+                warehouse_id=warehouse_id
+            )
+            db.session.add(txn)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            # Fallback: continue without failing entire receipt
+        item['received_quantity'] = float(item.get('received_quantity') or 0) + qty
+        receipts.append({
+            'item_id': item['id'],
+            'received_qty': qty,
+            'unit_cost_base': round(unit_base, 4),
+            'fx_rate': line_fx,
+            'allocated_landed_costs': round(allocated, 2),
+            'total_cost_base': round(total_base, 2)
+        })
+
+    # Auto-close if fully received
+    if all((it.get('received_quantity') or 0) >= (it.get('quantity') or 0) for it in po['items']):
+        po['status'] = 'received'
+        po['updated_at'] = datetime.utcnow().isoformat()
+
+    return jsonify({'message': 'Received', 'receipts': receipts, 'po_status': po['status']}), 200
 
 # Analytics endpoints
 @bp.route('/analytics', methods=['GET'])

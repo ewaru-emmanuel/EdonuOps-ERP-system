@@ -5,6 +5,30 @@ from modules.finance.models import Account, JournalEntry, JournalLine
 from datetime import datetime
 
 finance_bp = Blueprint('finance', __name__)
+@finance_bp.route('/fx/revaluation/preview', methods=['GET', 'OPTIONS'])
+def fx_revaluation_preview():
+    if request.method == 'OPTIONS':
+        return ('', 200)
+    """Preview FX revaluation for AR/AP open items and cash as of a date.
+    Query: as_of=YYYY-MM-DD, base=USD
+    Returns: summary only (no postings) for audit-safe planning.
+    """
+    try:
+        as_of = request.args.get('as_of') or datetime.utcnow().date().isoformat()
+        base = request.args.get('base') or 'USD'
+        # Placeholder summary; real impl would query AR/AP/cash balances by currency
+        summary = {
+            'as_of': as_of,
+            'base_currency': base,
+            'ar_unrealized_gl': 0.0,
+            'ap_unrealized_gl': 0.0,
+            'cash_unrealized_gl': 0.0,
+            'by_currency': []
+        }
+        return jsonify(summary), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 @finance_bp.route('/accounts', methods=['GET'])
 def get_accounts():

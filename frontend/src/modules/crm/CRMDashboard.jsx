@@ -181,6 +181,92 @@ const CRMDashboard = () => {
         </Typography>
       </Box>
 
+      {/* CRM KPIs (server-side) */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box>
+                  <Typography color="text.secondary" gutterBottom>
+                    Total Leads
+                  </Typography>
+                  <Typography variant="h4" fontWeight="bold">
+                    {analytics?.totalLeads ?? 0}
+                  </Typography>
+                </Box>
+                <Avatar sx={{ bgcolor: 'warning.main' }}>
+                  <TrendingUp />
+                </Avatar>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box>
+                  <Typography color="text.secondary" gutterBottom>
+                    Opportunities
+                  </Typography>
+                  <Typography variant="h4" fontWeight="bold">
+                    {analytics?.totalOpportunities ?? 0}
+                  </Typography>
+                </Box>
+                <Avatar sx={{ bgcolor: 'success.main' }}>
+                  <AttachMoney />
+                </Avatar>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box>
+                  <Typography color="text.secondary" gutterBottom>
+                    Pipeline Value
+                  </Typography>
+                  <Typography variant="h5" fontWeight="bold">
+                    {formatCurrency(analytics?.pipelineValue ?? 0)}
+                  </Typography>
+                </Box>
+                <Avatar sx={{ bgcolor: 'info.main' }}>
+                  <Business />
+                </Avatar>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box>
+                  <Typography color="text.secondary" gutterBottom>
+                    Win Rate
+                  </Typography>
+                  <Typography variant="h4" fontWeight="bold">
+                    {(analytics?.winRate ?? 0)}%
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Won: {analytics?.wonOpportunities ?? 0}
+                  </Typography>
+                </Box>
+                <Avatar sx={{ bgcolor: 'success.dark' }}>
+                  <CheckCircle />
+                </Avatar>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
       {/* Quick Stats */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>

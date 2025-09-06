@@ -36,7 +36,7 @@ def create_app(config_name='development'):
     
     # Auto-detect Render environment and setup CORS
     if os.getenv('RENDER'):
-        print("🚀 Render environment detected - setting up CORS for deployment")
+        print("Render environment detected - setting up CORS for deployment")
         # Get Render URLs from environment variables
         render_frontend_url = os.getenv('RENDER_FRONTEND_URL')
         render_backend_url = os.getenv('RENDER_BACKEND_URL')
@@ -44,11 +44,28 @@ def create_app(config_name='development'):
         if render_frontend_url:
             EnvironmentConfig.setup_render_cors(render_frontend_url, render_backend_url)
             cors_origins = EnvironmentConfig.get_cors_origins()
-            print(f"✅ CORS configured for Render frontend: {render_frontend_url}")
+            print(f"CORS configured for Render frontend: {render_frontend_url}")
         else:
             print("⚠️  RENDER_FRONTEND_URL not set - using default CORS origins")
     
-    CORS(app, origins=cors_origins, supports_credentials=True, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+    # Always include localhost origins for local development & testing
+    # This ensures developer experience even when RENDER is set in the shell
+    for dev_origin in [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:3001',
+        'http://127.0.0.1:3001'
+    ]:
+        if dev_origin not in cors_origins:
+            cors_origins.append(dev_origin)
+    
+    CORS(
+        app,
+        resources={r"/api/.*": {"origins": cors_origins}},
+        supports_credentials=True,
+        methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allow_headers=['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-ID']
+    )
     
     # Setup logging
     setup_logging(app)
@@ -178,6 +195,9 @@ def setup_middleware(app):
     # Tenant middleware
     @app.before_request
     def before_request():
+        # Short-circuit CORS preflight before any auth or tenant checks
+        if request.method == 'OPTIONS':
+            return ('', 200)
         # Apply tenant middleware
         tenant_middleware()()
         
@@ -213,14 +233,14 @@ def register_blueprints(app):
     try:
         from modules.core.visitor_routes import visitor_bp
         app.register_blueprint(visitor_bp, url_prefix='/api')
-        print("✓ Visitor Management API loaded")
+        print("Visitor Management API loaded")
     except ImportError as e:
         print(f"Warning: Could not import visitor blueprint: {e}")
     
     try:
         from modules.finance.advanced_routes import advanced_finance_bp
         app.register_blueprint(advanced_finance_bp, url_prefix='/api/finance')
-        print("✓ Finance API loaded")
+        print("Finance API loaded")
     except ImportError as e:
         print(f"Warning: Could not import finance blueprint: {e}")
     
@@ -278,7 +298,7 @@ def register_blueprints(app):
     try:
         from modules.integration.cross_module_routes import cross_module_bp
         app.register_blueprint(cross_module_bp, url_prefix='/api/integration')
-        print("✓ Cross-Module Integration API loaded")
+        print("Cross-Module Integration API loaded")
     except ImportError as e:
         print(f"Warning: Could not import cross-module integration blueprint: {e}")
     
@@ -286,37 +306,37 @@ def register_blueprints(app):
     
     try:
         from modules.integration.auto_journal import auto_journal_engine
-        print("✓ Automated Journal Entry Engine loaded")
+        print("Automated Journal Entry Engine loaded")
     except ImportError as e:
         print(f"Warning: Could not import auto journal engine: {e}")
     
     try:
         from modules.integration.cogs_reconciliation import cogs_reconciliation
-        print("✓ COGS Reconciliation System loaded")
+        print("COGS Reconciliation System loaded")
     except ImportError as e:
         print(f"Warning: Could not import COGS reconciliation: {e}")
     
     try:
         from modules.inventory.adjustments import stock_adjustment
-        print("✓ Stock Adjustment System loaded")
+        print("Stock Adjustment System loaded")
     except ImportError as e:
         print(f"Warning: Could not import stock adjustments: {e}")
     
     try:
         from modules.finance.aging_reports import aging_reports
-        print("✓ Aging Reports System loaded")
+        print("Aging Reports System loaded")
     except ImportError as e:
         print(f"Warning: Could not import aging reports: {e}")
     
     try:
         from modules.finance.multi_currency import multi_currency
-        print("✓ Multi-Currency Support loaded")
+        print("Multi-Currency Support loaded")
     except ImportError as e:
         print(f"Warning: Could not import multi-currency: {e}")
     
     try:
         from modules.workflows.approval_engine import approval_workflow
-        print("✓ Approval Workflow Engine loaded")
+        print("Approval Workflow Engine loaded")
     except ImportError as e:
         print(f"Warning: Could not import approval workflows: {e}")
     
@@ -324,28 +344,28 @@ def register_blueprints(app):
     try:
         from modules.inventory.enterprise_routes import enterprise_bp
         app.register_blueprint(enterprise_bp, url_prefix='/api/enterprise')
-        print("✓ Enterprise Hardening Systems loaded")
+        print("Enterprise Hardening Systems loaded")
     except ImportError as e:
         print(f"Warning: Could not import enterprise hardening systems: {e}")
     
     try:
         from modules.inventory.manager_dashboard_routes import manager_dashboard_bp
         app.register_blueprint(manager_dashboard_bp, url_prefix='/api/inventory/manager')
-        print("✓ Manager Dashboard API loaded")
+        print("Manager Dashboard API loaded")
     except ImportError as e:
         print(f"Warning: Could not import manager dashboard routes: {e}")
     
     try:
         from modules.inventory.warehouse_operations_routes import warehouse_ops_bp
         app.register_blueprint(warehouse_ops_bp, url_prefix='/api/inventory/warehouse')
-        print("✓ Warehouse Operations API loaded")
+        print("Warehouse Operations API loaded")
     except ImportError as e:
         print(f"Warning: Could not import warehouse operations routes: {e}")
     
     try:
         from modules.inventory.analytics_routes import analytics_bp
         app.register_blueprint(analytics_bp, url_prefix='/api/inventory/analytics')
-        print("✓ Inventory Analytics API loaded")
+        print("Inventory Analytics API loaded")
     except ImportError as e:
         print(f"Warning: Could not import inventory analytics routes: {e}")
     
@@ -354,14 +374,14 @@ def register_blueprints(app):
     try:
         from modules.inventory.core_routes import core_inventory_bp
         app.register_blueprint(core_inventory_bp, url_prefix='/api/inventory/core')
-        print("✓ Core Inventory API loaded")
+        print("Core Inventory API loaded")
     except ImportError as e:
         print(f"Warning: Could not import core inventory routes: {e}")
     
     try:
         from modules.inventory.wms_routes import wms_bp
         app.register_blueprint(wms_bp, url_prefix='/api/inventory/wms')
-        print("✓ WMS API loaded")
+        print("WMS API loaded")
     except ImportError as e:
         print(f"Warning: Could not import WMS routes: {e}")
     

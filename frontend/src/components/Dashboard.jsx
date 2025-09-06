@@ -396,21 +396,7 @@ const Dashboard = () => {
             </Typography>
           </Box>
           
-          {/* Settings Button */}
-          <IconButton
-            onClick={() => setSettingsOpen(true)}
-            sx={{
-              bgcolor: 'primary.main',
-              color: 'white',
-              '&:hover': {
-                bgcolor: 'primary.dark',
-              },
-              p: 1.5
-            }}
-            title="Dashboard Settings"
-          >
-            <SettingsIcon />
-          </IconButton>
+          {/* Settings Button removed: settings migrated to Dashboard Settings page */}
           
 
         </Box>
@@ -672,29 +658,28 @@ const Dashboard = () => {
               </Typography>
               {quickActions.length > 0 ? (
                 <Grid container spacing={1}>
-                  {quickActions.map((action, index) => (
-                    <Grid item xs={12} key={index}>
-                      <Button
-                        variant="outlined"
-                        startIcon={action.icon}
-                        fullWidth
-                        onClick={() => navigate(action.path)}
-                        sx={{ 
-                          justifyContent: 'flex-start',
-                          borderColor: `${action.color}.main`,
-                          color: `${action.color}.main`,
-                          fontSize: { xs: '0.75rem', md: '0.875rem' },
-                          py: { xs: 1, md: 1.5 },
-                          '&:hover': {
-                            borderColor: `${action.color}.dark`,
-                            backgroundColor: `${action.color}.light`,
-                          }
-                        }}
-                      >
-                        {action.name}
-                      </Button>
-                    </Grid>
-                  ))}
+                  {quickActions.map((action, index) => {
+                    const allowedColors = ['primary','secondary','success','warning','info','error'];
+                    const safeColor = allowedColors.includes(action.color) ? action.color : 'primary';
+                    return (
+                      <Grid item xs={12} sm={6} key={index}>
+                        <Button
+                          variant="outlined"
+                          color={safeColor}
+                          startIcon={action.icon}
+                          fullWidth
+                          onClick={() => navigate(action.path)}
+                          sx={{ 
+                            justifyContent: 'flex-start',
+                            fontSize: { xs: '0.8rem', md: '0.9rem' },
+                            py: { xs: 1, md: 1.25 }
+                          }}
+                        >
+                          {action.name}
+                        </Button>
+                      </Grid>
+                    );
+                  })}
                 </Grid>
               ) : (
                 <Box sx={{ textAlign: 'center', py: 2 }}>
@@ -882,217 +867,7 @@ const Dashboard = () => {
 
       </Box>
 
-      {/* Settings Dialog */}
-      <Dialog 
-        open={settingsOpen} 
-        onClose={() => setSettingsOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <SettingsIcon color="primary" />
-          Dashboard Settings
-        </DialogTitle>
-        
-        <DialogContent>
-          <Tabs 
-            value={activeTab} 
-            onChange={(e, newValue) => setActiveTab(newValue)}
-            sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}
-          >
-            <Tab label="Module Management" />
-            <Tab label="System Preferences" />
-            <Tab label="Visitor Settings" />
-          </Tabs>
-
-          {/* Module Management Tab */}
-          {activeTab === 0 && (
-            <Box>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', mb: 2 }}>
-                Manage Your Modules
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Select which modules you want to use in your dashboard. Only enabled modules will be visible.
-              </Typography>
-              
-              <Grid container spacing={2}>
-                {allModules.map((module) => (
-                  <Grid item xs={12} md={6} key={module.id}>
-                    <Card 
-                      sx={{ 
-                        p: 2,
-                        border: selectedModules.includes(module.id) ? 2 : 1,
-                        borderColor: selectedModules.includes(module.id) ? 'primary.main' : 'grey.300',
-                        transition: 'all 0.2s ease',
-                        '&:hover': { 
-                          transform: 'translateY(-2px)',
-                          boxShadow: 2
-                        }
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                        {module.icon}
-                        <Box sx={{ flex: 1 }}>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                            {module.name}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {module.category}
-                          </Typography>
-                        </Box>
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              checked={selectedModules.includes(module.id)}
-                              onChange={(e) => handleModuleToggle(module.id, e.target.checked)}
-                              color="primary"
-                            />
-                          }
-                          label=""
-                        />
-                      </Box>
-                      <Typography variant="body2" color="text.secondary">
-                        {module.description}
-                      </Typography>
-                    </Card>
-                  </Grid>
-                ))}
-              </Grid>
-            </Box>
-          )}
-
-          {/* System Preferences Tab */}
-          {activeTab === 1 && (
-            <Box>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', mb: 2 }}>
-                System Preferences
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Configure your system preferences and display options.
-              </Typography>
-              
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
-                  <Card sx={{ p: 3 }}>
-                    <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>
-                      Display Settings
-                    </Typography>
-                    <FormControlLabel
-                      control={<Switch defaultChecked />}
-                      label="Show module status indicators"
-                    />
-                    <FormControlLabel
-                      control={<Switch defaultChecked />}
-                      label="Enable quick action shortcuts"
-                    />
-                    <FormControlLabel
-                      control={<Switch />}
-                      label="Show visitor privacy info"
-                    />
-                  </Card>
-                </Grid>
-                
-                <Grid item xs={12} md={6}>
-                  <Card sx={{ p: 3 }}>
-                    <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>
-                      Notification Settings
-                    </Typography>
-                    <FormControlLabel
-                      control={<Switch defaultChecked />}
-                      label="Session expiry warnings"
-                    />
-                    <FormControlLabel
-                      control={<Switch defaultChecked />}
-                      label="Module update notifications"
-                    />
-                    <FormControlLabel
-                      control={<Switch />}
-                      label="System status alerts"
-                    />
-                  </Card>
-                </Grid>
-              </Grid>
-            </Box>
-          )}
-
-          {/* Visitor Settings Tab */}
-          {activeTab === 2 && (
-            <Box>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', mb: 2 }}>
-                Visitor Session Information
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Your unique visitor session details and privacy information.
-              </Typography>
-              
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
-                  <Card sx={{ p: 3 }}>
-                    <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>
-                      Session Details
-                    </Typography>
-                    <Box sx={{ mb: 2 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        Visitor ID: <strong>{visitorId}</strong>
-                      </Typography>
-                    </Box>
-                    <Box sx={{ mb: 2 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        Session ID: <strong>{sessionId}</strong>
-                      </Typography>
-                    </Box>
-                    <Box sx={{ mb: 2 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        Status: 
-                        <Chip 
-                          label={isSessionValid ? "Active" : "Expired"} 
-                          color={isSessionValid ? "success" : "warning"} 
-                          size="small" 
-                          sx={{ ml: 1 }}
-                        />
-                      </Typography>
-                    </Box>
-                  </Card>
-                </Grid>
-                
-                <Grid item xs={12} md={6}>
-                  <Card sx={{ p: 3 }}>
-                    <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>
-                      Privacy Information
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      Your data is completely isolated from other visitors. Each visitor gets their own unique storage space.
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      Session expires after 24 hours for security.
-                    </Typography>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={handleSessionRefresh}
-                    >
-                      Refresh Session
-                    </Button>
-                  </Card>
-                </Grid>
-              </Grid>
-            </Box>
-          )}
-        </DialogContent>
-        
-        <DialogActions sx={{ p: 3 }}>
-          <Button onClick={() => setSettingsOpen(false)}>
-            Close
-          </Button>
-          <Button 
-            variant="contained" 
-            onClick={() => navigate('/onboarding')}
-            startIcon={<TuneIcon />}
-          >
-            Advanced Onboarding
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* Settings Dialog removed: migrated to Dashboard Settings page */}
 
 
 

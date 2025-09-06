@@ -316,6 +316,20 @@ class ApiClient {
   }
 
   // Admin methods
+  // Centralized Settings API
+  async getAllSettings() {
+    return this.get('/api/core/settings');
+  }
+
+  async getSettingsSection(section) {
+    return this.get(`/api/core/settings/${section}`);
+  }
+
+  async putSettingsSection(section, dataOrEnvelope) {
+    return this.put(`/api/core/settings/${section}`, dataOrEnvelope);
+  }
+
+  // Existing admin endpoints
   async getCorsOrigins() {
     return this.get(API_ENDPOINTS.ADMIN.CORS.ORIGINS);
   }

@@ -14,7 +14,7 @@ import {
 } from '@mui/icons-material';
 
 // Import WMS components
-import SmartWarehouseOperations from './components/SmartWarehouseOperations';
+// Operations page removed; keep WMS loosely coupled from core inventory
 import SmartLocationManagement from './components/SmartLocationManagement';
 import SmartPickingOperations from './components/SmartPickingOperations';
 import SmartPutawayOperations from './components/SmartPutawayOperations';
@@ -31,11 +31,6 @@ const WarehouseManagementModule = () => {
   };
 
   const tabs = [
-    {
-      label: 'Operations',
-      icon: <WarehouseIcon />,
-      component: <SmartWarehouseOperations />
-    },
     {
       label: 'Locations',
       icon: <LocationIcon />,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Tabs, Tab, Paper, Grid, Card, CardContent,
   useTheme, useMediaQuery, Container, Button
@@ -19,48 +19,45 @@ import SmartStockLevels from './components/SmartStockLevels';
 import SmartAdjustments from './components/SmartAdjustments';
 import SmartInventoryReports from './components/SmartInventoryReports';
 import SmartInventorySettings from './components/SmartInventorySettings';
+import SmartTransfers from './components/SmartTransfers';
+import apiClient from '../../services/apiClient';
 
 const CoreInventoryModule = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [activeTab, setActiveTab] = useState(0);
+  const [warehousesCount, setWarehousesCount] = useState(0);
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
   };
 
-  const tabs = [
-    {
-      label: 'Dashboard',
-      icon: <DashboardIcon />,
-      component: <SmartInventoryDashboard />
-    },
-    {
-      label: 'Products',
-      icon: <InventoryIcon />,
-      component: <SmartProductManagement />
-    },
-    {
-      label: 'Stock Levels',
-      icon: <TrendingUpIcon />,
-      component: <SmartStockLevels />
-    },
-    {
-      label: 'Adjustments',
-      icon: <AddIcon />,
-      component: <SmartAdjustments />
-    },
-    {
-      label: 'Reports',
-      icon: <AssessmentIcon />,
-      component: <SmartInventoryReports />
-    },
-    {
-      label: 'Settings',
-      icon: <SettingsIcon />,
-      component: <SmartInventorySettings />
+  useEffect(() => {
+    const loadWarehouses = async () => {
+      try {
+        const list = await apiClient.get('/api/inventory/warehouses');
+        setWarehousesCount(Array.isArray(list) ? list.length : 0);
+      } catch {
+        setWarehousesCount(0);
+      }
+    };
+    loadWarehouses();
+  }, []);
+
+  const tabs = (() => {
+    const base = [
+      { label: 'Dashboard', icon: <DashboardIcon />, component: <SmartInventoryDashboard /> },
+      { label: 'Products', icon: <InventoryIcon />, component: <SmartProductManagement /> },
+      { label: 'Stock Levels', icon: <TrendingUpIcon />, component: <SmartStockLevels /> },
+      { label: 'Adjustments', icon: <AddIcon />, component: <SmartAdjustments /> },
+      { label: 'Reports', icon: <AssessmentIcon />, component: <SmartInventoryReports /> }
+    ];
+    if (warehousesCount >= 2) {
+      base.push({ label: 'Transfers', icon: <TrendingUpIcon />, component: <SmartTransfers /> });
     }
-  ];
+    base.push({ label: 'Settings', icon: <SettingsIcon />, component: <SmartInventorySettings /> });
+    return base;
+  })();
 
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>

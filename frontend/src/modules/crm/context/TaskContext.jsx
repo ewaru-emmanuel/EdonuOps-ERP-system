@@ -325,7 +325,7 @@ export const TaskProvider = ({ children }) => {
   const fetchTasks = useCallback(async () => {
     dispatch({ type: TASK_ACTIONS.SET_LOADING, payload: { tasks: true } });
     try {
-      const response = await apiClient.get('/crm/tasks');
+      const response = await apiClient.get('/api/crm/tasks');
       dispatch({ type: TASK_ACTIONS.SET_TASKS, payload: response.data });
     } catch (error) {
       dispatch({
@@ -340,7 +340,7 @@ export const TaskProvider = ({ children }) => {
   const fetchSubtasks = useCallback(async () => {
     dispatch({ type: TASK_ACTIONS.SET_LOADING, payload: { subtasks: true } });
     try {
-      const response = await apiClient.get('/crm/tasks/subtasks');
+      const response = await apiClient.get('/api/crm/tasks/subtasks');
       dispatch({ type: TASK_ACTIONS.SET_SUBTASKS, payload: response.data });
     } catch (error) {
       dispatch({
@@ -355,7 +355,7 @@ export const TaskProvider = ({ children }) => {
   const fetchTaskTemplates = useCallback(async () => {
     dispatch({ type: TASK_ACTIONS.SET_LOADING, payload: { templates: true } });
     try {
-      const response = await apiClient.get('/crm/tasks/templates');
+      const response = await apiClient.get('/api/crm/tasks/templates');
       dispatch({ type: TASK_ACTIONS.SET_TASK_TEMPLATES, payload: response.data });
     } catch (error) {
       dispatch({
@@ -370,7 +370,7 @@ export const TaskProvider = ({ children }) => {
   // CRUD Operations
   const createTask = useCallback(async (taskData) => {
     try {
-      const response = await apiClient.post('/crm/tasks', taskData);
+      const response = await apiClient.post('/api/crm/tasks', taskData);
       dispatch({ type: TASK_ACTIONS.ADD_TASK, payload: response.data });
       return response.data;
     } catch (error) {
@@ -380,7 +380,7 @@ export const TaskProvider = ({ children }) => {
 
   const updateTask = useCallback(async (id, taskData) => {
     try {
-      const response = await apiClient.put(`/crm/tasks/${id}`, taskData);
+      const response = await apiClient.put(`/api/crm/tasks/${id}`, taskData);
       dispatch({ type: TASK_ACTIONS.UPDATE_TASK, payload: response.data });
       return response.data;
     } catch (error) {
@@ -390,7 +390,7 @@ export const TaskProvider = ({ children }) => {
 
   const deleteTask = useCallback(async (id) => {
     try {
-      await apiClient.delete(`/crm/tasks/${id}`);
+      await apiClient.delete(`/api/crm/tasks/${id}`);
       dispatch({ type: TASK_ACTIONS.DELETE_TASK, payload: id });
     } catch (error) {
       throw error;
@@ -399,7 +399,7 @@ export const TaskProvider = ({ children }) => {
 
   const completeTask = useCallback(async (id) => {
     try {
-      const response = await apiClient.patch(`/crm/tasks/${id}/complete`);
+      const response = await apiClient.patch(`/api/crm/tasks/${id}/complete`);
       dispatch({ type: TASK_ACTIONS.COMPLETE_TASK, payload: { id } });
       return response.data;
     } catch (error) {
@@ -409,7 +409,7 @@ export const TaskProvider = ({ children }) => {
 
   const createSubtask = useCallback(async (subtaskData) => {
     try {
-      const response = await apiClient.post('/crm/tasks/subtasks', subtaskData);
+      const response = await apiClient.post('/api/crm/tasks/subtasks', subtaskData);
       dispatch({ type: TASK_ACTIONS.ADD_SUBTASK, payload: response.data });
       return response.data;
     } catch (error) {
@@ -419,7 +419,7 @@ export const TaskProvider = ({ children }) => {
 
   const updateSubtask = useCallback(async (id, subtaskData) => {
     try {
-      const response = await apiClient.put(`/crm/tasks/subtasks/${id}`, subtaskData);
+      const response = await apiClient.put(`/api/crm/tasks/subtasks/${id}`, subtaskData);
       dispatch({ type: TASK_ACTIONS.UPDATE_SUBTASK, payload: response.data });
       return response.data;
     } catch (error) {
@@ -429,7 +429,7 @@ export const TaskProvider = ({ children }) => {
 
   const deleteSubtask = useCallback(async (id) => {
     try {
-      await apiClient.delete(`/crm/tasks/subtasks/${id}`);
+      await apiClient.delete(`/api/crm/tasks/subtasks/${id}`);
       dispatch({ type: TASK_ACTIONS.DELETE_SUBTASK, payload: id });
     } catch (error) {
       throw error;
@@ -438,7 +438,7 @@ export const TaskProvider = ({ children }) => {
 
   const completeSubtask = useCallback(async (id) => {
     try {
-      const response = await apiClient.patch(`/crm/tasks/subtasks/${id}/complete`);
+      const response = await apiClient.patch(`/api/crm/tasks/subtasks/${id}/complete`);
       dispatch({ type: TASK_ACTIONS.COMPLETE_SUBTASK, payload: { id } });
       return response.data;
     } catch (error) {
@@ -449,7 +449,7 @@ export const TaskProvider = ({ children }) => {
   // Task Management Functions
   const assignTask = useCallback(async (taskId, assigneeId) => {
     try {
-      const response = await apiClient.patch(`/crm/tasks/${taskId}/assign`, { assignee_id: assigneeId });
+      const response = await apiClient.patch(`/api/crm/tasks/${taskId}/assign`, { assignee_id: assigneeId });
       dispatch({ type: TASK_ACTIONS.ASSIGN_TASK, payload: { taskId, assigneeId } });
       return response.data;
     } catch (error) {
@@ -459,7 +459,7 @@ export const TaskProvider = ({ children }) => {
 
   const setTaskPriority = useCallback(async (taskId, priority) => {
     try {
-      const response = await apiClient.patch(`/crm/tasks/${taskId}/priority`, { priority });
+      const response = await apiClient.patch(`/api/crm/tasks/${taskId}/priority`, { priority });
       dispatch({ type: TASK_ACTIONS.SET_TASK_PRIORITY, payload: { taskId, priority } });
       return response.data;
     } catch (error) {
@@ -469,7 +469,7 @@ export const TaskProvider = ({ children }) => {
 
   const setTaskDueDate = useCallback(async (taskId, dueDate) => {
     try {
-      const response = await apiClient.patch(`/crm/tasks/${taskId}/due-date`, { due_date: dueDate });
+      const response = await apiClient.patch(`/api/crm/tasks/${taskId}/due-date`, { due_date: dueDate });
       dispatch({ type: TASK_ACTIONS.SET_TASK_DUE_DATE, payload: { taskId, dueDate } });
       return response.data;
     } catch (error) {
@@ -479,7 +479,7 @@ export const TaskProvider = ({ children }) => {
 
   const addTaskComment = useCallback(async (taskId, comment) => {
     try {
-      const response = await apiClient.post(`/crm/tasks/${taskId}/comments`, comment);
+      const response = await apiClient.post(`/api/crm/tasks/${taskId}/comments`, comment);
       dispatch({ type: TASK_ACTIONS.ADD_TASK_COMMENT, payload: { taskId, comment: response.data } });
       return response.data;
     } catch (error) {
@@ -489,7 +489,7 @@ export const TaskProvider = ({ children }) => {
 
   const updateTaskComment = useCallback(async (taskId, commentId, comment) => {
     try {
-      const response = await apiClient.put(`/crm/tasks/${taskId}/comments/${commentId}`, comment);
+      const response = await apiClient.put(`/api/crm/tasks/${taskId}/comments/${commentId}`, comment);
       dispatch({ type: TASK_ACTIONS.UPDATE_TASK_COMMENT, payload: { taskId, commentId, comment: response.data } });
       return response.data;
     } catch (error) {
@@ -499,7 +499,7 @@ export const TaskProvider = ({ children }) => {
 
   const deleteTaskComment = useCallback(async (taskId, commentId) => {
     try {
-      const response = await apiClient.delete(`/crm/tasks/${taskId}/comments/${commentId}`);
+      const response = await apiClient.delete(`/api/crm/tasks/${taskId}/comments/${commentId}`);
       dispatch({ type: TASK_ACTIONS.DELETE_TASK_COMMENT, payload: { taskId, commentId } });
       return response.data;
     } catch (error) {
@@ -510,7 +510,7 @@ export const TaskProvider = ({ children }) => {
   // Recurring Task Functions
   const setRecurringTask = useCallback(async (taskId, recurringConfig) => {
     try {
-      const response = await apiClient.patch(`/crm/tasks/${taskId}/recurring`, recurringConfig);
+      const response = await apiClient.patch(`/api/crm/tasks/${taskId}/recurring`, recurringConfig);
       dispatch({ type: TASK_ACTIONS.SET_RECURRING_TASK, payload: { taskId, recurringConfig } });
       return response.data;
     } catch (error) {
@@ -520,7 +520,7 @@ export const TaskProvider = ({ children }) => {
 
   const generateRecurringTasks = useCallback(async () => {
     try {
-      const response = await apiClient.post('/crm/tasks/generate-recurring');
+      const response = await apiClient.post('/api/crm/tasks/generate-recurring');
       dispatch({ type: TASK_ACTIONS.GENERATE_RECURRING_TASKS, payload: response.data });
       return response.data;
     } catch (error) {

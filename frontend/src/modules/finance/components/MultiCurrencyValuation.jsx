@@ -58,6 +58,8 @@ const MultiCurrencyValuation = () => {
   });
   const [newBaseCurrency, setNewBaseCurrency] = useState('USD');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [revalAsOf, setRevalAsOf] = useState(new Date().toISOString().split('T')[0]);
+  const [revalPreview, setRevalPreview] = useState(null);
 
   const currencies = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY'];
 
@@ -86,6 +88,16 @@ const MultiCurrencyValuation = () => {
       setSnackbar({ open: true, message: 'Failed to load foreign exchange exposure data', severity: 'error' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadRevalPreview = async () => {
+    try {
+      const data = await apiClient.get(`/api/finance/fx/revaluation/preview?as_of=${revalAsOf}`);
+      setRevalPreview(data);
+    } catch (error) {
+      setRevalPreview(null);
+      setSnackbar({ open: true, message: 'Failed to load revaluation preview', severity: 'error' });
     }
   };
 
@@ -225,6 +237,14 @@ const MultiCurrencyValuation = () => {
         >
           Refresh Data
         </Button>
+        <TextField
+          type="date"
+          label="Reval As Of"
+          value={revalAsOf}
+          onChange={(e) => setRevalAsOf(e.target.value)}
+          size="small"
+        />
+        <Button variant="outlined" onClick={loadRevalPreview}>FX Reval Preview</Button>
       </Box>
 
       {/* Foreign Exchange Exposure Table */}
@@ -276,6 +296,20 @@ const MultiCurrencyValuation = () => {
           </TableContainer>
         </CardContent>
       </Card>
+
+      {revalPreview && (
+        <Card sx={{ mt: 2 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>FX Revaluation Preview</Typography>
+            <Typography variant="body2" color="text.secondary">As of {revalPreview.as_of} (base {revalPreview.base_currency})</Typography>
+            <Grid container spacing={2} sx={{ mt: 1 }}>
+              <Grid item xs={12} md={4}><Chip label={`AR G/L: ${revalPreview.ar_unrealized_gl?.toFixed?.(2) || revalPreview.ar_unrealized_gl || 0}`} color="info" /></Grid>
+              <Grid item xs={12} md={4}><Chip label={`AP G/L: ${revalPreview.ap_unrealized_gl?.toFixed?.(2) || revalPreview.ap_unrealized_gl || 0}`} color="warning" /></Grid>
+              <Grid item xs={12} md={4}><Chip label={`Cash G/L: ${revalPreview.cash_unrealized_gl?.toFixed?.(2) || revalPreview.cash_unrealized_gl || 0}`} color="success" /></Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Purchase Valuation Dialog */}
       <Dialog open={valuationDialog} onClose={() => setValuationDialog(false)} maxWidth="sm" fullWidth>

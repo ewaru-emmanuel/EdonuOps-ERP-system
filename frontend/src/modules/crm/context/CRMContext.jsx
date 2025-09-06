@@ -16,6 +16,8 @@ const CRM_ACTIONS = {
   SET_TASKS: 'SET_TASKS',
   SET_ACTIVITIES: 'SET_ACTIVITIES',
   SET_ANALYTICS: 'SET_ANALYTICS',
+  SET_COMMUNICATIONS: 'SET_COMMUNICATIONS',
+  ADD_COMMUNICATION: 'ADD_COMMUNICATION',
   SET_LEAD_INTAKES: 'SET_LEAD_INTAKES',
   SET_USERS: 'SET_USERS',
   ADD_CONTACT: 'ADD_CONTACT',
@@ -53,6 +55,7 @@ const initialState = {
   tasks: [],
   activities: [],
   analytics: {},
+  communications: [],
   leadIntakes: [],
   users: [],
 
@@ -66,7 +69,8 @@ const initialState = {
     activities: false,
     analytics: false,
     leadIntakes: false,
-    users: false
+    users: false,
+    communications: false
   },
   errors: {},
 
@@ -138,6 +142,12 @@ const crmReducer = (state, action) => {
 
     case CRM_ACTIONS.SET_ANALYTICS:
       return { ...state, analytics: action.payload };
+
+    case CRM_ACTIONS.SET_COMMUNICATIONS:
+      return { ...state, communications: action.payload };
+
+    case CRM_ACTIONS.ADD_COMMUNICATION:
+      return { ...state, communications: [action.payload, ...state.communications] };
 
     case CRM_ACTIONS.SET_LEAD_INTAKES:
       return { ...state, leadIntakes: action.payload };
@@ -280,7 +290,7 @@ export const CRMProvider = ({ children }) => {
   const fetchContacts = useCallback(async () => {
     dispatch({ type: CRM_ACTIONS.SET_LOADING, payload: { contacts: true } });
     try {
-      const response = await apiClient.get('/crm/contacts');
+      const response = await apiClient.get('/api/crm/contacts');
       dispatch({ type: CRM_ACTIONS.SET_CONTACTS, payload: response.data });
     } catch (error) {
       dispatch({
@@ -295,7 +305,7 @@ export const CRMProvider = ({ children }) => {
   const fetchLeads = useCallback(async () => {
     dispatch({ type: CRM_ACTIONS.SET_LOADING, payload: { leads: true } });
     try {
-      const response = await apiClient.get('/crm/leads');
+      const response = await apiClient.get('/api/crm/leads');
       dispatch({ type: CRM_ACTIONS.SET_LEADS, payload: response.data });
     } catch (error) {
       dispatch({
@@ -310,7 +320,7 @@ export const CRMProvider = ({ children }) => {
   const fetchOpportunities = useCallback(async () => {
     dispatch({ type: CRM_ACTIONS.SET_LOADING, payload: { opportunities: true } });
     try {
-      const response = await apiClient.get('/crm/opportunities');
+      const response = await apiClient.get('/api/crm/opportunities');
       dispatch({ type: CRM_ACTIONS.SET_OPPORTUNITIES, payload: response.data });
     } catch (error) {
       dispatch({
@@ -325,7 +335,7 @@ export const CRMProvider = ({ children }) => {
   const fetchPipelines = useCallback(async () => {
     dispatch({ type: CRM_ACTIONS.SET_LOADING, payload: { pipelines: true } });
     try {
-      const response = await apiClient.get('/crm/pipelines');
+      const response = await apiClient.get('/api/crm/pipelines');
       dispatch({ type: CRM_ACTIONS.SET_PIPELINES, payload: response.data });
     } catch (error) {
       dispatch({
@@ -340,7 +350,7 @@ export const CRMProvider = ({ children }) => {
   const fetchTasks = useCallback(async () => {
     dispatch({ type: CRM_ACTIONS.SET_LOADING, payload: { tasks: true } });
     try {
-      const response = await apiClient.get('/crm/tasks');
+      const response = await apiClient.get('/api/crm/tasks');
       dispatch({ type: CRM_ACTIONS.SET_TASKS, payload: response.data });
     } catch (error) {
       dispatch({
@@ -352,10 +362,39 @@ export const CRMProvider = ({ children }) => {
     }
   }, []);
 
+  const createTask = useCallback(async (taskData) => {
+    try {
+      const response = await apiClient.post('/api/crm/tasks', taskData);
+      dispatch({ type: CRM_ACTIONS.ADD_TASK, payload: { ...taskData, id: response.data.id } });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  }, []);
+
+  const updateTask = useCallback(async (id, taskData) => {
+    try {
+      const response = await apiClient.put(`/api/crm/tasks/${id}`, taskData);
+      dispatch({ type: CRM_ACTIONS.UPDATE_TASK, payload: { ...taskData, id } });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  }, []);
+
+  const deleteTask = useCallback(async (id) => {
+    try {
+      await apiClient.delete(`/api/crm/tasks/${id}`);
+      dispatch({ type: CRM_ACTIONS.DELETE_TASK, payload: id });
+    } catch (error) {
+      throw error;
+    }
+  }, []);
+
   const fetchAnalytics = useCallback(async () => {
     dispatch({ type: CRM_ACTIONS.SET_LOADING, payload: { analytics: true } });
     try {
-      const response = await apiClient.get('/crm/analytics');
+      const response = await apiClient.get('/api/crm/reports/kpis');
       dispatch({ type: CRM_ACTIONS.SET_ANALYTICS, payload: response.data });
     } catch (error) {
       dispatch({
@@ -367,10 +406,36 @@ export const CRMProvider = ({ children }) => {
     }
   }, []);
 
+  const fetchCommunications = useCallback(async (params = {}) => {
+    dispatch({ type: CRM_ACTIONS.SET_LOADING, payload: { communications: true } });
+    try {
+      const qs = new URLSearchParams(params).toString();
+      const response = await apiClient.get(`/api/crm/activities${qs ? `?${qs}` : ''}`);
+      dispatch({ type: CRM_ACTIONS.SET_COMMUNICATIONS, payload: response.data });
+    } catch (error) {
+      dispatch({
+        type: CRM_ACTIONS.SET_ERROR,
+        payload: { communications: error.message }
+      });
+    } finally {
+      dispatch({ type: CRM_ACTIONS.SET_LOADING, payload: { communications: false } });
+    }
+  }, []);
+
+  const createCommunication = useCallback(async (data) => {
+    try {
+      const response = await apiClient.post('/api/crm/activities', data);
+      dispatch({ type: CRM_ACTIONS.ADD_COMMUNICATION, payload: { ...data, id: response.data.id, created_at: new Date().toISOString() } });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  }, []);
+
   const fetchLeadIntakes = useCallback(async () => {
     dispatch({ type: CRM_ACTIONS.SET_LOADING, payload: { leadIntakes: true } });
     try {
-      const response = await apiClient.get('/crm/lead-intake');
+      const response = await apiClient.get('/api/crm/lead-intake');
       dispatch({ type: CRM_ACTIONS.SET_LEAD_INTAKES, payload: response.data });
     } catch (error) {
       dispatch({
@@ -385,7 +450,7 @@ export const CRMProvider = ({ children }) => {
   const fetchUsers = useCallback(async () => {
     dispatch({ type: CRM_ACTIONS.SET_LOADING, payload: { users: true } });
     try {
-      const response = await apiClient.get('/crm/users');
+      const response = await apiClient.get('/api/crm/users');
       dispatch({ type: CRM_ACTIONS.SET_USERS, payload: response.data });
     } catch (error) {
       dispatch({
@@ -400,7 +465,7 @@ export const CRMProvider = ({ children }) => {
   // CRUD Operations
   const createContact = useCallback(async (contactData) => {
     try {
-      const response = await apiClient.post('/crm/contacts', contactData);
+      const response = await apiClient.post('/api/crm/contacts', contactData);
       dispatch({ type: CRM_ACTIONS.ADD_CONTACT, payload: response.data });
       return response.data;
     } catch (error) {
@@ -410,7 +475,7 @@ export const CRMProvider = ({ children }) => {
 
   const updateContact = useCallback(async (id, contactData) => {
     try {
-      const response = await apiClient.put(`/crm/contacts/${id}`, contactData);
+      const response = await apiClient.put(`/api/crm/contacts/${id}`, contactData);
       dispatch({ type: CRM_ACTIONS.UPDATE_CONTACT, payload: response.data });
       return response.data;
     } catch (error) {
@@ -420,7 +485,7 @@ export const CRMProvider = ({ children }) => {
 
   const deleteContact = useCallback(async (id) => {
     try {
-      await apiClient.delete(`/crm/contacts/${id}`);
+      await apiClient.delete(`/api/crm/contacts/${id}`);
       dispatch({ type: CRM_ACTIONS.DELETE_CONTACT, payload: id });
     } catch (error) {
       throw error;
@@ -429,7 +494,7 @@ export const CRMProvider = ({ children }) => {
 
   const createLead = useCallback(async (leadData) => {
     try {
-      const response = await apiClient.post('/crm/leads', leadData);
+      const response = await apiClient.post('/api/crm/leads', leadData);
       dispatch({ type: CRM_ACTIONS.ADD_LEAD, payload: response.data });
       return response.data;
     } catch (error) {
@@ -439,7 +504,7 @@ export const CRMProvider = ({ children }) => {
 
   const updateLead = useCallback(async (id, leadData) => {
     try {
-      const response = await apiClient.put(`/crm/leads/${id}`, leadData);
+      const response = await apiClient.put(`/api/crm/leads/${id}`, leadData);
       dispatch({ type: CRM_ACTIONS.UPDATE_LEAD, payload: response.data });
       return response.data;
     } catch (error) {
@@ -449,7 +514,7 @@ export const CRMProvider = ({ children }) => {
 
   const deleteLead = useCallback(async (id) => {
     try {
-      await apiClient.delete(`/crm/leads/${id}`);
+      await apiClient.delete(`/api/crm/leads/${id}`);
       dispatch({ type: CRM_ACTIONS.DELETE_LEAD, payload: id });
     } catch (error) {
       throw error;
@@ -458,7 +523,7 @@ export const CRMProvider = ({ children }) => {
 
   const createOpportunity = useCallback(async (opportunityData) => {
     try {
-      const response = await apiClient.post('/crm/opportunities', opportunityData);
+      const response = await apiClient.post('/api/crm/opportunities', opportunityData);
       dispatch({ type: CRM_ACTIONS.ADD_OPPORTUNITY, payload: response.data });
       return response.data;
     } catch (error) {
@@ -468,7 +533,7 @@ export const CRMProvider = ({ children }) => {
 
   const updateOpportunity = useCallback(async (id, opportunityData) => {
     try {
-      const response = await apiClient.put(`/crm/opportunities/${id}`, opportunityData);
+      const response = await apiClient.put(`/api/crm/opportunities/${id}`, opportunityData);
       dispatch({ type: CRM_ACTIONS.UPDATE_OPPORTUNITY, payload: response.data });
       return response.data;
     } catch (error) {
@@ -478,7 +543,7 @@ export const CRMProvider = ({ children }) => {
 
   const deleteOpportunity = useCallback(async (id) => {
     try {
-      await apiClient.delete(`/crm/opportunities/${id}`);
+      await apiClient.delete(`/api/crm/opportunities/${id}`);
       dispatch({ type: CRM_ACTIONS.DELETE_OPPORTUNITY, payload: id });
     } catch (error) {
       throw error;
@@ -487,7 +552,7 @@ export const CRMProvider = ({ children }) => {
 
   const moveOpportunity = useCallback(async (id, newStage) => {
     try {
-      const response = await apiClient.patch(`/crm/opportunities/${id}/move`, { stage: newStage });
+      const response = await apiClient.patch(`/api/crm/opportunities/${id}/move`, { stage: newStage });
       dispatch({ type: CRM_ACTIONS.MOVE_OPPORTUNITY, payload: { id, newStage } });
       return response.data;
     } catch (error) {
@@ -497,7 +562,7 @@ export const CRMProvider = ({ children }) => {
 
   const createLeadIntake = useCallback(async (intakeData) => {
     try {
-      const response = await apiClient.post('/crm/lead-intake', intakeData);
+      const response = await apiClient.post('/api/crm/lead-intake', intakeData);
       dispatch({ type: CRM_ACTIONS.ADD_LEAD_INTAKE, payload: response.data });
       return response.data;
     } catch (error) {
@@ -507,7 +572,7 @@ export const CRMProvider = ({ children }) => {
 
   const updateLeadIntake = useCallback(async (id, intakeData) => {
     try {
-      const response = await apiClient.put(`/crm/lead-intake/${id}`, intakeData);
+      const response = await apiClient.put(`/api/crm/lead-intake/${id}`, intakeData);
       dispatch({ type: CRM_ACTIONS.UPDATE_LEAD_INTAKE, payload: response.data });
       return response.data;
     } catch (error) {
@@ -575,6 +640,11 @@ export const CRMProvider = ({ children }) => {
     fetchUsers,
     fetchTasks,
     fetchAnalytics,
+    fetchCommunications,
+    createCommunication,
+    createTask,
+    updateTask,
+    deleteTask,
     createContact,
     updateContact,
     deleteContact,

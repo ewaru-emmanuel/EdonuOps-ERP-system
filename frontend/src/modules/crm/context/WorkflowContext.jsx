@@ -316,7 +316,7 @@ export const WorkflowProvider = ({ children }) => {
   const fetchWorkflows = useCallback(async () => {
     dispatch({ type: WORKFLOW_ACTIONS.SET_LOADING, payload: { workflows: true } });
     try {
-      const response = await apiClient.get('/crm/workflows');
+      const response = await apiClient.get('/api/crm/workflows');
       dispatch({ type: WORKFLOW_ACTIONS.SET_WORKFLOWS, payload: response.data });
     } catch (error) {
       dispatch({
@@ -331,7 +331,7 @@ export const WorkflowProvider = ({ children }) => {
   const fetchExecutionHistory = useCallback(async () => {
     dispatch({ type: WORKFLOW_ACTIONS.SET_LOADING, payload: { executionHistory: true } });
     try {
-      const response = await apiClient.get('/crm/workflows/execution-history');
+      const response = await apiClient.get('/api/crm/workflows/execution-history');
       dispatch({ type: WORKFLOW_ACTIONS.SET_EXECUTION_HISTORY, payload: response.data });
     } catch (error) {
       dispatch({
@@ -346,7 +346,7 @@ export const WorkflowProvider = ({ children }) => {
   // CRUD Operations
   const createWorkflow = useCallback(async (workflowData) => {
     try {
-      const response = await apiClient.post('/crm/workflows', workflowData);
+      const response = await apiClient.post('/api/crm/workflows', workflowData);
       dispatch({ type: WORKFLOW_ACTIONS.ADD_WORKFLOW, payload: response.data });
       return response.data;
     } catch (error) {
@@ -356,7 +356,7 @@ export const WorkflowProvider = ({ children }) => {
 
   const updateWorkflow = useCallback(async (id, workflowData) => {
     try {
-      const response = await apiClient.put(`/crm/workflows/${id}`, workflowData);
+      const response = await apiClient.put(`/api/crm/workflows/${id}`, workflowData);
       dispatch({ type: WORKFLOW_ACTIONS.UPDATE_WORKFLOW, payload: response.data });
       return response.data;
     } catch (error) {
@@ -366,7 +366,7 @@ export const WorkflowProvider = ({ children }) => {
 
   const deleteWorkflow = useCallback(async (id) => {
     try {
-      await apiClient.delete(`/crm/workflows/${id}`);
+      await apiClient.delete(`/api/crm/workflows/${id}`);
       dispatch({ type: WORKFLOW_ACTIONS.DELETE_WORKFLOW, payload: id });
     } catch (error) {
       throw error;
@@ -375,7 +375,7 @@ export const WorkflowProvider = ({ children }) => {
 
   const toggleWorkflow = useCallback(async (id) => {
     try {
-      const response = await apiClient.patch(`/crm/workflows/${id}/toggle`);
+      const response = await apiClient.patch(`/api/crm/workflows/${id}/toggle`);
       dispatch({ type: WORKFLOW_ACTIONS.TOGGLE_WORKFLOW, payload: id });
       return response.data;
     } catch (error) {

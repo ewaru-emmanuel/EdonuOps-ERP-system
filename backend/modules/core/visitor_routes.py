@@ -9,7 +9,11 @@ visitor_bp = Blueprint('visitor', __name__)
 # In-memory storage for visitors (in production, use database)
 visitors = {}
 
-@visitor_bp.route('/api/visitors/initialize', methods=['POST'])
+@visitor_bp.route('/visitors/initialize', methods=['OPTIONS'])
+def visitors_initialize_options():
+    return ('', 200)
+
+@visitor_bp.route('/visitors/initialize', methods=['POST'])
 def initialize_visitor():
     """Initialize a new visitor session"""
     try:
@@ -41,7 +45,7 @@ def initialize_visitor():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@visitor_bp.route('/api/visitors/<visitor_id>/preferences', methods=['POST'])
+@visitor_bp.route('/visitors/<visitor_id>/preferences', methods=['POST'])
 def update_visitor_preferences(visitor_id):
     """Update visitor preferences and module selections"""
     try:
@@ -66,7 +70,7 @@ def update_visitor_preferences(visitor_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@visitor_bp.route('/api/visitors/<visitor_id>', methods=['GET'])
+@visitor_bp.route('/visitors/<visitor_id>', methods=['GET'])
 def get_visitor_info(visitor_id):
     """Get visitor information"""
     try:
@@ -82,7 +86,7 @@ def get_visitor_info(visitor_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@visitor_bp.route('/api/visitors/stats', methods=['GET'])
+@visitor_bp.route('/visitors/stats', methods=['GET'])
 def get_visitor_stats():
     """Get visitor statistics (admin only)"""
     try:

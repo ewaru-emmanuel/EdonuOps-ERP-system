@@ -8,25 +8,21 @@ export const useUserPreferences = () => {
   const { visitorId, getVisitorData, setVisitorData, isLoading: sessionLoading } = useVisitorSession();
 
   useEffect(() => {
-    // Load user preferences from visitor-specific storage
-    const loadPreferences = () => {
-      if (sessionLoading || !visitorId) return;
-      
-      try {
-        const stored = getVisitorData('user_preferences');
-        if (stored) {
-          setUserPreferences(stored);
-          setSelectedModules(stored.selectedModules || []);
-        }
-      } catch (error) {
-        console.error('Error loading user preferences:', error);
-      } finally {
-        setIsLoading(false);
+    if (sessionLoading || !visitorId) return;
+    try {
+      const stored = getVisitorData('user_preferences');
+      if (stored) {
+        setUserPreferences(stored);
+        setSelectedModules(stored.selectedModules || []);
       }
-    };
-
-    loadPreferences();
-  }, [visitorId, sessionLoading, getVisitorData]);
+    } catch (error) {
+      console.error('Error loading user preferences:', error);
+    } finally {
+      setIsLoading(false);
+    }
+    // Only re-run when session is ready or visitor changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visitorId, sessionLoading]);
 
   const updatePreferences = (newPreferences) => {
     try {

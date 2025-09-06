@@ -42,8 +42,8 @@ import {
 } from '@mui/icons-material';
 import { useCRM } from './context/CRMContext';
 
-const CRMCommunicationHistory = () => {
-  const { communications, contacts, leads, opportunities, createCommunication } = useCRM();
+const CRMCommunicationHistory = ({ onOpenEntityDetail }) => {
+  const { communications, contacts, leads, opportunities, createCommunication, createTask } = useCRM();
   
   const [openDialog, setOpenDialog] = useState(false);
   const [editingCommunication, setEditingCommunication] = useState(null);
@@ -162,6 +162,23 @@ const CRMCommunicationHistory = () => {
     return true;
   }) || [];
 
+  // My Day: today/overdue scheduled items
+  const now = new Date();
+  const isSameDay = (d1, d2) => (
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate()
+  );
+  const scheduledItems = (communications || []).filter(c => c.status === 'scheduled' && c.scheduled_for);
+  const todayItems = scheduledItems.filter(c => {
+    const d = new Date(c.scheduled_for);
+    return isSameDay(d, now);
+  });
+  const overdueItems = scheduledItems.filter(c => {
+    const d = new Date(c.scheduled_for);
+    return d < now && !isSameDay(d, now);
+  });
+
   return (
     <Box sx={{ p: 3 }}>
       {/* Header */}
@@ -183,6 +200,71 @@ const CRMCommunicationHistory = () => {
           Log Communication
         </Button>
       </Box>
+
+      {/* My Day Panel */}
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Grid container spacing={2} alignItems="flex-start">
+          <Grid item xs={12} md={3}>
+            <Typography variant="h6" fontWeight="bold">My Day</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Today and overdue scheduled items
+            </Typography>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Scheduled Today ({todayItems.length})
+            </Typography>
+            <List dense>
+              {todayItems.slice(0, 5).map(item => (
+                <ListItem key={item.id} sx={{ py: 0.5 }} secondaryAction={
+                  <Button size="small" onClick={async () => {
+                    await createTask({
+                      type: 'follow_up',
+                      notes: item.subject || `${item.type} follow up`,
+                      due_date: new Date(item.scheduled_for).toISOString(),
+                      contact_id: item.contact_id,
+                      lead_id: item.lead_id,
+                      opportunity_id: item.opportunity_id
+                    });
+                  }}>Create Task</Button>
+                }>
+                  <ListItemIcon>
+                    {getCommunicationIcon(item.type)}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.subject || `${item.type} scheduled`}
+                    secondary={new Date(item.scheduled_for).toLocaleTimeString()}
+                  />
+                </ListItem>
+              ))}
+              {todayItems.length === 0 && (
+                <Typography variant="caption" color="text.secondary">Nothing scheduled for today</Typography>
+              )}
+            </List>
+          </Grid>
+          <Grid item xs={12} md={5}>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Overdue ({overdueItems.length})
+            </Typography>
+            <List dense>
+              {overdueItems.slice(0, 5).map(item => (
+                <ListItem key={item.id} sx={{ py: 0.5 }}>
+                  <ListItemIcon>
+                    {getCommunicationIcon(item.type)}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.subject || `${item.type} overdue`}
+                    secondary={new Date(item.scheduled_for).toLocaleString()}
+                  />
+                </ListItem>
+              ))}
+              {overdueItems.length === 0 && (
+                <Typography variant="caption" color="text.secondary">No overdue items</Typography>
+              )}
+            </List>
+          </Grid>
+        </Grid>
+      </Paper>
 
       {/* Filters */}
       <Paper sx={{ p: 2, mb: 3 }}>
@@ -267,28 +349,40 @@ const CRMCommunicationHistory = () => {
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Box sx={{ display: 'flex', gap: 2 }}>
                     {communication.contact_id && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <Person sx={{ fontSize: 16 }} />
-                        <Typography variant="caption">
-                          {getEntityName('contact', communication.contact_id)}
-                        </Typography>
-                      </Box>
+                      <Chip
+                        icon={<Person sx={{ fontSize: 16 }} />}
+                        size="small"
+                        label={getEntityName('contact', communication.contact_id)}
+                        onClick={() => onOpenEntityDetail && onOpenEntityDetail('contact', communication.contact_id)}
+                        clickable
+                      />
                     )}
                     {communication.lead_id && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <Business sx={{ fontSize: 16 }} />
-                        <Typography variant="caption">
-                          {getEntityName('lead', communication.lead_id)}
-                        </Typography>
-                      </Box>
+                      <Chip
+                        icon={<Business sx={{ fontSize: 16 }} />}
+                        size="small"
+                        label={getEntityName('lead', communication.lead_id)}
+                        onClick={() => onOpenEntityDetail && onOpenEntityDetail('lead', communication.lead_id)}
+                        clickable
+                      />
+                    )}
+                    {communication.company_id && (
+                      <Chip
+                        icon={<Business sx={{ fontSize: 16 }} />}
+                        size="small"
+                        label={getEntityName('company', communication.company_id)}
+                        onClick={() => onOpenEntityDetail && onOpenEntityDetail('company', communication.company_id)}
+                        clickable
+                      />
                     )}
                     {communication.opportunity_id && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <TrendingUp sx={{ fontSize: 16 }} />
-                        <Typography variant="caption">
-                          {getEntityName('opportunity', communication.opportunity_id)}
-                        </Typography>
-                      </Box>
+                      <Chip
+                        icon={<TrendingUp sx={{ fontSize: 16 }} />}
+                        size="small"
+                        label={getEntityName('opportunity', communication.opportunity_id)}
+                        onClick={() => onOpenEntityDetail && onOpenEntityDetail('opportunity', communication.opportunity_id)}
+                        clickable
+                      />
                     )}
                   </Box>
                   <Typography variant="caption" color="text.secondary">

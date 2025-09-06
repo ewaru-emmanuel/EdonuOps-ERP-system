@@ -38,3 +38,12 @@ class Role(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     role_name = db.Column(db.String(50), unique=True, nullable=False)
     permissions = db.Column(db.JSON)
+
+class SystemSetting(db.Model):
+    __tablename__ = 'system_settings'
+    id = db.Column(db.Integer, primary_key=True)
+    section = db.Column(db.String(100), unique=True, nullable=False)
+    data = db.Column(db.JSON, nullable=False)
+    version = db.Column(db.Integer, default=1, nullable=False)
+    updated_by = db.Column(db.Integer)
+    updated_at = db.Column(db.DateTime, server_default=db.func.now(), onupdate=db.func.now())

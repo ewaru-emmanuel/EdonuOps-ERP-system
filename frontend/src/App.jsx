@@ -53,8 +53,11 @@ import {
 
 // Import components
 import Dashboard from './components/Dashboard';
+import DashboardSettings from './modules/erp/dashboard/DashboardSettings';
+import AdminSettings from './modules/erp/admin/AdminSettings';
 import FinanceModule from './modules/finance/FinanceModule';
 import CRMModule from './modules/crm/CRMModule';
+import { CRMProvider } from './modules/crm/context/CRMContext';
 import ERPMainModule from './modules/erp/ERPMainModule';
 import InventoryModule from './modules/erp/InventoryModule';
 import CoreInventoryModule from './modules/inventory/CoreInventoryModule';
@@ -141,8 +144,10 @@ const AppContent = () => {
           <Route path="/" element={<Dashboard />} />
           <Route path="/onboarding" element={<OnboardingWizard />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard/settings" element={<DashboardSettings />} />
+          <Route path="/admin/settings" element={<AdminSettings />} />
           <Route path="/finance" element={<FinanceModule />} />
-          <Route path="/crm" element={<CRMModule />} />
+          <Route path="/crm" element={<CRMProvider><CRMModule /></CRMProvider>} />
           <Route path="/procurement" element={<ProcurementModule />} />
           <Route path="/erp" element={<ERPMainModule />} />
           <Route path="/inventory" element={<CoreInventoryModule />} />
@@ -380,7 +385,7 @@ const Navigation = () => {
         </MenuItem>
         <MenuItem onClick={() => {
           handleUserMenuClose();
-          navigate('/dashboard');
+          navigate('/dashboard/settings');
         }}>
           <ListItemIcon>
             <SettingsIcon fontSize="small" />
@@ -389,7 +394,7 @@ const Navigation = () => {
         </MenuItem>
         <MenuItem onClick={() => {
           handleUserMenuClose();
-          navigate('/dashboard');
+          navigate('/admin/settings');
         }}>
           <ListItemIcon>
             <AdminPanelSettingsIcon fontSize="small" />

@@ -235,7 +235,7 @@ const CRMLeadIntake = () => {
     setUploadStatus('uploading');
 
     try {
-      const response = await apiClient.post('/crm/upload-leads', formData, {
+      const response = await apiClient.post('/api/crm/upload-leads', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -267,7 +267,7 @@ const CRMLeadIntake = () => {
 
   const downloadTemplate = async () => {
     try {
-      const response = await apiClient.get('/crm/upload-template');
+      const response = await apiClient.get('/api/crm/upload-template');
       const blob = new Blob([response.data.template], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -294,7 +294,7 @@ const CRMLeadIntake = () => {
 
   const loadImportHistory = async () => {
     try {
-      const response = await apiClient.get('/crm/bulk-import-status');
+      const response = await apiClient.get('/api/crm/bulk-import-status');
       setImportHistory(response.data.recent_imports);
     } catch (error) {
       console.error('Failed to load import history:', error);

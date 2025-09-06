@@ -1,5 +1,24 @@
 from app import db  # ✅ Absolute import
-from datetime import datetime
+from datetime import datetime, date
+import os
+try:
+    # Use portable JSON type: JSONB on Postgres, JSON on others
+    from sqlalchemy.dialects.postgresql import JSONB as _PG_JSON
+except Exception:
+    _PG_JSON = None
+
+def _get_json_type():
+    db_url = os.environ.get("DATABASE_URL", "")
+    if _PG_JSON is not None and "postgresql" in db_url.lower():
+        return _PG_JSON
+    # Fallback to SQLAlchemy JSON which works with SQLite
+    try:
+        from sqlalchemy import JSON as _JSON
+        return _JSON
+    except Exception:
+        # As a last resort, store as Text-compatible JSON string
+        from sqlalchemy import Text as _Text
+        return _Text
 
 class Contact(db.Model):
     __tablename__ = 'contacts'
@@ -9,14 +28,31 @@ class Contact(db.Model):
     email = db.Column(db.String(100), unique=True)
     phone = db.Column(db.String(20))
     company = db.Column(db.String(100))
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'))
     type = db.Column(db.String(20), default='customer')  # customer, vendor, partner, prospect
     status = db.Column(db.String(20), default='active')  # active, inactive
+    region = db.Column(db.String(50))
+    assigned_team = db.Column(db.String(100))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     @property
     def full_name(self):
         return f"{self.first_name} {self.last_name}"
+
+    # Relationship
+    company_ref = db.relationship('Company', backref='contacts')
+
+class Company(db.Model):
+    __tablename__ = 'companies'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), unique=True, nullable=False)
+    industry = db.Column(db.String(100))
+    size = db.Column(db.String(50))
+    region = db.Column(db.String(50))
+    assigned_team = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Customer(db.Model):
     __tablename__ = 'customers'
@@ -44,6 +80,10 @@ class Lead(db.Model):
     company = db.Column(db.String(100))
     source = db.Column(db.String(50), default='website')  # website, referral, trade_show, social_media, cold_call
     status = db.Column(db.String(20), default='new')  # new, qualified, proposal, negotiation, closed
+    lead_status = db.Column(db.String(20))  # explicit lead status field for UI filters
+    region = db.Column(db.String(50))
+    assigned_team = db.Column(db.String(100))
+    score = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -56,15 +96,20 @@ class Opportunity(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     contact_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'))
     amount = db.Column(db.Float, default=0.0)
     stage = db.Column(db.String(50), default='prospecting')  # prospecting, qualification, proposal, negotiation, closed_won, closed_lost
     probability = db.Column(db.Integer, default=0)
     expected_close_date = db.Column(db.Date)
+    region = db.Column(db.String(50))
+    assigned_team = db.Column(db.String(100))
+    products = db.Column(_get_json_type())  # list of {sku,name,quantity,unit_price}
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationship
     contact = db.relationship('Contact', backref='opportunities')
+    company = db.relationship('Company', backref='opportunities')
 
 class Communication(db.Model):
     __tablename__ = 'communications'
@@ -115,3 +160,47 @@ class LeadIntake(db.Model):
     assigned_to = db.Column(db.Integer, db.ForeignKey('users.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     processed_at = db.Column(db.DateTime)
+
+
+class Ticket(db.Model):
+    __tablename__ = 'tickets'
+    id = db.Column(db.Integer, primary_key=True)
+    subject = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    status = db.Column(db.String(20), default='open')  # open, pending, resolved, closed
+    priority = db.Column(db.String(20), default='medium')  # low, medium, high, urgent
+    category = db.Column(db.String(50))  # support, billing, technical, etc.
+    tags = db.Column(db.String(200))  # comma-separated tags
+    customer_email = db.Column(db.String(200))
+    contact_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))
+    lead_id = db.Column(db.Integer, db.ForeignKey('leads.id'))
+    opportunity_id = db.Column(db.Integer, db.ForeignKey('opportunities.id'))
+    assignee_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class KnowledgeBaseArticle(db.Model):
+    __tablename__ = 'knowledge_base_articles'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    content = db.Column(db.Text)
+    tags = db.Column(db.String(200))  # comma-separated tags for simple search
+    published = db.Column(db.Boolean, default=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class KnowledgeBaseAttachment(db.Model):
+    __tablename__ = 'knowledge_base_attachments'
+    id = db.Column(db.Integer, primary_key=True)
+    article_id = db.Column(db.Integer, db.ForeignKey('knowledge_base_articles.id'), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
+    filepath = db.Column(db.String(500), nullable=False)
+    mime_type = db.Column(db.String(120))
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationship
+    article = db.relationship('KnowledgeBaseArticle', backref='attachments')
+
