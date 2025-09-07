@@ -422,11 +422,13 @@ def register_blueprints(app):
     except ImportError as e:
         print(f"Warning: Could not import sustainability blueprint: {e}")
     
+    # Register dashboard API (modules version)
     try:
-        from routes.dashboard_routes import dashboard_bp
-        app.register_blueprint(dashboard_bp, url_prefix='/api/dashboard')
+        from modules.dashboard.routes import bp as modules_dashboard_bp
+        app.register_blueprint(modules_dashboard_bp, url_prefix='/api/dashboard')
+        print("✓ Dashboard API loaded")
     except ImportError as e:
-        print(f"Warning: Could not import dashboard blueprint: {e}")
+        print(f"Warning: Could not import modules.dashboard blueprint: {e}")
     
     try:
         from routes.automation_routes import automation_bp

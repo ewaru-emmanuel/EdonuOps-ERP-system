@@ -22,6 +22,8 @@ import ProcurementDashboard from './ProcurementDashboard';
 import VendorManagement from './VendorManagement';
 import PurchaseOrderManagement from './PurchaseOrderManagement';
 import ProcurementAnalytics from './ProcurementAnalytics';
+import RFQManagement from './RFQManagement';
+import ContractsManagement from './ContractsManagement';
 
 const ProcurementModule = () => {
   const [activeSection, setActiveSection] = useState('dashboard');
@@ -47,10 +49,22 @@ const ProcurementModule = () => {
       component: <PurchaseOrderManagement />
     },
     {
+      id: 'rfq',
+      label: 'RFx / RFQ',
+      icon: <VendorIcon />,
+      component: <RFQManagement />
+    },
+    {
       id: 'analytics',
       label: 'Analytics',
       icon: <AnalyticsIcon />,
       component: <ProcurementAnalytics />
+    }
+    ,{
+      id: 'contracts',
+      label: 'Contracts',
+      icon: <VendorIcon />,
+      component: <ContractsManagement />
     }
   ];
 

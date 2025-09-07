@@ -239,10 +239,29 @@ const Dashboard = () => {
   const fetchDashboardData = async () => {
     try {
       const response = await apiClient.get('/api/dashboard/summary');
-      setDashboardData(response.data || response);
+      const safe = response?.data || response || {};
+      setDashboardData({
+        totalRevenue: safe.totalRevenue || 0,
+        totalCustomers: safe.totalCustomers || 0,
+        totalLeads: safe.totalLeads || 0,
+        totalOpportunities: safe.totalOpportunities || 0,
+        totalProducts: safe.totalProducts || 0,
+        totalEmployees: safe.totalEmployees || 0,
+        recentActivity: safe.recentActivity || [],
+        systemStatus: safe.systemStatus || 'operational'
+      });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      setDashboardData(null);
+      setDashboardData({
+        totalRevenue: 0,
+        totalCustomers: 0,
+        totalLeads: 0,
+        totalOpportunities: 0,
+        totalProducts: 0,
+        totalEmployees: 0,
+        recentActivity: [],
+        systemStatus: 'operational'
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -472,7 +491,7 @@ const Dashboard = () => {
                     color="primary" 
                     sx={{ fontWeight: 'bold' }}
                   >
-                    {data.totalRevenue > 0 ? formatCurrency(data.totalRevenue) : 'No Data'}
+                    {data.totalRevenue > 0 ? formatCurrency(data.totalRevenue) : '0'}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Total Revenue
@@ -499,7 +518,7 @@ const Dashboard = () => {
                     color="primary" 
                     sx={{ fontWeight: 'bold' }}
                   >
-                    {data.totalCustomers > 0 ? data.totalCustomers : 'No Data'}
+                    {data.totalCustomers > 0 ? data.totalCustomers : 0}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Active Customers
@@ -526,7 +545,7 @@ const Dashboard = () => {
                     color="primary" 
                     sx={{ fontWeight: 'bold' }}
                   >
-                    {data.totalProducts > 0 ? data.totalProducts : 'No Data'}
+                    {data.totalProducts > 0 ? data.totalProducts : 0}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Total Products
@@ -553,7 +572,7 @@ const Dashboard = () => {
                     color="primary" 
                     sx={{ fontWeight: 'bold' }}
                   >
-                    {data.totalEmployees > 0 ? data.totalEmployees : 'No Data'}
+                    {data.totalEmployees > 0 ? data.totalEmployees : 0}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Employees

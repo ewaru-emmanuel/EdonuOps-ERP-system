@@ -47,7 +47,10 @@ import {
   Approval,
   Close,
   Save,
-  Refresh
+  Refresh,
+  CloudUpload,
+  Sync,
+  DoneAll
 } from '@mui/icons-material';
 import { useRealTimeData } from '../../../hooks/useRealTimeData';
 import { getERPApiService } from '../../../services/erpApiService';
@@ -437,6 +440,29 @@ const PurchaseOrderManagement = () => {
     }
   };
 
+  // ERP Sync actions
+  const handleExportToERP = async (poId) => {
+    try {
+      const api = getERPApiService();
+      await api.post('/api/procurement/erp/export-po', { po_id: poId, user_id: 1 });
+      setSnackbar({ open: true, message: 'Exported to ERP', severity: 'success' });
+      refreshPOs();
+    } catch (e) {
+      setSnackbar({ open: true, message: 'ERP export failed', severity: 'error' });
+    }
+  };
+
+  const handleERPStatusUpdate = async (poId, newStatus) => {
+    try {
+      const api = getERPApiService();
+      await api.post('/api/procurement/erp/update-po-status', { po_id: poId, status: newStatus, user_id: 1 });
+      setSnackbar({ open: true, message: `ERP status updated to ${newStatus}`, severity: 'success' });
+      refreshPOs();
+    } catch (e) {
+      setSnackbar({ open: true, message: 'ERP status update failed', severity: 'error' });
+    }
+  };
+
   // Get vendor name by ID
   const getVendorName = (vendorId) => {
     const vendor = vendors?.find(v => v.id === vendorId);
@@ -609,6 +635,9 @@ const PurchaseOrderManagement = () => {
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                         ${(po.total_amount || 0).toLocaleString()}
                       </Typography>
+                      {po.erp_sync_status && (
+                        <Chip size="small" label={`ERP: ${po.erp_sync_status}`} sx={{ ml: 1, textTransform: 'capitalize' }} />
+                      )}
                     </TableCell>
                     <TableCell>
                       <Chip
@@ -646,6 +675,26 @@ const PurchaseOrderManagement = () => {
                             <Tooltip title="Reject">
                               <IconButton size="small" color="error" onClick={() => handleReject(po.id)}>
                                 <Warning />
+                              </IconButton>
+                            </Tooltip>
+                          </>
+                        )}
+                        {(!po.erp_sync_status || po.erp_sync_status !== 'exported') ? (
+                          <Tooltip title="Export to ERP">
+                            <IconButton size="small" color="info" onClick={() => handleExportToERP(po.id)}>
+                              <CloudUpload />
+                            </IconButton>
+                          </Tooltip>
+                        ) : (
+                          <>
+                            <Tooltip title="Mark Completed (ERP)">
+                              <IconButton size="small" color="success" onClick={() => handleERPStatusUpdate(po.id, 'completed')}>
+                                <DoneAll />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Refresh ERP Status">
+                              <IconButton size="small" color="primary" onClick={refreshPOs}>
+                                <Sync />
                               </IconButton>
                             </Tooltip>
                           </>

@@ -18,8 +18,7 @@ class EnvironmentConfig:
             'http://127.0.0.1:3001'
         ],
         'render': [
-            'https://your-frontend-app.onrender.com',
-            'https://your-backend-app.onrender.com'
+            # Set via env vars RENDER_FRONTEND_URL and RENDER_BACKEND_URL at startup
         ],
         'staging': [
             'https://staging.edonuops.com',

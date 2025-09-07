@@ -13,7 +13,15 @@ export const useUserPreferences = () => {
       const stored = getVisitorData('user_preferences');
       if (stored) {
         setUserPreferences(stored);
-        setSelectedModules(stored.selectedModules || []);
+        let modules = stored.selectedModules || [];
+        // Auto-enable procurement if financials is enabled but procurement is missing
+        if (modules.includes('financials') && !modules.includes('procurement')) {
+          modules = [...modules, 'procurement'];
+          const updated = { ...stored, selectedModules: modules };
+          setVisitorData('user_preferences', updated);
+          setUserPreferences(updated);
+        }
+        setSelectedModules(modules);
       }
     } catch (error) {
       console.error('Error loading user preferences:', error);

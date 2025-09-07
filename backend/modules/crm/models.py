@@ -97,6 +97,7 @@ class Opportunity(db.Model):
     name = db.Column(db.String(100), nullable=False)
     contact_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))
     company_id = db.Column(db.Integer, db.ForeignKey('companies.id'))
+    pipeline_id = db.Column(db.Integer, db.ForeignKey('pipelines.id'))
     amount = db.Column(db.Float, default=0.0)
     stage = db.Column(db.String(50), default='prospecting')  # prospecting, qualification, proposal, negotiation, closed_won, closed_lost
     probability = db.Column(db.Integer, default=0)
@@ -110,6 +111,7 @@ class Opportunity(db.Model):
     # Relationship
     contact = db.relationship('Contact', backref='opportunities')
     company = db.relationship('Company', backref='opportunities')
+    pipeline = db.relationship('Pipeline', backref='opportunities')
 
 class Communication(db.Model):
     __tablename__ = 'communications'
@@ -203,4 +205,35 @@ class KnowledgeBaseAttachment(db.Model):
 
     # Relationship
     article = db.relationship('KnowledgeBaseArticle', backref='attachments')
+
+
+class Pipeline(db.Model):
+    __tablename__ = 'pipelines'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    type = db.Column(db.String(40), default='sales')  # future use
+    stages = db.Column(_get_json_type())  # ordered list of stage names
+    is_default = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TimeEntry(db.Model):
+    __tablename__ = 'time_entries'
+    id = db.Column(db.Integer, primary_key=True)
+    contact_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))
+    lead_id = db.Column(db.Integer, db.ForeignKey('leads.id'))
+    opportunity_id = db.Column(db.Integer, db.ForeignKey('opportunities.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    start_time = db.Column(db.DateTime)
+    end_time = db.Column(db.DateTime)
+    duration_minutes = db.Column(db.Integer)
+    notes = db.Column(db.Text)
+    billable = db.Column(db.Boolean, default=True)
+    rate = db.Column(db.Numeric(12, 2), default=0.00)
+    currency = db.Column(db.String(10), default='USD')
+    invoiced = db.Column(db.Boolean, default=False)
+    invoice_id = db.Column(db.Integer)  # optional link to finance invoice
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

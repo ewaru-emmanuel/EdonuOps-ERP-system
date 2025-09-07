@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Grid, Card, CardContent, Button, Chip,
-  Alert, CircularProgress, FormControl, InputLabel, Select, MenuItem
+  Alert, CircularProgress, FormControl, InputLabel, Select, MenuItem,
+  Dialog, DialogTitle, DialogContent, DialogActions, TextField
 } from '@mui/material';
 import {
   Assessment as AssessmentIcon,
@@ -11,6 +12,7 @@ import {
   Download as DownloadIcon
 } from '@mui/icons-material';
 import { useRealTimeData } from '../../../hooks/useRealTimeData';
+import { apiClient } from '../../../utils/apiClient';
 
 const SmartInventoryReports = () => {
   const [selectedReport, setSelectedReport] = useState('overview');
@@ -19,6 +21,32 @@ const SmartInventoryReports = () => {
   const { data: trends, loading: trendsLoading } = useRealTimeData('/api/inventory/core/reports/trends');
 
   const loading = kpisLoading || stockLoading || trendsLoading;
+  const [gaps, setGaps] = useState([]);
+  const [resolveOpen, setResolveOpen] = useState(false);
+  const [mapForm, setMapForm] = useState({ po_number: '', item_id: '', product_id: '' });
+
+  const loadGaps = async () => {
+    try {
+      const data = await apiClient.get('/api/procurement/integration/gaps');
+      setGaps(data.gaps || []);
+    } catch {}
+  };
+
+  useEffect(() => { loadGaps(); }, []);
+
+  const openResolve = (gap) => {
+    setMapForm({ po_number: gap.po_number || '', item_id: gap.item_id || '', product_id: '' });
+    setResolveOpen(true);
+  };
+
+  const submitMapping = async () => {
+    try {
+      await apiClient.post('/api/procurement/purchase-orders/map-item-product', mapForm);
+      setResolveOpen(false);
+      setMapForm({ po_number: '', item_id: '', product_id: '' });
+      loadGaps();
+    } catch {}
+  };
 
   if (loading) {
     return (
@@ -39,6 +67,21 @@ const SmartInventoryReports = () => {
           Track performance and analyze your inventory data
         </Typography>
       </Box>
+
+      {gaps.length > 0 && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Some received PO items are missing product mapping. Please resolve.
+          <Box sx={{ mt: 1 }}>
+            {gaps.slice(0, 5).map((g, i) => (
+              <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                <Typography variant="body2">PO {g.po_number} · Item {g.item_id}</Typography>
+                <Button size="small" onClick={() => openResolve(g)}>Resolve</Button>
+              </Box>
+            ))}
+            {gaps.length > 5 && <Typography variant="caption">+{gaps.length - 5} more…</Typography>}
+          </Box>
+        </Alert>
+      )}
 
       {/* Report Type Selector */}
       <Box sx={{ mb: 3 }}>
@@ -250,6 +293,19 @@ const SmartInventoryReports = () => {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={resolveOpen} onClose={() => setResolveOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Resolve Missing Product Mapping</DialogTitle>
+        <DialogContent>
+          <TextField fullWidth label="PO Number" value={mapForm.po_number} onChange={(e) => setMapForm({ ...mapForm, po_number: e.target.value })} sx={{ mb: 2 }} />
+          <TextField fullWidth label="PO Item ID" value={mapForm.item_id} onChange={(e) => setMapForm({ ...mapForm, item_id: e.target.value })} sx={{ mb: 2 }} />
+          <TextField fullWidth label="Product ID" value={mapForm.product_id} onChange={(e) => setMapForm({ ...mapForm, product_id: e.target.value })} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setResolveOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={submitMapping}>Save Mapping</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

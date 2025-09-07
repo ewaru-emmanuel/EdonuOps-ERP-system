@@ -22,7 +22,13 @@ const OnboardingWizard = () => {
   const [loading, setLoading] = useState(false);
 
   // Form data
-  const [businessProfile, setBusinessProfile] = useState({
+  const initialProfile = () => {
+    try {
+      const raw = localStorage.getItem('edonuops_business_profile');
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  };
+  const [businessProfile, setBusinessProfile] = useState(initialProfile() || {
     companyName: '',
     industry: '',
     employeeCount: '',
@@ -39,6 +45,11 @@ const OnboardingWizard = () => {
     'Data Import',
     'Activation'
   ];
+
+  // Persist profile as user types
+  const persistProfile = (next) => {
+    try { localStorage.setItem('edonuops_business_profile', JSON.stringify(next)); } catch {}
+  };
 
   const industries = [
     'Technology', 'Manufacturing', 'Retail', 'Healthcare', 'Finance',
@@ -261,7 +272,9 @@ const OnboardingWizard = () => {
     try {
       // Save user preferences to visitor-specific storage
       const userPreferences = {
-        selectedModules: selectedModules,
+        selectedModules: selectedModules.includes('financials') && !selectedModules.includes('procurement')
+          ? [...selectedModules, 'procurement']
+          : selectedModules,
         businessProfile: businessProfile,
         activatedAt: new Date().toISOString(),
         visitorId: visitorId,
@@ -274,6 +287,7 @@ const OnboardingWizard = () => {
       
       // Store in visitor-specific storage
       setVisitorData('user_preferences', userPreferences);
+      try { localStorage.setItem('edonuops_business_profile', JSON.stringify(businessProfile)); } catch {}
       
       // Send preferences to backend
       try {
@@ -317,7 +331,7 @@ const OnboardingWizard = () => {
             fullWidth
             label="Company Name"
             value={businessProfile.companyName}
-            onChange={(e) => setBusinessProfile(prev => ({ ...prev, companyName: e.target.value }))}
+            onChange={(e) => setBusinessProfile(prev => { const next = { ...prev, companyName: e.target.value }; persistProfile(next); return next; })}
             required
           />
         </Grid>
@@ -326,7 +340,7 @@ const OnboardingWizard = () => {
             <InputLabel>Industry</InputLabel>
             <Select
               value={businessProfile.industry}
-              onChange={(e) => setBusinessProfile(prev => ({ ...prev, industry: e.target.value }))}
+              onChange={(e) => setBusinessProfile(prev => { const next = { ...prev, industry: e.target.value }; persistProfile(next); return next; })}
               label="Industry"
             >
               {industries.map((industry) => (
@@ -340,7 +354,7 @@ const OnboardingWizard = () => {
             <InputLabel>Number of Employees</InputLabel>
             <Select
               value={businessProfile.employeeCount}
-              onChange={(e) => setBusinessProfile(prev => ({ ...prev, employeeCount: e.target.value }))}
+              onChange={(e) => setBusinessProfile(prev => { const next = { ...prev, employeeCount: e.target.value }; persistProfile(next); return next; })}
               label="Number of Employees"
             >
               {employeeRanges.map((range) => (
@@ -354,7 +368,7 @@ const OnboardingWizard = () => {
             <InputLabel>Annual Revenue</InputLabel>
             <Select
               value={businessProfile.annualRevenue}
-              onChange={(e) => setBusinessProfile(prev => ({ ...prev, annualRevenue: e.target.value }))}
+              onChange={(e) => setBusinessProfile(prev => { const next = { ...prev, annualRevenue: e.target.value }; persistProfile(next); return next; })}
               label="Annual Revenue"
             >
               {revenueRanges.map((range) => (
@@ -377,15 +391,9 @@ const OnboardingWizard = () => {
                         checked={businessProfile.challenges.includes(challenge)}
                         onChange={(e) => {
                           if (e.target.checked) {
-                            setBusinessProfile(prev => ({
-                              ...prev,
-                              challenges: [...prev.challenges, challenge]
-                            }));
+                            setBusinessProfile(prev => { const next = { ...prev, challenges: [...prev.challenges, challenge] }; persistProfile(next); return next; });
                           } else {
-                            setBusinessProfile(prev => ({
-                              ...prev,
-                              challenges: prev.challenges.filter(c => c !== challenge)
-                            }));
+                            setBusinessProfile(prev => { const next = { ...prev, challenges: prev.challenges.filter(c => c !== challenge) }; persistProfile(next); return next; });
                           }
                         }}
                       />

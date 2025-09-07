@@ -1,7 +1,7 @@
 # CRM routes for EdonuOps ERP
 from flask import Blueprint, jsonify, request, Response
 from app import db
-from modules.crm.models import Contact, Lead, Opportunity, Company, Communication, Ticket, FollowUp, KnowledgeBaseArticle, KnowledgeBaseAttachment
+from modules.crm.models import Contact, Lead, Opportunity, Company, Communication, Ticket, FollowUp, KnowledgeBaseArticle, KnowledgeBaseAttachment, Pipeline, TimeEntry
 from modules.finance.models import Invoice
 from datetime import datetime, timedelta
 import json
@@ -104,6 +104,9 @@ def get_opportunities():
             query = query.filter((Opportunity.region == region) | (Opportunity.region == region.strip()))
         if assigned_team:
             query = query.filter((Opportunity.assigned_team == assigned_team) | (Opportunity.assigned_team == assigned_team.strip()))
+        pipeline_id = request.args.get('pipelineId', type=int)
+        if pipeline_id:
+            query = query.filter(Opportunity.pipeline_id == pipeline_id)
 
         sort = request.args.get('sort')
         order = (request.args.get('order') or 'asc').lower()
@@ -121,6 +124,7 @@ def get_opportunities():
             "name": opp.name,
             "amount": float(opp.amount) if opp.amount else 0.0,
             "stage": opp.stage,
+            "pipeline_id": getattr(opp, 'pipeline_id', None),
             "contact_id": opp.contact_id,
             "company_id": getattr(opp, 'company_id', None),
             "probability": opp.probability,
@@ -335,6 +339,7 @@ def create_opportunity():
             stage=data.get('stage', 'prospecting'),
             contact_id=data.get('contact_id'),
             company_id=data.get('company_id'),
+            pipeline_id=data.get('pipeline_id'),
             probability=data.get('probability', 50),
             expected_close_date=datetime.fromisoformat(data.get('expected_close_date')) if data.get('expected_close_date') else None,
             region=data.get('region'),
@@ -351,6 +356,7 @@ def create_opportunity():
                 "name": new_opportunity.name,
                 "amount": float(new_opportunity.amount) if new_opportunity.amount else 0.0,
                 "stage": new_opportunity.stage,
+                "pipeline_id": new_opportunity.pipeline_id,
                 "contact_id": new_opportunity.contact_id,
                 "company_id": new_opportunity.company_id,
                 "probability": new_opportunity.probability,
@@ -375,6 +381,7 @@ def update_opportunity(opportunity_id):
         opportunity.name = data.get('name', opportunity.name)
         opportunity.amount = data.get('amount', opportunity.amount)
         opportunity.stage = data.get('stage', opportunity.stage)
+        opportunity.pipeline_id = data.get('pipeline_id', opportunity.pipeline_id)
         opportunity.contact_id = data.get('contact_id', opportunity.contact_id)
         opportunity.company_id = data.get('company_id', opportunity.company_id)
         opportunity.probability = data.get('probability', opportunity.probability)
@@ -391,6 +398,7 @@ def update_opportunity(opportunity_id):
                 "name": opportunity.name,
                 "amount": float(opportunity.amount) if opportunity.amount else 0.0,
                 "stage": opportunity.stage,
+                "pipeline_id": opportunity.pipeline_id,
                 "contact_id": opportunity.contact_id,
                 "company_id": opportunity.company_id,
                 "probability": opportunity.probability,
@@ -404,6 +412,25 @@ def update_opportunity(opportunity_id):
         db.session.rollback()
         print(f"Error updating opportunity: {e}")
         return jsonify({"error": "Failed to update opportunity"}), 500
+
+
+@crm_bp.route('/opportunities/<int:opportunity_id>/move', methods=['PATCH', 'OPTIONS'])
+def move_opportunity_stage(opportunity_id: int):
+    if request.method == 'OPTIONS':
+        return ('', 200)
+    try:
+        opportunity = Opportunity.query.get_or_404(opportunity_id)
+        payload = request.get_json(silent=True) or {}
+        new_stage = payload.get('stage')
+        if not new_stage:
+            return jsonify({'error': 'stage is required'}), 400
+        opportunity.stage = new_stage
+        db.session.commit()
+        return jsonify({'message': 'Stage updated', 'id': opportunity.id, 'stage': opportunity.stage}), 200
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error moving opportunity: {e}")
+        return jsonify({'error': 'Failed to move opportunity'}), 500
 
 # Companies CRUD (minimal for linking)
 @crm_bp.route('/companies', methods=['GET', 'OPTIONS'])
@@ -712,6 +739,25 @@ def ai_generate_email():
     except Exception as e:
         print(f"AI generate-email failed: {e}")
         return jsonify({'subject': 'Follow up', 'body': 'Hello,\n\nFollowing up.\n\nBest regards,'}), 200
+# -----------------------------
+# Email Sync (IMAP) - minimal stub
+# -----------------------------
+
+@crm_bp.route('/email/sync', methods=['POST', 'OPTIONS'])
+def email_sync():
+    if request.method == 'OPTIONS':
+        return ('', 200)
+    try:
+        # In a full impl, read IMAP settings from core SystemSetting and fetch emails
+        # Here we stub success and return count=0 to avoid long-running operations.
+        payload = request.get_json(silent=True) or {}
+        folder = payload.get('folder') or 'INBOX'
+        since = payload.get('since')  # ISO date string
+        # TODO: integrate with real IMAP client later
+        return jsonify({'message': 'Email sync completed', 'folder': folder, 'since': since, 'fetched': 0}), 200
+    except Exception as e:
+        print(f"Email sync failed: {e}")
+        return jsonify({'error': 'Email sync failed'}), 500
 
 # -----------------------------
 # Deal Won → Finance (draft invoice)
@@ -834,6 +880,127 @@ def create_activity():
 
 
 # -----------------------------
+# Time Tracking
+# -----------------------------
+
+@crm_bp.route('/time-entries', methods=['GET', 'POST', 'OPTIONS'])
+def time_entries_collection():
+    if request.method == 'OPTIONS':
+        return ('', 200)
+    if request.method == 'GET':
+        try:
+            related_type = (request.args.get('relatedType') or '').lower()
+            related_id = request.args.get('relatedId', type=int)
+            q = TimeEntry.query
+            if related_type == 'lead' and related_id:
+                q = q.filter(TimeEntry.lead_id == related_id)
+            elif related_type == 'contact' and related_id:
+                q = q.filter(TimeEntry.contact_id == related_id)
+            elif related_type in {'opportunity', 'deal'} and related_id:
+                q = q.filter(TimeEntry.opportunity_id == related_id)
+            q = q.order_by(TimeEntry.created_at.desc()).limit(200)
+            items = q.all()
+            return jsonify([
+                {
+                    'id': t.id,
+                    'contact_id': t.contact_id,
+                    'lead_id': t.lead_id,
+                    'opportunity_id': t.opportunity_id,
+                    'start_time': t.start_time.isoformat() if t.start_time else None,
+                    'end_time': t.end_time.isoformat() if t.end_time else None,
+                    'duration_minutes': t.duration_minutes,
+                    'notes': t.notes,
+                    'billable': t.billable,
+                    'rate': float(t.rate or 0),
+                    'currency': t.currency,
+                    'invoiced': t.invoiced,
+                    'invoice_id': t.invoice_id
+                } for t in items
+            ]), 200
+        except Exception as e:
+            print(f"Error listing time entries: {e}")
+            return jsonify([]), 200
+    try:
+        data = request.get_json() or {}
+        start = None
+        end = None
+        try:
+            if data.get('start_time'):
+                start = datetime.fromisoformat(data.get('start_time'))
+        except Exception:
+            start = None
+        try:
+            if data.get('end_time'):
+                end = datetime.fromisoformat(data.get('end_time'))
+        except Exception:
+            end = None
+        duration = data.get('duration_minutes')
+        try:
+            duration = int(duration) if duration is not None else None
+        except Exception:
+            duration = None
+        t = TimeEntry(
+            contact_id=data.get('contact_id'),
+            lead_id=data.get('lead_id'),
+            opportunity_id=data.get('opportunity_id'),
+            start_time=start,
+            end_time=end,
+            duration_minutes=duration,
+            notes=data.get('notes'),
+            billable=bool(data.get('billable', True)),
+            rate=float(data.get('rate') or 0.0),
+            currency=data.get('currency') or 'USD'
+        )
+        db.session.add(t)
+        db.session.commit()
+        return jsonify({'id': t.id, 'message': 'Time entry created'}), 201
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creating time entry: {e}")
+        return jsonify({'error': 'Failed to create time entry'}), 500
+
+
+@crm_bp.route('/time-entries/<int:entry_id>', methods=['PUT', 'DELETE', 'OPTIONS'])
+def time_entry_detail(entry_id: int):
+    if request.method == 'OPTIONS':
+        return ('', 200)
+    t = TimeEntry.query.get_or_404(entry_id)
+    if request.method == 'DELETE':
+        try:
+            db.session.delete(t)
+            db.session.commit()
+            return jsonify({'message': 'Time entry deleted'}), 200
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error deleting time entry: {e}")
+            return jsonify({'error': 'Failed to delete time entry'}), 500
+    try:
+        data = request.get_json() or {}
+        if 'start_time' in data:
+            try:
+                t.start_time = datetime.fromisoformat(data.get('start_time')) if data.get('start_time') else t.start_time
+            except Exception:
+                pass
+        if 'end_time' in data:
+            try:
+                t.end_time = datetime.fromisoformat(data.get('end_time')) if data.get('end_time') else t.end_time
+            except Exception:
+                pass
+        if 'duration_minutes' in data:
+            try:
+                t.duration_minutes = int(data.get('duration_minutes')) if data.get('duration_minutes') is not None else t.duration_minutes
+            except Exception:
+                pass
+        for f in ['notes', 'billable', 'rate', 'currency', 'contact_id', 'lead_id', 'opportunity_id', 'invoiced', 'invoice_id']:
+            if f in data:
+                setattr(t, f, data.get(f))
+        db.session.commit()
+        return jsonify({'message': 'Time entry updated'}), 200
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating time entry: {e}")
+        return jsonify({'error': 'Failed to update time entry'}), 500
+# -----------------------------
 # CRM KPIs
 # -----------------------------
 @crm_bp.route('/reports/kpis', methods=['GET'])
@@ -862,27 +1029,89 @@ def crm_kpis():
 
 @crm_bp.route('/pipelines', methods=['GET', 'OPTIONS'])
 def list_pipelines():
-    # Return a default pipeline config; frontend stores but does not depend on it for rendering
     if request.method == 'OPTIONS':
         return ('', 200)
     try:
+        items = Pipeline.query.order_by(Pipeline.created_at.asc()).all()
+        if not items:
+            # Seed a default pipeline if none exist
+            p = Pipeline(name='Default Sales Pipeline', stages=[
+                'prospecting', 'qualification', 'proposal', 'negotiation', 'closed_won', 'closed_lost'
+            ], is_default=True)
+            db.session.add(p)
+            db.session.commit()
+            items = [p]
         return jsonify([
             {
-                "id": "default",
-                "name": "Default Sales Pipeline",
-                "stages": [
-                    "prospecting",
-                    "qualification",
-                    "proposal",
-                    "negotiation",
-                    "closed_won",
-                    "closed_lost"
-                ]
-            }
+                'id': i.id,
+                'name': i.name,
+                'stages': i.stages or [],
+                'is_default': bool(getattr(i, 'is_default', False))
+            } for i in items
         ]), 200
     except Exception as e:
         print(f"Error listing pipelines: {e}")
         return jsonify([]), 200
+
+
+@crm_bp.route('/pipelines', methods=['POST'])
+def create_pipeline():
+    try:
+        data = request.get_json() or {}
+        p = Pipeline(
+            name=data.get('name') or 'Pipeline',
+            stages=data.get('stages') or ['prospecting', 'qualification', 'proposal', 'negotiation', 'closed_won', 'closed_lost'],
+            is_default=bool(data.get('is_default'))
+        )
+        if p.is_default:
+            # unset others
+            try:
+                for other in Pipeline.query.all():
+                    other.is_default = False
+            except Exception:
+                pass
+        db.session.add(p)
+        db.session.commit()
+        return jsonify({'id': p.id, 'message': 'Pipeline created'}), 201
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creating pipeline: {e}")
+        return jsonify({'error': 'Failed to create pipeline'}), 500
+
+
+@crm_bp.route('/pipelines/<int:pipeline_id>', methods=['PUT', 'DELETE', 'OPTIONS'])
+def pipeline_detail(pipeline_id: int):
+    if request.method == 'OPTIONS':
+        return ('', 200)
+    p = Pipeline.query.get_or_404(pipeline_id)
+    if request.method == 'DELETE':
+        try:
+            db.session.delete(p)
+            db.session.commit()
+            return jsonify({'message': 'Pipeline deleted'}), 200
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error deleting pipeline: {e}")
+            return jsonify({'error': 'Failed to delete pipeline'}), 500
+    try:
+        data = request.get_json() or {}
+        p.name = data.get('name', p.name)
+        if 'stages' in data:
+            p.stages = data.get('stages') or p.stages
+        if 'is_default' in data:
+            p.is_default = bool(data.get('is_default'))
+            if p.is_default:
+                try:
+                    for other in Pipeline.query.filter(Pipeline.id != p.id).all():
+                        other.is_default = False
+                except Exception:
+                    pass
+        db.session.commit()
+        return jsonify({'message': 'Pipeline updated'}), 200
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating pipeline: {e}")
+        return jsonify({'error': 'Failed to update pipeline'}), 500
 
 
 @crm_bp.route('/tasks', methods=['GET', 'OPTIONS'])

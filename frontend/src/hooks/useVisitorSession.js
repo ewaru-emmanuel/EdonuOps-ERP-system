@@ -63,18 +63,15 @@ export const useVisitorSession = () => {
   // Store visitor info in backend (optional)
   const storeVisitorInfo = async (visitorId, sessionId) => {
     try {
-      // This would call your backend to store visitor info
-      // For now, we'll just log it
       console.log('Visitor initialized:', { visitorId, sessionId });
-      
-      // Store visitor info in backend
-      await fetch(`${API_BASE}/visitors/initialize`, {
+      // Try to send to backend, but don't throw if unreachable
+      fetch(`${API_BASE}/visitors/initialize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ visitorId, sessionId, userAgent: navigator.userAgent })
-      });
-    } catch (error) {
-      console.error('Could not store visitor info:', error);
+      }).catch(() => {});
+    } catch (_) {
+      // swallow
     }
   };
 

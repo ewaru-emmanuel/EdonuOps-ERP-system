@@ -35,11 +35,13 @@ import {
   DragIndicator
 } from '@mui/icons-material';
 import { useCRM } from './context/CRMContext';
+import { apiClient } from '../../utils/apiClient';
 
 const CRMPipeline = () => {
   const { 
     opportunities, 
     contacts, 
+    pipelines,
     loading, 
     errors, 
     createOpportunity, 
@@ -47,7 +49,8 @@ const CRMPipeline = () => {
     deleteOpportunity, 
     moveOpportunity,
     fetchOpportunities, 
-    fetchContacts 
+    fetchContacts,
+    fetchPipelines
   } = useCRM();
   
   const [openDialog, setOpenDialog] = useState(false);
@@ -60,11 +63,13 @@ const CRMPipeline = () => {
     value: '',
     probability: 50,
     stage: 'prospecting',
+    pipeline_id: '',
     owner: '',
     expected_close_date: '',
     contact_id: '',
     notes: ''
   });
+  const [selectedPipeline, setSelectedPipeline] = useState('');
 
   const stages = [
     { id: 'prospecting', name: 'Prospecting', color: 'default', probability: 10 },
@@ -76,12 +81,25 @@ const CRMPipeline = () => {
   ];
 
   useEffect(() => {
-    fetchOpportunities();
     fetchContacts();
-  }, [fetchOpportunities, fetchContacts]);
+    fetchPipelines();
+  }, [fetchContacts, fetchPipelines]);
+
+  useEffect(() => {
+    const pid = selectedPipeline || (pipelines && pipelines.find(p => p.is_default)?.id) || (pipelines && pipelines[0]?.id) || '';
+    if (pid) {
+      // Reuse context loader with query if available; fallback direct
+      (async () => {
+        try { await apiClient.get(`/api/crm/opportunities?pipelineId=${pid}`); } catch {}
+        await fetchOpportunities();
+      })();
+    } else {
+      fetchOpportunities();
+    }
+  }, [selectedPipeline, pipelines, fetchOpportunities]);
 
   const getOpportunitiesByStage = (stageId) => {
-    return (opportunities || []).filter(opp => opp.stage === stageId);
+    return (opportunities || []).filter(opp => opp.stage === stageId && (!selectedPipeline || opp.pipeline_id === selectedPipeline));
   };
 
   const getContactName = (contactId) => {

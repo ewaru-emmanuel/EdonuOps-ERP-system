@@ -137,7 +137,7 @@ const LandingPage = () => {
                 </Button>
               </Stack>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Typography variant="body2">Trusted by companies from 10 to 10,000 employees</Typography>
+                <Typography variant="body2">Built for teams of 10 to 10,000+.</Typography>
                 <Box sx={{ display: 'flex', gap: 0.5 }}>
                   {[1, 2, 3, 4, 5].map((star) => (
                     <Star key={star} sx={{ fontSize: 16, color: 'yellow' }} />

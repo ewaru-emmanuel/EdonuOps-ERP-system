@@ -90,6 +90,21 @@ const ProcurementAnalytics = () => {
     refresh: refreshVendors 
   } = useRealTimeData('/api/procurement/vendors');
 
+  const [erpSummary, setErpSummary] = useState(null);
+
+  useEffect(() => {
+    const loadSummary = async () => {
+      try {
+        const api = getERPApiService();
+        const res = await api.get('/api/procurement/reporting/summary');
+        setErpSummary(res.data || res);
+      } catch (e) {
+        // ignore errors in summary
+      }
+    };
+    loadSummary();
+  }, []);
+
   // Calculate filtered data
   const filteredData = useMemo(() => {
     if (!purchaseOrders) return [];
@@ -543,7 +558,7 @@ const ProcurementAnalytics = () => {
                 <Box textAlign="center" py={4}>
                   <BarChart sx={{ fontSize: 60, color: 'text.secondary', mb: 2 }} />
                   <Typography variant="h6" color="text.secondary" gutterBottom>
-                    No Data Available
+                    0
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     No purchase orders found for the selected period
@@ -597,6 +612,35 @@ const ProcurementAnalytics = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* ERP Sync Summary */}
+      {erpSummary && (
+        <Card elevation={2} sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" component="h4" sx={{ fontWeight: 'bold', mb: 2 }}>
+              ERP Sync Overview
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6} md={3}>
+                <Typography variant="body2" color="text.secondary">Total POs</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 'bold' }}>{erpSummary.summary?.total_pos || 0}</Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Typography variant="body2" color="text.secondary">Total Spend</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 'bold' }}>${(erpSummary.summary?.total_spend || 0).toLocaleString()}</Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Typography variant="body2" color="text.secondary">Not Exported</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 'bold' }}>{erpSummary.erp_sync_counts?.not_exported || 0}</Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Typography variant="body2" color="text.secondary">Exported</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 'bold' }}>{erpSummary.erp_sync_counts?.exported || 0}</Typography>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Vendor Performance */}
       <Card elevation={2}>

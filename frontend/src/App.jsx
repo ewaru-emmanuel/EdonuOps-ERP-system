@@ -22,6 +22,7 @@ import {
   MenuItem,
   Divider,
   Chip,
+  Badge,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -50,11 +51,17 @@ import {
   ShoppingCart,
   AdminPanelSettings as AdminPanelSettingsIcon
 } from '@mui/icons-material';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import ReportProblemIcon from '@mui/icons-material/ReportProblem';
+import MailOutlineIcon from '@mui/icons-material/MailOutline';
+import AttachmentIcon from '@mui/icons-material/Attachment';
 
 // Import components
 import Dashboard from './components/Dashboard';
+import LandingPage from './components/LandingPage';
 import DashboardSettings from './modules/erp/dashboard/DashboardSettings';
 import AdminSettings from './modules/erp/admin/AdminSettings';
+import NotificationsCenter from './components/NotificationsCenter';
 import FinanceModule from './modules/finance/FinanceModule';
 import CRMModule from './modules/crm/CRMModule';
 import { CRMProvider } from './modules/crm/context/CRMContext';
@@ -141,11 +148,12 @@ const AppContent = () => {
           }}
         >
         <Routes>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<LandingPage />} />
           <Route path="/onboarding" element={<OnboardingWizard />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dashboard/settings" element={<DashboardSettings />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
+          <Route path="/notifications" element={<NotificationsCenter />} />
           <Route path="/finance" element={<FinanceModule />} />
           <Route path="/crm" element={<CRMProvider><CRMModule /></CRMProvider>} />
           <Route path="/procurement" element={<ProcurementModule />} />
@@ -156,8 +164,8 @@ const AppContent = () => {
           <Route path="/ecommerce" element={<EcommerceModule />} />
           <Route path="/ai" element={<AIModule />} />
           <Route path="/sustainability" element={<SustainabilityModule />} />
-          {/* Catch-all route for direct URL access */}
-          <Route path="*" element={<Dashboard />} />
+          {/* Catch-all route */}
+          <Route path="*" element={<LandingPage />} />
         </Routes>
       </Box>
     </Box>
@@ -176,12 +184,22 @@ const Navigation = () => {
   const [waitingListEmail, setWaitingListEmail] = useState('');
   const [waitingListLoading, setWaitingListLoading] = useState(false);
   const [waitingListSuccess, setWaitingListSuccess] = useState(false);
+  const [notificationsAnchor, setNotificationsAnchor] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [readIds, setReadIds] = useState(() => {
+    try {
+      const raw = localStorage.getItem('edonuops.notifications.readIds');
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch {
+      return new Set();
+    }
+  });
   const { logout } = useAuth();
   const { baseCurrency, setShowChangeDialog } = useCurrency();
   const { isModuleEnabled, hasPreferences } = useUserPreferences();
 
-  // Hide navigation only on onboarding
-  const hideNavigation = location.pathname === '/onboarding';
+  // Hide navigation on onboarding and landing page
+  const hideNavigation = location.pathname === '/onboarding' || location.pathname === '/';
 
   // Define all navigation links with their module IDs
   const allNavLinks = [
@@ -215,6 +233,89 @@ const Navigation = () => {
 
   const handleUserMenuClose = () => {
     setUserMenuAnchor(null);
+  };
+
+  // Notifications: fetch integration gaps and surface as alerts
+  const loadNotifications = async () => {
+    try {
+      const gapsResp = await apiClient.get('/api/procurement/integration/gaps');
+      const gapItems = (gapsResp?.gaps || []).map(g => ({
+        id: `gap-${g.po_number}-${g.item_id}`,
+        type: 'integration_gap',
+        message: `PO ${g.po_number} · Item ${g.item_id} missing product mapping`,
+        href: '/inventory'
+      }));
+      // CRM ticket SLA alerts
+      let ticketItems = [];
+      try {
+        const ticketsResp = await apiClient.get('/api/crm/tickets');
+        const now = new Date();
+        ticketItems = (ticketsResp || []).filter(t => {
+          const isOpen = !['resolved', 'closed'].includes((t.status || '').toLowerCase());
+          const breachedFlag = (t.sla_status || '').toLowerCase() === 'breached';
+          const overdue = t.due_at ? (new Date(t.due_at) < now) : false;
+          return isOpen && (breachedFlag || overdue);
+        }).map(t => ({
+          id: `ticket-${t.id}`,
+          type: 'ticket_sla',
+          message: `Ticket #${t.id || ''} ${t.subject ? '· ' + t.subject : ''} SLA at risk/overdue`,
+          href: '/crm'
+        }));
+      } catch (_) {
+        // ignore ticket errors to avoid blocking other alerts
+      }
+      // CSV import errors (disabled when endpoint is unavailable)
+      let importErrorItems = [];
+      // Knowledge Base attachment safety flags (disabled when endpoint is unavailable)
+      let kbFlagItems = [];
+      setNotifications([...gapItems, ...ticketItems, ...importErrorItems, ...kbFlagItems]);
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const openNotifications = (e) => setNotificationsAnchor(e.currentTarget);
+  const closeNotifications = () => setNotificationsAnchor(null);
+
+  const persistReadIds = (ids) => {
+    try { localStorage.setItem('edonuops.notifications.readIds', JSON.stringify(Array.from(ids))); } catch {}
+  };
+  const markRead = (id) => {
+    setReadIds(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      persistReadIds(next);
+      return next;
+    });
+  };
+  const markAllRead = () => {
+    setReadIds(prev => {
+      const next = new Set(prev);
+      notifications.forEach(n => next.add(n.id));
+      persistReadIds(next);
+      return next;
+    });
+  };
+  const unreadCount = notifications.filter(n => !readIds.has(n.id)).length;
+  const getIconForType = (type) => {
+    switch (type) {
+      case 'integration_gap':
+        return <ReportProblemIcon fontSize="small" color="warning" />;
+      case 'ticket_sla':
+        return <WarningAmberIcon fontSize="small" color="error" />;
+      case 'csv_import':
+        return <MailOutlineIcon fontSize="small" color="info" />;
+      case 'kb_attachment':
+        return <AttachmentIcon fontSize="small" color="primary" />;
+      default:
+        return <NotificationsIcon fontSize="small" />;
+    }
   };
 
   const handleWaitingListSubmit = async (e) => {
@@ -323,6 +424,11 @@ const Navigation = () => {
           </Typography>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <IconButton color="inherit" onClick={openNotifications} title="Notifications">
+              <Badge badgeContent={unreadCount} color="error">
+                <NotificationsIcon />
+              </Badge>
+            </IconButton>
             <Button
               variant="contained"
               onClick={() => setWaitingListOpen(true)}
@@ -343,18 +449,6 @@ const Navigation = () => {
             >
               Join Waiting List
             </Button>
-            <Chip
-              label={baseCurrency}
-              color="primary"
-              variant="outlined"
-              size="small"
-              onClick={() => setShowChangeDialog(true)}
-              clickable
-              icon={<CurrencyIcon />}
-            />
-            <IconButton color="inherit">
-              <NotificationsIcon />
-            </IconButton>
             <IconButton color="inherit" onClick={handleUserMenuOpen}>
               <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
                 <PersonIcon />
@@ -408,6 +502,39 @@ const Navigation = () => {
           </ListItemIcon>
           Logout
         </MenuItem>
+      </Menu>
+
+      {/* Notifications Menu */}
+      <Menu
+        anchorEl={notificationsAnchor}
+        open={Boolean(notificationsAnchor)}
+        onClose={closeNotifications}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <MenuItem onClick={() => { closeNotifications(); navigate('/notifications'); }} sx={{ fontWeight: 600 }}>
+          View all
+        </MenuItem>
+        {notifications.length > 0 && <MenuItem onClick={markAllRead} disabled={unreadCount === 0}>Mark all as read</MenuItem>}
+        {notifications.length > 0 && <Divider />}
+        {notifications.length === 0 && (
+          <MenuItem disabled>No notifications</MenuItem>
+        )}
+        {notifications.map((n) => (
+          <MenuItem
+            key={n.id}
+            onClick={() => { markRead(n.id); closeNotifications(); navigate(n.href); }}
+            sx={{ opacity: readIds.has(n.id) ? 0.6 : 1 }}
+          >
+            <ListItemIcon>
+              {getIconForType(n.type)}
+            </ListItemIcon>
+            <ListItemText
+              primary={n.message}
+              secondary={n.type === 'integration_gap' ? 'Action needed' : (readIds.has(n.id) ? 'Read' : undefined)}
+            />
+          </MenuItem>
+        ))}
       </Menu>
 
       <Drawer
@@ -494,14 +621,13 @@ const Navigation = () => {
 
 // Main App Component
 const App = () => {
+  const [mode, setMode] = useState('light');
+  const toggleMode = () => setMode(prev => (prev === 'light' ? 'dark' : 'light'));
   const theme = createTheme({
     palette: {
-      primary: {
-        main: '#1976d2',
-      },
-      secondary: {
-        main: '#dc004e',
-      },
+      mode,
+      primary: { main: '#1976d2' },
+      secondary: { main: '#dc004e' },
     },
     components: {
       MuiModal: {
@@ -554,7 +680,7 @@ const App = () => {
       <CurrencyProvider>
         <AuthProvider>
           <Router>
-            <AppContent />
+            <AppContent mode={mode} toggleMode={toggleMode} />
           </Router>
         </AuthProvider>
       </CurrencyProvider>
