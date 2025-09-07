@@ -1,6 +1,10 @@
 /**
  * Centralized API Configuration
  * Enterprise-grade API configuration management
+ *
+ * Deploy note (Render): set these env vars in the Static Site service and redeploy:
+ *   REACT_APP_API_URL=https://edonuops-erp.onrender.com
+ *   REACT_APP_API_BASE=https://edonuops-erp.onrender.com/api
  */
 
 // Environment-based API configuration
