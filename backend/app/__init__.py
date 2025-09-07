@@ -37,16 +37,13 @@ def create_app(config_name='development'):
     # Auto-detect Render environment and setup CORS
     if os.getenv('RENDER'):
         print("Render environment detected - setting up CORS for deployment")
-        # Get Render URLs from environment variables
-        render_frontend_url = os.getenv('RENDER_FRONTEND_URL')
-        render_backend_url = os.getenv('RENDER_BACKEND_URL')
+        # Get Render URLs from environment variables, with safe defaults
+        render_frontend_url = os.getenv('RENDER_FRONTEND_URL') or 'https://edonuops-erp-system.onrender.com'
+        render_backend_url = os.getenv('RENDER_BACKEND_URL') or 'https://edonuops-erp.onrender.com'
         
-        if render_frontend_url:
-            EnvironmentConfig.setup_render_cors(render_frontend_url, render_backend_url)
-            cors_origins = EnvironmentConfig.get_cors_origins()
-            print(f"CORS configured for Render frontend: {render_frontend_url}")
-        else:
-            print("⚠️  RENDER_FRONTEND_URL not set - using default CORS origins")
+        EnvironmentConfig.setup_render_cors(render_frontend_url, render_backend_url)
+        cors_origins = EnvironmentConfig.get_cors_origins()
+        print(f"CORS configured for Render frontend: {render_frontend_url}")
     
     # Always include localhost origins for local development & testing
     # This ensures developer experience even when RENDER is set in the shell

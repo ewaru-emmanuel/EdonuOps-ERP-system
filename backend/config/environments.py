@@ -239,6 +239,7 @@ class EnvironmentConfig:
     @classmethod
     def setup_render_cors(cls, frontend_url: str, backend_url: str = None) -> None:
         """Setup CORS for Render deployment"""
+        # Always include provided frontend URL; include backend URL if present
         cls.CORS_ORIGINS['render'] = [frontend_url]
         if backend_url:
             cls.CORS_ORIGINS['render'].append(backend_url)

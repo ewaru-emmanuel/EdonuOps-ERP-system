@@ -49,7 +49,7 @@ const DetailViewModal = ({
 }) => {
   const hasData = Boolean(data);
 
-  const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:5000/api';
+  const API_BASE = process.env.REACT_APP_API_BASE || process.env.REACT_APP_API_URL || 'https://edonuops-erp.onrender.com/api';
 
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
