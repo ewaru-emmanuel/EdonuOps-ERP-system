@@ -64,6 +64,10 @@ export const useVisitorSession = () => {
   const storeVisitorInfo = async (visitorId, sessionId) => {
     try {
       console.log('Visitor initialized:', { visitorId, sessionId });
+      // Skip network call if API base points to localhost or is missing
+      if (!API_BASE || /localhost|127\.0\.0\.1/i.test(API_BASE)) {
+        return;
+      }
       // Try to send to backend, but don't throw if unreachable
       fetch(`${API_BASE}/visitors/initialize`, {
         method: 'POST',
