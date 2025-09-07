@@ -105,7 +105,7 @@ const CRMModule = () => {
   });
   const [ticketFilterName, setTicketFilterName] = useState('');
   const [ticketSaveDialogOpen, setTicketSaveDialogOpen] = useState(false);
-  const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+  const API_BASE = process.env.REACT_APP_API_BASE || process.env.REACT_APP_API_URL || 'http://localhost:5000';
   
   // Form and dialog states
   const [formOpen, setFormOpen] = useState(false);

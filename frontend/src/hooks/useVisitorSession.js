@@ -4,7 +4,7 @@ export const useVisitorSession = () => {
   const [visitorId, setVisitorId] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:5000/api';
+  const API_BASE = process.env.REACT_APP_API_BASE || process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
   useEffect(() => {
     // Generate or retrieve unique visitor ID

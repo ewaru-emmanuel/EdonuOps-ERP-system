@@ -7,7 +7,7 @@
 const API_CONFIG = {
   // Development environment
   development: {
-    baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000',
+    baseURL: process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE || 'http://localhost:5000',
     timeout: 30000,
     retryAttempts: 3,
     retryDelay: 1000
@@ -15,7 +15,7 @@ const API_CONFIG = {
   
   // Staging environment
   staging: {
-    baseURL: process.env.REACT_APP_API_URL || 'https://staging-api.edonuops.com',
+    baseURL: process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE || 'https://staging-api.edonuops.com',
     timeout: 30000,
     retryAttempts: 3,
     retryDelay: 1000
@@ -23,7 +23,7 @@ const API_CONFIG = {
   
   // Production environment
   production: {
-    baseURL: process.env.REACT_APP_API_URL || 'https://api.edonuops.com',
+    baseURL: process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE || 'https://api.edonuops.com',
     timeout: 30000,
     retryAttempts: 3,
     retryDelay: 1000
