@@ -27,7 +27,8 @@ const API_CONFIG = {
   
   // Production environment
   production: {
-    baseURL: process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE || 'https://api.edonuops.com',
+    // Prefer env; fallback to Render backend URL to avoid api.edonuops.com default
+    baseURL: process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE || 'https://edonuops-erp.onrender.com',
     timeout: 30000,
     retryAttempts: 3,
     retryDelay: 1000
