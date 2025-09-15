@@ -1,304 +1,285 @@
-#!/usr/bin/env python3
 """
-Chart of Accounts Templates for EdonuOps
-Provides multiple CoA templates for different business types and standards
+Chart of Accounts Templates for Different Industries
+Building on top of existing Account model
 """
 
-class CoATemplates:
-    """Collection of Chart of Accounts templates"""
+from typing import Dict, List, Any, Optional
+from .models import Account
+
+class COATemplate:
+    """Chart of Accounts template for different industries"""
     
-    @staticmethod
-    def get_quickbooks_standard():
-        """QuickBooks-compatible Chart of Accounts"""
-        return {
-            'name': 'QuickBooks Standard',
-            'description': 'Industry-standard chart compatible with QuickBooks',
-            'accounts': [
-                # ASSETS (1000-1999)
-                {'code': '1000', 'name': 'Cash and Cash Equivalents', 'type': 'asset'},
-                {'code': '1010', 'name': 'Checking Account', 'type': 'asset', 'parent_code': '1000'},
-                {'code': '1020', 'name': 'Savings Account', 'type': 'asset', 'parent_code': '1000'},
-                {'code': '1030', 'name': 'Petty Cash', 'type': 'asset', 'parent_code': '1000'},
-                {'code': '1050', 'name': 'Undeposited Funds', 'type': 'asset', 'parent_code': '1000'},
-                
-                {'code': '1100', 'name': 'Accounts Receivable', 'type': 'asset'},
-                {'code': '1110', 'name': 'Trade Receivables', 'type': 'asset', 'parent_code': '1100'},
-                {'code': '1130', 'name': 'Allowance for Doubtful Accounts', 'type': 'asset', 'parent_code': '1100'},
-                
-                {'code': '1200', 'name': 'Inventory', 'type': 'asset'},
-                {'code': '1240', 'name': 'Inventory Asset', 'type': 'asset', 'parent_code': '1200'},
-                
-                {'code': '1300', 'name': 'Other Current Assets', 'type': 'asset'},
-                {'code': '1310', 'name': 'Prepaid Expenses', 'type': 'asset', 'parent_code': '1300'},
-                
-                {'code': '1500', 'name': 'Fixed Assets', 'type': 'asset'},
-                {'code': '1520', 'name': 'Equipment', 'type': 'asset', 'parent_code': '1500'},
-                {'code': '1525', 'name': 'Accumulated Depreciation - Equipment', 'type': 'asset', 'parent_code': '1500'},
-                
-                # LIABILITIES (2000-2999)
-                {'code': '2000', 'name': 'Current Liabilities', 'type': 'liability'},
-                {'code': '2010', 'name': 'Accounts Payable', 'type': 'liability', 'parent_code': '2000'},
-                {'code': '2100', 'name': 'Credit Cards', 'type': 'liability'},
-                {'code': '2110', 'name': 'Business Credit Card', 'type': 'liability', 'parent_code': '2100'},
-                {'code': '2200', 'name': 'Tax Liabilities', 'type': 'liability'},
-                {'code': '2220', 'name': 'Sales Tax Payable', 'type': 'liability', 'parent_code': '2200'},
-                
-                # EQUITY (3000-3999)
-                {'code': '3000', 'name': 'Equity', 'type': 'equity'},
-                {'code': '3010', 'name': 'Common Stock', 'type': 'equity', 'parent_code': '3000'},
-                {'code': '3030', 'name': 'Retained Earnings', 'type': 'equity', 'parent_code': '3000'},
-                
-                # REVENUE (4000-4999)
-                {'code': '4000', 'name': 'Sales Revenue', 'type': 'revenue'},
-                {'code': '4010', 'name': 'Product Sales', 'type': 'revenue', 'parent_code': '4000'},
-                {'code': '4020', 'name': 'Service Revenue', 'type': 'revenue', 'parent_code': '4000'},
-                
-                # COST OF SALES (5000-5999)
-                {'code': '5000', 'name': 'Cost of Goods Sold', 'type': 'expense'},
-                {'code': '5010', 'name': 'Cost of Materials', 'type': 'expense', 'parent_code': '5000'},
-                
-                # OPERATING EXPENSES (6000-6999)
-                {'code': '6000', 'name': 'Operating Expenses', 'type': 'expense'},
-                {'code': '6010', 'name': 'Salaries and Wages', 'type': 'expense', 'parent_code': '6000'},
-                {'code': '6100', 'name': 'Rent Expense', 'type': 'expense', 'parent_code': '6000'},
-                {'code': '6200', 'name': 'Office Supplies', 'type': 'expense', 'parent_code': '6000'},
-                {'code': '6300', 'name': 'Professional Services', 'type': 'expense', 'parent_code': '6000'},
-                {'code': '6400', 'name': 'Marketing & Advertising', 'type': 'expense', 'parent_code': '6000'},
-                {'code': '6800', 'name': 'Depreciation Expense', 'type': 'expense', 'parent_code': '6000'},
-            ]
-        }
+    def __init__(self, name: str, description: str, industry: str):
+        self.name = name
+        self.description = description
+        self.industry = industry
+        self.accounts = []
+        self.workflows = []
+        self.statutory_modules = []
     
-    @staticmethod
-    def get_manufacturing_template():
-        """Manufacturing-focused Chart of Accounts"""
-        return {
-            'name': 'Manufacturing Enterprise',
-            'description': 'Specialized chart for manufacturing businesses',
-            'accounts': [
-                # Enhanced Inventory for Manufacturing
-                {'code': '1200', 'name': 'Inventory', 'type': 'asset'},
-                {'code': '1210', 'name': 'Raw Materials', 'type': 'asset', 'parent_code': '1200'},
-                {'code': '1220', 'name': 'Work in Process', 'type': 'asset', 'parent_code': '1200'},
-                {'code': '1230', 'name': 'Finished Goods', 'type': 'asset', 'parent_code': '1200'},
-                {'code': '1240', 'name': 'Supplies & Consumables', 'type': 'asset', 'parent_code': '1200'},
-                
-                # Manufacturing Equipment
-                {'code': '1500', 'name': 'Manufacturing Assets', 'type': 'asset'},
-                {'code': '1510', 'name': 'Production Equipment', 'type': 'asset', 'parent_code': '1500'},
-                {'code': '1515', 'name': 'Accumulated Depreciation - Production Equipment', 'type': 'asset', 'parent_code': '1500'},
-                {'code': '1520', 'name': 'Manufacturing Tools', 'type': 'asset', 'parent_code': '1500'},
-                {'code': '1530', 'name': 'Quality Control Equipment', 'type': 'asset', 'parent_code': '1500'},
-                
-                # Detailed Cost of Goods Sold
-                {'code': '5000', 'name': 'Cost of Goods Sold', 'type': 'expense'},
-                {'code': '5010', 'name': 'Direct Materials', 'type': 'expense', 'parent_code': '5000'},
-                {'code': '5020', 'name': 'Direct Labor', 'type': 'expense', 'parent_code': '5000'},
-                {'code': '5030', 'name': 'Manufacturing Overhead', 'type': 'expense', 'parent_code': '5000'},
-                {'code': '5040', 'name': 'Factory Utilities', 'type': 'expense', 'parent_code': '5000'},
-                {'code': '5050', 'name': 'Factory Maintenance', 'type': 'expense', 'parent_code': '5000'},
-                {'code': '5060', 'name': 'Quality Control Costs', 'type': 'expense', 'parent_code': '5000'},
-                {'code': '5070', 'name': 'Packaging & Shipping', 'type': 'expense', 'parent_code': '5000'},
-                
-                # Manufacturing-specific Expenses
-                {'code': '6900', 'name': 'Manufacturing Expenses', 'type': 'expense'},
-                {'code': '6910', 'name': 'Research & Development', 'type': 'expense', 'parent_code': '6900'},
-                {'code': '6920', 'name': 'Product Design', 'type': 'expense', 'parent_code': '6900'},
-                {'code': '6930', 'name': 'Production Planning', 'type': 'expense', 'parent_code': '6900'},
-                {'code': '6940', 'name': 'Environmental Compliance', 'type': 'expense', 'parent_code': '6900'},
-            ]
+    def add_account(self, code: str, name: str, type: str, parent_code: str = None, 
+                   is_core: bool = True, required_tags: List[str] = None, 
+                   description: str = None, statutory_module: str = None):
+        """Add an account to the template"""
+        account = {
+            'code': code,
+            'name': name,
+            'type': type,
+            'parent_code': parent_code,
+            'is_core': is_core,  # Shows in basic mode (30 accounts)
+            'required_tags': required_tags or [],
+            'description': description or f"{name} account for {self.industry} businesses",
+            'statutory_module': statutory_module  # Which module this account belongs to
         }
+        self.accounts.append(account)
+        return account
+
+def create_retail_template() -> COATemplate:
+    """Retail business CoA template - 30 core accounts + optional"""
+    template = COATemplate(
+        name="Retail Business",
+        description="Complete CoA for retail businesses with inventory management",
+        industry="retail"
+    )
     
-    @staticmethod
-    def get_service_company_template():
-        """Service Company Chart of Accounts"""
-        return {
-            'name': 'Service Company',
-            'description': 'Optimized for service-based businesses',
-            'accounts': [
-                # Service Revenue Categories
-                {'code': '4000', 'name': 'Service Revenue', 'type': 'revenue'},
-                {'code': '4010', 'name': 'Consulting Services', 'type': 'revenue', 'parent_code': '4000'},
-                {'code': '4020', 'name': 'Professional Services', 'type': 'revenue', 'parent_code': '4000'},
-                {'code': '4030', 'name': 'Training Services', 'type': 'revenue', 'parent_code': '4000'},
-                {'code': '4040', 'name': 'Support Services', 'type': 'revenue', 'parent_code': '4000'},
-                {'code': '4050', 'name': 'Subscription Revenue', 'type': 'revenue', 'parent_code': '4000'},
-                
-                # Service Cost Structure
-                {'code': '5000', 'name': 'Cost of Services', 'type': 'expense'},
-                {'code': '5010', 'name': 'Direct Service Costs', 'type': 'expense', 'parent_code': '5000'},
-                {'code': '5020', 'name': 'Subcontractor Costs', 'type': 'expense', 'parent_code': '5000'},
-                {'code': '5030', 'name': 'Service Materials', 'type': 'expense', 'parent_code': '5000'},
-                
-                # Professional Development
-                {'code': '6000', 'name': 'Professional Development', 'type': 'expense'},
-                {'code': '6010', 'name': 'Certifications & Training', 'type': 'expense', 'parent_code': '6000'},
-                {'code': '6020', 'name': 'Conference & Seminars', 'type': 'expense', 'parent_code': '6000'},
-                {'code': '6030', 'name': 'Professional Memberships', 'type': 'expense', 'parent_code': '6000'},
-            ]
-        }
+    # CORE ASSETS (15 accounts)
+    template.add_account("1000", "Cash and Cash Equivalents", "asset", is_core=True)
+    template.add_account("1020", "Business Checking", "asset", "1000", is_core=True)
+    template.add_account("1030", "Petty Cash", "asset", "1000", is_core=False)
     
-    @staticmethod
-    def get_tech_startup_template():
-        """Tech Startup Chart of Accounts"""
-        return {
-            'name': 'Technology Startup',
-            'description': 'Designed for technology and software companies',
-            'accounts': [
-                # Intellectual Property Assets
-                {'code': '1700', 'name': 'Intangible Assets', 'type': 'asset'},
-                {'code': '1710', 'name': 'Software Development Costs', 'type': 'asset', 'parent_code': '1700'},
-                {'code': '1720', 'name': 'Patents & Trademarks', 'type': 'asset', 'parent_code': '1700'},
-                {'code': '1730', 'name': 'Customer Lists', 'type': 'asset', 'parent_code': '1700'},
-                
-                # Technology Revenue
-                {'code': '4000', 'name': 'Technology Revenue', 'type': 'revenue'},
-                {'code': '4010', 'name': 'Software Licenses', 'type': 'revenue', 'parent_code': '4000'},
-                {'code': '4020', 'name': 'SaaS Subscriptions', 'type': 'revenue', 'parent_code': '4000'},
-                {'code': '4030', 'name': 'API Usage Revenue', 'type': 'revenue', 'parent_code': '4000'},
-                {'code': '4040', 'name': 'Support & Maintenance', 'type': 'revenue', 'parent_code': '4000'},
-                {'code': '4050', 'name': 'Professional Services', 'type': 'revenue', 'parent_code': '4000'},
-                
-                # Technology Expenses
-                {'code': '6200', 'name': 'Technology Infrastructure', 'type': 'expense'},
-                {'code': '6210', 'name': 'Cloud Computing Services', 'type': 'expense', 'parent_code': '6200'},
-                {'code': '6220', 'name': 'Software Development Tools', 'type': 'expense', 'parent_code': '6200'},
-                {'code': '6230', 'name': 'Third-party APIs', 'type': 'expense', 'parent_code': '6200'},
-                {'code': '6240', 'name': 'Data Storage & Backup', 'type': 'expense', 'parent_code': '6200'},
-                {'code': '6250', 'name': 'Security Services', 'type': 'expense', 'parent_code': '6200'},
-                
-                # R&D Expenses
-                {'code': '6900', 'name': 'Research & Development', 'type': 'expense'},
-                {'code': '6910', 'name': 'Software Development', 'type': 'expense', 'parent_code': '6900'},
-                {'code': '6920', 'name': 'Product Testing', 'type': 'expense', 'parent_code': '6900'},
-                {'code': '6930', 'name': 'Prototype Development', 'type': 'expense', 'parent_code': '6900'},
-            ]
-        }
+    template.add_account("1100", "Accounts Receivable", "asset", is_core=True, 
+                        required_tags=["customer"])
+    template.add_account("1110", "Allowance for Bad Debts", "asset", "1100", is_core=True)
     
-    @staticmethod
-    def get_nonprofit_template():
-        """Nonprofit Organization Chart of Accounts"""
-        return {
-            'name': 'Nonprofit Organization',
-            'description': 'Specialized for nonprofit and charitable organizations',
-            'accounts': [
-                # Net Assets (instead of Equity)
-                {'code': '3000', 'name': 'Net Assets', 'type': 'equity'},
-                {'code': '3010', 'name': 'Net Assets Without Donor Restrictions', 'type': 'equity', 'parent_code': '3000'},
-                {'code': '3020', 'name': 'Net Assets With Donor Restrictions', 'type': 'equity', 'parent_code': '3000'},
-                {'code': '3030', 'name': 'Temporarily Restricted Net Assets', 'type': 'equity', 'parent_code': '3000'},
-                {'code': '3040', 'name': 'Permanently Restricted Net Assets', 'type': 'equity', 'parent_code': '3000'},
-                
-                # Revenue Sources
-                {'code': '4000', 'name': 'Revenue', 'type': 'revenue'},
-                {'code': '4010', 'name': 'Donations', 'type': 'revenue', 'parent_code': '4000'},
-                {'code': '4020', 'name': 'Grants', 'type': 'revenue', 'parent_code': '4000'},
-                {'code': '4030', 'name': 'Government Funding', 'type': 'revenue', 'parent_code': '4000'},
-                {'code': '4040', 'name': 'Fundraising Events', 'type': 'revenue', 'parent_code': '4000'},
-                {'code': '4050', 'name': 'Membership Fees', 'type': 'revenue', 'parent_code': '4000'},
-                {'code': '4060', 'name': 'Program Service Revenue', 'type': 'revenue', 'parent_code': '4000'},
-                
-                # Program Expenses
-                {'code': '5000', 'name': 'Program Expenses', 'type': 'expense'},
-                {'code': '5010', 'name': 'Program Services', 'type': 'expense', 'parent_code': '5000'},
-                {'code': '5020', 'name': 'Community Outreach', 'type': 'expense', 'parent_code': '5000'},
-                {'code': '5030', 'name': 'Educational Programs', 'type': 'expense', 'parent_code': '5000'},
-                
-                # Fundraising Expenses
-                {'code': '6000', 'name': 'Fundraising Expenses', 'type': 'expense'},
-                {'code': '6010', 'name': 'Fundraising Events', 'type': 'expense', 'parent_code': '6000'},
-                {'code': '6020', 'name': 'Grant Writing', 'type': 'expense', 'parent_code': '6000'},
-                {'code': '6030', 'name': 'Donor Relations', 'type': 'expense', 'parent_code': '6000'},
-            ]
-        }
+    template.add_account("1200", "Inventory", "asset", is_core=True, 
+                        required_tags=["product_category", "location"])
+    template.add_account("1210", "Finished Goods", "asset", "1200", is_core=True)
+    template.add_account("1220", "Raw Materials", "asset", "1200", is_core=False)
     
-    @staticmethod
-    def get_all_templates():
-        """Get all available CoA templates"""
-        return {
-            'quickbooks_standard': CoATemplates.get_quickbooks_standard(),
-            'manufacturing': CoATemplates.get_manufacturing_template(),
-            'service_company': CoATemplates.get_service_company_template(),
-            'tech_startup': CoATemplates.get_tech_startup_template(),
-            'nonprofit': CoATemplates.get_nonprofit_template(),
-        }
+    template.add_account("1300", "Prepaid Expenses", "asset", is_core=True)
+    template.add_account("1310", "Prepaid Rent", "asset", "1300", is_core=True)
+    template.add_account("1320", "Prepaid Insurance", "asset", "1300", is_core=True)
     
-    @staticmethod
-    def apply_template(template_name, organization_id=None):
-        """Apply a CoA template to the current organization"""
-        from app import db
-        from modules.finance.models import ChartOfAccount
-        
-        templates = CoATemplates.get_all_templates()
-        if template_name not in templates:
-            raise ValueError(f"Template '{template_name}' not found")
-        
-        template = templates[template_name]
-        accounts = template['accounts']
-        
-        # Get existing account codes to avoid duplicates
-        existing_codes = {acc.code for acc in ChartOfAccount.query.all()}
-        
-        # Find parent account IDs
-        parent_accounts = {}
-        for account in ChartOfAccount.query.all():
-            parent_accounts[account.code] = account.id
-        
-        added_count = 0
-        
-        # First pass: Add parent accounts
-        for account_data in accounts:
-            if account_data['code'] not in existing_codes and 'parent_code' not in account_data:
-                account = ChartOfAccount(
-                    code=account_data['code'],
-                    account_name=account_data['name'],
-                    account_type=account_data['type'],
-                    currency='USD',
-                    allowed_dimensions=["department", "project", "location", "cost_center"]
-                )
-                db.session.add(account)
-                db.session.flush()
-                parent_accounts[account_data['code']] = account.id
-                existing_codes.add(account_data['code'])
-                added_count += 1
-        
-        # Second pass: Add child accounts
-        for account_data in accounts:
-            if account_data['code'] not in existing_codes and 'parent_code' in account_data:
-                parent_id = parent_accounts.get(account_data['parent_code'])
-                if parent_id:
-                    account = ChartOfAccount(
-                        code=account_data['code'],
-                        account_name=account_data['name'],
-                        account_type=account_data['type'],
-                        currency='USD',
-                        parent_id=parent_id,
-                        allowed_dimensions=["department", "project", "location", "cost_center"]
-                    )
-                    db.session.add(account)
-                    added_count += 1
-        
-        db.session.commit()
-        return {
-            'template_applied': template_name,
-            'accounts_added': added_count,
-            'template_info': template
+    template.add_account("1400", "Fixed Assets", "asset", is_core=True)
+    template.add_account("1410", "Store Equipment", "asset", "1400", is_core=True)
+    template.add_account("1420", "Computer Equipment", "asset", "1400", is_core=True)
+    template.add_account("1430", "Accumulated Depreciation", "asset", "1400", is_core=True)
+    
+    # CORE LIABILITIES (5 accounts)
+    template.add_account("2000", "Accounts Payable", "liability", is_core=True, 
+                        required_tags=["vendor"])
+    template.add_account("2100", "Accrued Expenses", "liability", is_core=True)
+    template.add_account("2110", "Accrued Wages", "liability", "2100", is_core=True)
+    template.add_account("2200", "Short-term Loans", "liability", is_core=False)
+    template.add_account("2300", "Long-term Loans", "liability", is_core=False)
+    
+    # CORE EQUITY (3 accounts)
+    template.add_account("3000", "Owner's Equity", "equity", is_core=True)
+    template.add_account("3100", "Retained Earnings", "equity", is_core=True)
+    template.add_account("3200", "Current Year Earnings", "equity", is_core=True)
+    
+    # CORE REVENUE (2 accounts)
+    template.add_account("4000", "Sales Revenue", "revenue", is_core=True, 
+                        required_tags=["product_category", "sales_channel"])
+    template.add_account("4100", "Service Revenue", "revenue", is_core=False)
+    
+    # CORE EXPENSES (5 accounts)
+    template.add_account("5000", "Cost of Goods Sold", "expense", is_core=True, 
+                        required_tags=["product_category"])
+    template.add_account("6000", "Operating Expenses", "expense", is_core=True)
+    template.add_account("6100", "Rent Expense", "expense", "6000", is_core=True)
+    template.add_account("6200", "Utilities", "expense", "6000", is_core=True)
+    template.add_account("6300", "Salaries and Wages", "expense", "6000", is_core=True)
+    
+    # Additional accounts for advanced mode
+    template.add_account("6400", "Marketing and Advertising", "expense", "6000", is_core=False)
+    template.add_account("6500", "Insurance", "expense", "6000", is_core=False)
+    template.add_account("6600", "Professional Services", "expense", "6000", is_core=False)
+    template.add_account("6700", "Office Supplies", "expense", "6000", is_core=False)
+    template.add_account("6800", "Depreciation", "expense", "6000", is_core=False)
+    
+    # Workflows
+    template.workflows = [
+        {
+            "name": "Record Sale",
+            "description": "Process a customer sale with inventory",
+            "accounts_affected": ["4000", "5000", "1210", "1100"],
+            "ui_form": "sale_form"
+        },
+        {
+            "name": "Purchase Inventory", 
+            "description": "Record inventory purchase from vendor",
+            "accounts_affected": ["1210", "2000"],
+            "ui_form": "purchase_form"
         }
+    ]
+    
+    return template
 
+def create_services_template() -> COATemplate:
+    """Services business CoA template - 30 core accounts + optional"""
+    template = COATemplate(
+        name="Services Business", 
+        description="Complete CoA for service-based businesses",
+        industry="services"
+    )
+    
+    # CORE ASSETS (12 accounts)
+    template.add_account("1000", "Cash and Cash Equivalents", "asset", is_core=True)
+    template.add_account("1020", "Business Checking", "asset", "1000", is_core=True)
+    template.add_account("1100", "Accounts Receivable", "asset", is_core=True, 
+                        required_tags=["client", "project"])
+    template.add_account("1200", "Prepaid Expenses", "asset", is_core=True)
+    template.add_account("1300", "Fixed Assets", "asset", is_core=True)
+    
+    # CORE LIABILITIES (4 accounts)
+    template.add_account("2000", "Accounts Payable", "liability", is_core=True, 
+                        required_tags=["vendor"])
+    template.add_account("2100", "Accrued Expenses", "liability", is_core=True)
+    template.add_account("2200", "Deferred Revenue", "liability", is_core=True, 
+                        required_tags=["client", "project"])
+    
+    # CORE EQUITY (3 accounts)
+    template.add_account("3000", "Owner's Equity", "equity", is_core=True)
+    template.add_account("3100", "Retained Earnings", "equity", is_core=True)
+    template.add_account("3200", "Current Year Earnings", "equity", is_core=True)
+    
+    # CORE REVENUE (2 accounts)
+    template.add_account("4000", "Service Revenue", "revenue", is_core=True, 
+                        required_tags=["client", "service_type", "project"])
+    
+    # CORE EXPENSES (9 accounts)
+    template.add_account("5000", "Direct Labor", "expense", is_core=True, 
+                        required_tags=["employee", "project"])
+    template.add_account("6000", "Operating Expenses", "expense", is_core=True)
+    template.add_account("6100", "Rent Expense", "expense", "6000", is_core=True)
+    template.add_account("6200", "Utilities", "expense", "6000", is_core=True)
+    template.add_account("6300", "Salaries and Wages", "expense", "6000", is_core=True)
+    
+    return template
 
-# Standalone functions for API routes
-def get_all_templates():
-    """Get all available CoA templates for API"""
-    return CoATemplates.get_all_templates()
+def create_manufacturing_template() -> COATemplate:
+    """Manufacturing business CoA template - 30 core accounts + optional"""
+    template = COATemplate(
+        name="Manufacturing Business",
+        description="Complete CoA for manufacturing businesses with production tracking",
+        industry="manufacturing"
+    )
+    
+    # CORE ASSETS (15 accounts)
+    template.add_account("1000", "Cash and Cash Equivalents", "asset", is_core=True)
+    template.add_account("1020", "Business Checking", "asset", "1000", is_core=True)
+    template.add_account("1100", "Accounts Receivable", "asset", is_core=True, 
+                        required_tags=["customer"])
+    template.add_account("1200", "Inventory", "asset", is_core=True, 
+                        required_tags=["product_line", "warehouse"])
+    template.add_account("1300", "Prepaid Expenses", "asset", is_core=True)
+    template.add_account("1400", "Fixed Assets", "asset", is_core=True)
+    
+    # CORE LIABILITIES (5 accounts)
+    template.add_account("2000", "Accounts Payable", "liability", is_core=True, 
+                        required_tags=["vendor"])
+    template.add_account("2100", "Accrued Expenses", "liability", is_core=True)
+    
+    # CORE EQUITY (3 accounts)
+    template.add_account("3000", "Owner's Equity", "equity", is_core=True)
+    template.add_account("3100", "Retained Earnings", "equity", is_core=True)
+    template.add_account("3200", "Current Year Earnings", "equity", is_core=True)
+    
+    # CORE REVENUE (2 accounts)
+    template.add_account("4000", "Sales Revenue", "revenue", is_core=True, 
+                        required_tags=["product_line", "customer"])
+    
+    # CORE EXPENSES (5 accounts)
+    template.add_account("5000", "Cost of Goods Sold", "expense", is_core=True, 
+                        required_tags=["product_line"])
+    template.add_account("6000", "Operating Expenses", "expense", is_core=True)
+    
+    return template
 
+def create_freelancer_template() -> COATemplate:
+    """Freelancer CoA template - simplified for solo entrepreneurs"""
+    template = COATemplate(
+        name="Freelancer Business",
+        description="Simplified CoA for freelancers and solo entrepreneurs",
+        industry="freelancer"
+    )
+    
+    # CORE ASSETS (8 accounts)
+    template.add_account("1000", "Cash and Cash Equivalents", "asset", is_core=True)
+    template.add_account("1020", "Business Checking", "asset", "1000", is_core=True)
+    template.add_account("1100", "Accounts Receivable", "asset", is_core=True, 
+                        required_tags=["client"])
+    template.add_account("1200", "Prepaid Expenses", "asset", is_core=True)
+    template.add_account("1300", "Fixed Assets", "asset", is_core=True)
+    
+    # CORE LIABILITIES (4 accounts)
+    template.add_account("2000", "Accounts Payable", "liability", is_core=True, 
+                        required_tags=["vendor"])
+    template.add_account("2100", "Accrued Expenses", "liability", is_core=True)
+    template.add_account("2200", "Deferred Revenue", "liability", is_core=True, 
+                        required_tags=["client"])
+    
+    # CORE EQUITY (3 accounts)
+    template.add_account("3000", "Owner's Equity", "equity", is_core=True)
+    template.add_account("3100", "Retained Earnings", "equity", is_core=True)
+    template.add_account("3200", "Current Year Earnings", "equity", is_core=True)
+    
+    # CORE REVENUE (2 accounts)
+    template.add_account("4000", "Service Revenue", "revenue", is_core=True, 
+                        required_tags=["client", "service_type"])
+    
+    # CORE EXPENSES (13 accounts)
+    template.add_account("5000", "Operating Expenses", "expense", is_core=True)
+    template.add_account("5100", "Home Office", "expense", "5000", is_core=True)
+    template.add_account("5200", "Software Subscriptions", "expense", "5000", is_core=True)
+    template.add_account("5300", "Marketing", "expense", "5000", is_core=True)
+    template.add_account("5400", "Professional Development", "expense", "5000", is_core=True)
+    template.add_account("5500", "Insurance", "expense", "5000", is_core=True)
+    template.add_account("5600", "Office Supplies", "expense", "5000", is_core=True)
+    template.add_account("5700", "Travel", "expense", "5000", is_core=True)
+    template.add_account("5800", "Depreciation", "expense", "5000", is_core=True)
+    
+    return template
 
-def get_template_by_id(template_id):
-    """Get a specific CoA template by ID for API"""
-    templates = CoATemplates.get_all_templates()
-    return templates.get(template_id)
+# Template registry
+COA_TEMPLATES = {
+    "retail": create_retail_template(),
+    "services": create_services_template(), 
+    "manufacturing": create_manufacturing_template(),
+    "freelancer": create_freelancer_template()
+}
 
+def get_template(industry: str) -> Optional[COATemplate]:
+    """Get CoA template for specific industry"""
+    return COA_TEMPLATES.get(industry.lower())
 
-def apply_template_to_db(template_id, organization_id=None):
-    """Apply a CoA template to the database for API"""
-    return CoATemplates.apply_template(template_id, organization_id)
+def get_all_templates() -> Dict[str, COATemplate]:
+    """Get all available CoA templates"""
+    return COA_TEMPLATES
 
+def get_core_accounts(template: COATemplate) -> List[Dict[str, Any]]:
+    """Get only core accounts (for basic mode - 30 accounts)"""
+    return [acc for acc in template.accounts if acc.get('is_core', True)]
 
+def get_advanced_accounts(template: COATemplate) -> List[Dict[str, Any]]:
+    """Get all accounts (for advanced mode)"""
+    return template.accounts
+
+def create_accounts_from_template(template: COATemplate, user_id: int = 1) -> List[Account]:
+    """Create Account objects from template for database insertion"""
+    accounts = []
+    account_map = {}  # To handle parent relationships
+    
+    for acc_data in template.accounts:
+        account = Account(
+            code=acc_data['code'],
+            name=acc_data['name'],
+            type=acc_data['type'],
+            parent_id=account_map.get(acc_data.get('parent_code')),
+            is_active=True
+        )
+        accounts.append(account)
+        account_map[acc_data['code']] = account
+    
+    return accounts

@@ -846,6 +846,7 @@ const DetailViewModal = ({
       onClose={onClose}
       maxWidth="md"
       fullWidth
+      fullScreen={typeof window !== 'undefined' ? window.matchMedia('(max-width:600px)').matches : false}
       aria-labelledby="detail-dialog-title"
       aria-describedby="detail-dialog-content"
     >
@@ -985,7 +986,7 @@ const DetailViewModal = ({
                   <Button onClick={saveDealItems} disabled={savingItems} variant="contained" size="small">{savingItems ? 'Saving…' : 'Save'}</Button>
                 </Box>
               </Box>
-              <Box sx={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr 0.8fr 0.8fr 0.6fr', gap: 1 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: '1.2fr 2fr 0.8fr 0.8fr 0.6fr' }, gap: 1 }}>
                 <Typography variant="caption" color="text.secondary">SKU</Typography>
                 <Typography variant="caption" color="text.secondary">Name</Typography>
                 <Typography variant="caption" color="text.secondary">Qty</Typography>
@@ -994,7 +995,7 @@ const DetailViewModal = ({
               </Box>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
                 {dealItems.map((it, idx) => (
-                  <Box key={`it-${idx}`} sx={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr 0.8fr 0.8fr 0.6fr', gap: 1 }}>
+                  <Box key={`it-${idx}`} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: '1.2fr 2fr 0.8fr 0.8fr 0.6fr' }, gap: 1 }}>
                     <TextField value={it.sku} size="small" onChange={(e) => updateDealItem(idx, 'sku', e.target.value)} />
                     <TextField value={it.name} size="small" onChange={(e) => updateDealItem(idx, 'name', e.target.value)} />
                     <TextField type="number" value={it.quantity} size="small" onChange={(e) => updateDealItem(idx, 'quantity', Number(e.target.value))} />

@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Grid, Card, CardContent, Button, Chip,
   Alert, CircularProgress, FormControl, InputLabel, Select, MenuItem,
-  Dialog, DialogTitle, DialogContent, DialogActions, TextField
+  Dialog, DialogTitle, DialogContent, DialogActions, TextField,
+  TableContainer, Table, TableHead, TableBody, TableRow, TableCell
 } from '@mui/material';
 import {
   Assessment as AssessmentIcon,
@@ -59,13 +60,9 @@ const SmartInventoryReports = () => {
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h4" gutterBottom>
-          Inventory Reports
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Track performance and analyze your inventory data
-        </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, gap: 2, flexWrap: 'wrap' }}>
+        <Typography variant="h5" component="h3" sx={{ fontWeight: 'bold' }}>Inventory Reports</Typography>
+        {/* actions */}
       </Box>
 
       {gaps.length > 0 && (
@@ -235,7 +232,36 @@ const SmartInventoryReports = () => {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               {stockLevels?.length || 0} products in inventory
             </Typography>
-            {/* Stock levels table would go here */}
+            <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
+              <Table sx={{ minWidth: 900 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Product ID</TableCell>
+                    <TableCell>Product Name</TableCell>
+                    <TableCell>Current Stock</TableCell>
+                    <TableCell>Reorder Point</TableCell>
+                    <TableCell>Status</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {stockLevels?.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>{item.product_id}</TableCell>
+                      <TableCell>{item.product_name}</TableCell>
+                      <TableCell>{item.current_stock}</TableCell>
+                      <TableCell>{item.reorder_point}</TableCell>
+                      <TableCell>
+                        {item.current_stock <= item.reorder_point ? (
+                          <Chip label="Low Stock" color="warning" />
+                        ) : (
+                          <Chip label="In Stock" color="success" />
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
             <Typography variant="body2" color="text.secondary">
               Detailed stock levels report with current quantities, reorder points, and status.
             </Typography>
@@ -280,7 +306,32 @@ const SmartInventoryReports = () => {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               Products that have reached or fallen below their reorder points.
             </Typography>
-            {/* Low stock items table would go here */}
+            <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
+              <Table sx={{ minWidth: 900 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Product ID</TableCell>
+                    <TableCell>Product Name</TableCell>
+                    <TableCell>Current Stock</TableCell>
+                    <TableCell>Reorder Point</TableCell>
+                    <TableCell>Status</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {stockLevels?.filter(item => item.current_stock <= item.reorder_point).map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>{item.product_id}</TableCell>
+                      <TableCell>{item.product_name}</TableCell>
+                      <TableCell>{item.current_stock}</TableCell>
+                      <TableCell>{item.reorder_point}</TableCell>
+                      <TableCell>
+                        <Chip label="Low Stock" color="warning" />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <WarningIcon sx={{ fontSize: 48, color: 'warning.main', mb: 2 }} />
               <Typography variant="h6" color="warning.main">

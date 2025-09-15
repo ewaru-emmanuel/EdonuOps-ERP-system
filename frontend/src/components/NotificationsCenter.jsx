@@ -34,6 +34,25 @@ const NotificationsCenter = () => {
         return <MailOutlineIcon color="info" />;
       case 'kb_attachment':
         return <AttachmentIcon color="primary" />;
+      // Daily cycle notification types
+      case 'daily_cycle_opening':
+        return <NotificationsIcon color="info" />;
+      case 'daily_cycle_closing':
+        return <NotificationsIcon color="success" />;
+      case 'daily_cycle_locked':
+        return <WarningAmberIcon color="warning" />;
+      case 'daily_cycle_unlocked':
+        return <NotificationsIcon color="info" />;
+      case 'daily_cycle_failed':
+        return <ReportProblemIcon color="error" />;
+      case 'adjustment_created':
+        return <MailOutlineIcon color="info" />;
+      case 'adjustment_applied':
+        return <NotificationsIcon color="success" />;
+      case 'adjustment_pending':
+        return <WarningAmberIcon color="warning" />;
+      case 'grace_period_expired':
+        return <ReportProblemIcon color="warning" />;
       default:
         return <NotificationsIcon />;
     }
@@ -59,6 +78,8 @@ const NotificationsCenter = () => {
 
   const loadNotifications = async () => {
     const items = [];
+    
+    // Load existing notifications
     try {
       const gapsResp = await apiClient.get('/api/procurement/integration/gaps');
       (gapsResp?.gaps || []).forEach(g => items.push({
@@ -68,6 +89,7 @@ const NotificationsCenter = () => {
         href: '/inventory'
       }));
     } catch {}
+    
     try {
       const ticketsResp = await apiClient.get('/api/crm/tickets');
       const now = new Date();
@@ -83,6 +105,7 @@ const NotificationsCenter = () => {
         href: '/crm'
       }));
     } catch {}
+    
     try {
       const importsResp = await apiClient.get('/api/crm/imports/errors');
       (importsResp?.errors || []).forEach((e, idx) => items.push({
@@ -92,6 +115,7 @@ const NotificationsCenter = () => {
         href: '/crm'
       }));
     } catch {}
+    
     try {
       const kbResp = await apiClient.get('/api/crm/kb/attachments/flags');
       (kbResp?.flags || []).forEach(f => items.push({
@@ -101,6 +125,51 @@ const NotificationsCenter = () => {
         href: '/crm'
       }));
     } catch {}
+    
+    // Load daily cycle notifications (temporarily disabled until backend restart)
+    const enableDailyCycleNotifications = false; // Set to true after backend restart
+    
+    if (enableDailyCycleNotifications) {
+      try {
+        const dailyCycleResp = await apiClient.get('/api/finance/daily-cycle/notifications/recent?hours_back=24&limit=20');
+        if (dailyCycleResp?.success && dailyCycleResp.notifications) {
+          dailyCycleResp.notifications.forEach(notification => {
+            items.push({
+              id: notification.id,
+              type: notification.type,
+              message: notification.message,
+              href: notification.href || '/finance?feature=daily-cycle',
+              severity: notification.severity,
+              timestamp: notification.timestamp,
+              action_required: notification.action_required || false
+            });
+          });
+        }
+      } catch (error) {
+        console.error('Error loading daily cycle notifications:', error);
+      }
+      
+      // Load critical daily cycle notifications
+      try {
+        const criticalResp = await apiClient.get('/api/finance/daily-cycle/notifications/critical');
+        if (criticalResp?.success && criticalResp.critical_notifications) {
+          criticalResp.critical_notifications.forEach(notification => {
+            items.push({
+              id: notification.id,
+              type: notification.type,
+              message: notification.message,
+              href: notification.href || '/finance?feature=daily-cycle',
+              severity: notification.severity,
+              timestamp: notification.timestamp,
+              action_required: notification.action_required || false
+            });
+          });
+        }
+      } catch (error) {
+        console.error('Error loading critical daily cycle notifications:', error);
+      }
+    }
+    
     setNotifications(items);
   };
 

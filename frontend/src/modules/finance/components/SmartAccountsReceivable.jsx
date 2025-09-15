@@ -310,15 +310,8 @@ const SmartAccountsReceivable = ({ isMobile, isTablet }) => {
   return (
     <Box>
       {/* Header */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Box>
-          <Typography variant="h5" gutterBottom>
-            Smart Accounts Receivable
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Intelligent customer management with payment prediction
-          </Typography>
-        </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, gap: 2, flexWrap: 'wrap' }}>
+        <Typography variant="h5" component="h3" sx={{ fontWeight: 'bold' }}>Accounts Receivable</Typography>
         <Box display="flex" gap={1}>
           <Button
             variant="outlined"
@@ -549,8 +542,8 @@ const SmartAccountsReceivable = ({ isMobile, isTablet }) => {
             </Alert>
           )}
 
-          <TableContainer component={Paper} sx={{ maxHeight: 600 }}>
-            <Table stickyHeader>
+          <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
+            <Table sx={{ minWidth: 800 }} stickyHeader>
               <TableHead>
                 <TableRow>
                   <TableCell padding="checkbox">

@@ -134,10 +134,8 @@ const SmartAdjustments = () => {
       </Grid>
 
       {/* Actions */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h6">
-          Recent Adjustments
-        </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, gap: 2, flexWrap: 'wrap' }}>
+        <Typography variant="h5" component="h3" sx={{ fontWeight: 'bold' }}>Stock Adjustments</Typography>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
@@ -148,8 +146,8 @@ const SmartAdjustments = () => {
       </Box>
 
       {/* Adjustments Table */}
-      <TableContainer component={Paper}>
-        <Table>
+      <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
+        <Table sx={{ minWidth: 800 }}>
           <TableHead>
             <TableRow>
               <TableCell>Date</TableCell>

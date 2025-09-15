@@ -254,17 +254,14 @@ const SmartAccountsPayable = ({ isMobile, isTablet }) => {
       switch (bulkAction) {
         case 'approve':
           // Approve selected invoices
-          console.log('Approving invoices:', selectedInvoices);
           setSnackbar({ open: true, message: `${selectedInvoices.length} invoices approved`, severity: 'success' });
           break;
         case 'schedule':
           // Schedule payments for selected invoices
-          console.log('Scheduling payments for:', selectedInvoices);
           setSnackbar({ open: true, message: `Payment scheduled for ${selectedInvoices.length} invoices`, severity: 'success' });
           break;
         case 'reject':
           // Reject selected invoices
-          console.log('Rejecting invoices:', selectedInvoices);
           setSnackbar({ open: true, message: `${selectedInvoices.length} invoices rejected`, severity: 'warning' });
           break;
         default:
@@ -301,7 +298,6 @@ const SmartAccountsPayable = ({ isMobile, isTablet }) => {
 
   const handleOcrConfirm = () => {
     // Create invoice from OCR results
-    console.log('Creating invoice from OCR:', ocrResults);
     setSnackbar({ open: true, message: 'Invoice created from OCR successfully', severity: 'success' });
     setShowOcrDialog(false);
     setOcrFile(null);
@@ -333,15 +329,8 @@ const SmartAccountsPayable = ({ isMobile, isTablet }) => {
   return (
     <Box>
       {/* Header with Smart Controls */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Box>
-          <Typography variant="h5" gutterBottom>
-            Smart Accounts Payable
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Intelligent vendor management with OCR and automated workflows
-          </Typography>
-        </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, gap: 2, flexWrap: 'wrap' }}>
+        <Typography variant="h5" component="h3" sx={{ fontWeight: 'bold' }}>Accounts Payable</Typography>
         <Box display="flex" gap={1}>
           <Button
             variant="outlined"
@@ -584,8 +573,8 @@ const SmartAccountsPayable = ({ isMobile, isTablet }) => {
             </Alert>
           )}
 
-          <TableContainer component={Paper} sx={{ maxHeight: 600 }}>
-            <Table stickyHeader>
+          <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
+            <Table sx={{ minWidth: 800 }} stickyHeader>
               <TableHead>
                 <TableRow>
                   <TableCell padding="checkbox">
@@ -998,7 +987,12 @@ const SmartAccountsPayable = ({ isMobile, isTablet }) => {
       {/* Floating Action Button */}
       <SpeedDial
         ariaLabel="AP Actions"
-        sx={{ position: 'fixed', bottom: 16, right: 16 }}
+        sx={{ 
+          position: 'absolute', 
+          bottom: 16, 
+          right: 16,
+          zIndex: 1000
+        }}
         icon={<SpeedDialIcon />}
       >
         <SpeedDialAction

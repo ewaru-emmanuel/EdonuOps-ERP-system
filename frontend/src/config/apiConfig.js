@@ -27,8 +27,8 @@ const API_CONFIG = {
   
   // Production environment
   production: {
-    // Prefer env; fallback to Render backend URL to avoid api.edonuops.com default
-    baseURL: process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE || 'https://edonuops-erp.onrender.com',
+    // Prefer env; fallback to localhost for dev-first posture. To deploy, set env vars.
+    baseURL: process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE || 'http://localhost:5000',
     timeout: 30000,
     retryAttempts: 3,
     retryDelay: 1000
@@ -148,7 +148,13 @@ export const API_ENDPOINTS = {
 // Helper function to build full API URL
 export const buildApiUrl = (endpoint) => {
   const config = getApiConfig();
-  return `${config.baseURL}${endpoint}`;
+  const base = (config.baseURL || '').replace(/\/+$/, '');
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  // Avoid double "/api" when base URL already includes it
+  if (base.endsWith('/api') && path.startsWith('/api')) {
+    return `${base}${path.replace(/^\/api/, '')}`;
+  }
+  return `${base}${path}`;
 };
 
 // Helper function to get API configuration

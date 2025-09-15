@@ -6,8 +6,9 @@ import {
 import { Refresh, Download, Add } from '@mui/icons-material';
 import { useFinanceData } from './context/FinanceDataContext';
 import { useWebSocket } from './hooks/useWebSocket';
-import { useCurrency } from '../../contexts/CurrencyContext';
+import { useCurrency } from '../../components/GlobalCurrencySettings';
 import { useCurrencyConversion } from '../../hooks/useCurrencyConversion';
+import { useCoA } from './context/CoAContext';
 import FinanceTable from '../../components/tables/FinanceTable';
 import JournalEntryForm from './forms/JournalEntryForm';
 import SourceDocumentModal from './modals/SourceDocumentModal';
@@ -22,6 +23,9 @@ const GeneralLedger = () => {
     addJournalEntry,
     updateJournalEntry 
   } = useFinanceData();
+
+  // Chart of Accounts context
+  const { accounts } = useCoA();
 
   // Currency conversion
   const { selectedCurrency } = useCurrency();
@@ -188,6 +192,30 @@ const GeneralLedger = () => {
           <Chip label={book.toUpperCase().slice(0,3)} size="small" />
         </Tooltip>
       ),
+    },
+    {
+      header: 'Accounts',
+      accessor: 'lines',
+      cell: (lines) => {
+        const accountNames = lines.map(line => {
+          const account = accounts.find(acc => acc.id === line.account_id);
+          return account ? `${account.code} - ${account.name}` : line.account_name || 'Unknown Account';
+        });
+        return (
+          <Box>
+            {accountNames.slice(0, 2).map((name, index) => (
+              <Typography key={index} variant="body2" noWrap>
+                {name}
+              </Typography>
+            ))}
+            {accountNames.length > 2 && (
+              <Typography variant="caption" color="text.secondary">
+                +{accountNames.length - 2} more accounts
+              </Typography>
+            )}
+          </Box>
+        );
+      },
     },
     {
       header: 'Amounts',
@@ -402,7 +430,6 @@ const GeneralLedger = () => {
         }}
         entry={selectedEntry}
         onSave={(journalData) => {
-          console.log('✅ Journal entry saved:', journalData);
           if (selectedEntry) {
             updateJournalEntry(selectedEntry.id, journalData);
           } else {

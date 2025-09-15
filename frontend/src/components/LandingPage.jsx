@@ -41,8 +41,8 @@ const LandingPage = () => {
       id: 'inventory',
       name: 'Inventory',
       icon: <Inventory sx={{ fontSize: 40, color: 'success.main' }} />,
-      description: 'Stock, Warehouses, Smart Reordering',
-      features: ['Stock Management', 'Warehouse Operations', 'Smart Reordering', 'Real-time Tracking'],
+      description: 'Stock Management, Smart Reordering',
+      features: ['Stock Management', 'Product Tracking', 'Smart Reordering', 'Real-time Tracking'],
       color: 'success'
     },
     {
@@ -53,14 +53,6 @@ const LandingPage = () => {
       features: ['Lead Management', 'Customer Database', 'Sales Pipeline', 'Customer Analytics'],
       color: 'info'
     },
-    {
-      id: 'hr',
-      name: 'HR & People',
-      icon: <Business sx={{ fontSize: 40, color: 'warning.main' }} />,
-      description: 'Payroll, Time Off, Performance',
-      features: ['Employee Management', 'Payroll Processing', 'Time Tracking', 'Performance Reviews'],
-      color: 'warning'
-    }
   ];
 
   const handleModuleClick = (moduleId) => {
@@ -88,7 +80,6 @@ const LandingPage = () => {
               <Button color="inherit" onClick={() => handleModuleClick('financials')}>Financials</Button>
               <Button color="inherit" onClick={() => handleModuleClick('inventory')}>Inventory</Button>
               <Button color="inherit" onClick={() => handleModuleClick('crm')}>CRM</Button>
-              <Button color="inherit" onClick={() => handleModuleClick('hr')}>HR</Button>
               <Button variant="contained" onClick={handleStartTrial}>Start Free Trial</Button>
             </Box>
           ) : (
@@ -137,7 +128,8 @@ const LandingPage = () => {
                 </Button>
               </Stack>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Typography variant="body2">Built for teams of 10 to 10,000+.</Typography>
+                <Typography variant="body2">Built for teams of 10 to 10,000
+                  +.</Typography>
                 <Box sx={{ display: 'flex', gap: 0.5 }}>
                   {[1, 2, 3, 4, 5].map((star) => (
                     <Star key={star} sx={{ fontSize: 16, color: 'yellow' }} />

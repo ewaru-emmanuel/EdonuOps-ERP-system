@@ -34,16 +34,19 @@ def create_app(config_name='development'):
     # Configure CORS based on environment
     cors_origins = EnvironmentConfig.get_cors_origins()
     
-    # Auto-detect Render environment and setup CORS
+    # Auto-detect Render environment and setup CORS (greyed out defaults)
     if os.getenv('RENDER'):
         print("Render environment detected - setting up CORS for deployment")
-        # Get Render URLs from environment variables, with safe defaults
-        render_frontend_url = os.getenv('RENDER_FRONTEND_URL') or 'https://edonuops-erp-system.onrender.com'
-        render_backend_url = os.getenv('RENDER_BACKEND_URL') or 'https://edonuops-erp.onrender.com'
-        
-        EnvironmentConfig.setup_render_cors(render_frontend_url, render_backend_url)
-        cors_origins = EnvironmentConfig.get_cors_origins()
-        print(f"CORS configured for Render frontend: {render_frontend_url}")
+        # NOTE: We intentionally avoid hard-coded Render defaults.
+        # To enable Render CORS, set RENDER_FRONTEND_URL (and optional RENDER_BACKEND_URL).
+        render_frontend_url = os.getenv('RENDER_FRONTEND_URL')
+        render_backend_url = os.getenv('RENDER_BACKEND_URL')
+        if render_frontend_url:
+            EnvironmentConfig.setup_render_cors(render_frontend_url, render_backend_url)
+            cors_origins = EnvironmentConfig.get_cors_origins()
+            print(f"CORS configured for Render frontend: {render_frontend_url}")
+        else:
+            print("RENDER_FRONTEND_URL not set - keeping localhost CORS only")
     
     # Always include localhost origins for local development & testing
     # This ensures developer experience even when RENDER is set in the shell
@@ -88,7 +91,6 @@ def create_app(config_name='development'):
             InventoryTransaction
         )
         from modules.crm.models import Contact, Lead, Opportunity
-        from modules.hcm.models import Employee, Department, Payroll, Recruitment
     except ImportError as e:
         print(f"Warning: Could not import some models: {e}")
     
@@ -142,6 +144,14 @@ def create_app(config_name='development'):
             "version": "1.0.0"
         }), 200
     
+    # Initialize daily cycle module after app is fully configured
+    try:
+        from modules.finance import init_finance_module as init_daily_cycle
+        init_daily_cycle(app)
+        print("✅ Daily cycle module initialized successfully")
+    except Exception as e:
+        print(f"Warning: Could not initialize daily cycle module: {e}")
+    
     return app
 
 def setup_logging(app):
@@ -192,9 +202,9 @@ def setup_middleware(app):
     # Tenant middleware
     @app.before_request
     def before_request():
-        # Short-circuit CORS preflight before any auth or tenant checks
+        # Let Flask/Flask-CORS handle CORS preflight responses
         if request.method == 'OPTIONS':
-            return ('', 200)
+            return None
         # Apply tenant middleware
         tenant_middleware()()
         
@@ -242,16 +252,32 @@ def register_blueprints(app):
         print(f"Warning: Could not import finance blueprint: {e}")
     
     try:
+        from modules.finance.statutory_routes import statutory_bp
+        app.register_blueprint(statutory_bp, url_prefix='/api/finance/statutory')
+        print("Statutory Module API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import statutory blueprint: {e}")
+    
+    try:
+        from modules.finance.tagging_routes import tagging_bp
+        app.register_blueprint(tagging_bp, url_prefix='/api/finance/tagging')
+        print("Tagging System API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import tagging blueprint: {e}")
+    
+    try:
+        from modules.finance.localization_routes import localization_bp
+        app.register_blueprint(localization_bp, url_prefix='/api/finance/localization')
+        print("Localization System API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import localization blueprint: {e}")
+    
+    try:
         from modules.crm.routes import crm_bp
         app.register_blueprint(crm_bp, url_prefix='/api/crm')
     except ImportError as e:
         print(f"Warning: Could not import CRM blueprint: {e}")
     
-    try:
-        from modules.hcm.routes import hcm_bp
-        app.register_blueprint(hcm_bp, url_prefix='/api/hcm')
-    except ImportError as e:
-        print(f"Warning: Could not import HCM blueprint: {e}")
     
     try:
         from modules.inventory.routes import inventory_bp
@@ -352,12 +378,6 @@ def register_blueprints(app):
     except ImportError as e:
         print(f"Warning: Could not import manager dashboard routes: {e}")
     
-    try:
-        from modules.inventory.warehouse_operations_routes import warehouse_ops_bp
-        app.register_blueprint(warehouse_ops_bp, url_prefix='/api/inventory/warehouse')
-        print("Warehouse Operations API loaded")
-    except ImportError as e:
-        print(f"Warning: Could not import warehouse operations routes: {e}")
     
     try:
         from modules.inventory.analytics_routes import analytics_bp
@@ -394,17 +414,6 @@ def register_blueprints(app):
     except ImportError as e:
         print(f"Warning: Could not import security blueprint: {e}")
     
-    try:
-        from modules.ecommerce.routes import ecommerce_bp
-        app.register_blueprint(ecommerce_bp, url_prefix='/api/ecommerce')
-    except ImportError as e:
-        print(f"Warning: Could not import ecommerce blueprint: {e}")
-    
-    try:
-        from modules.ai.routes import ai_bp
-        app.register_blueprint(ai_bp, url_prefix='/api/ai')
-    except ImportError as e:
-        print(f"Warning: Could not import AI blueprint: {e}")
     
     try:
         from modules.procurement.routes import bp as procurement_bp
@@ -413,11 +422,6 @@ def register_blueprints(app):
     except ImportError as e:
         print(f"Warning: Could not import procurement blueprint: {e}")
     
-    try:
-        from modules.sustainability.routes import sustainability_bp
-        app.register_blueprint(sustainability_bp, url_prefix='/api/sustainability')
-    except ImportError as e:
-        print(f"Warning: Could not import sustainability blueprint: {e}")
     
     # Register dashboard API (modules version)
     try:
@@ -458,29 +462,9 @@ def _initialize_modules(app):
         print(f"Warning: Could not initialize CRM module: {e}")
     
     try:
-        init_hcm_module(app)
-    except Exception as e:
-        print(f"Warning: Could not initialize HCM module: {e}")
-    
-    try:
         init_inventory_module(app)
     except Exception as e:
         print(f"Warning: Could not initialize inventory module: {e}")
-    
-    try:
-        init_ecommerce_module(app)
-    except Exception as e:
-        print(f"Warning: Could not initialize ecommerce module: {e}")
-    
-    try:
-        init_ai_module(app)
-    except Exception as e:
-        print(f"Warning: Could not initialize AI module: {e}")
-    
-    try:
-        init_sustainability_module(app)
-    except Exception as e:
-        print(f"Warning: Could not initialize sustainability module: {e}")
 
 def init_finance_module(app):
     """Initialize finance module with enterprise features"""
@@ -505,44 +489,12 @@ def init_crm_module(app):
     logger = logging.getLogger(__name__)
     logger.info("CRM module initialized with enterprise features")
 
-def init_hcm_module(app):
-    """Initialize HCM module with enterprise features"""
-    # Models are already imported above
-    
-    logger = logging.getLogger(__name__)
-    logger.info("HCM module initialized with enterprise features")
-
 def init_inventory_module(app):
     """Initialize inventory module with enterprise features"""
     from modules.inventory.models import Product, Category, Warehouse, StockMovement
     
     logger = logging.getLogger(__name__)
     logger.info("Inventory module initialized with enterprise features")
-
-def init_ecommerce_module(app):
-    """Initialize ecommerce module with enterprise features"""
-    from modules.ecommerce.models import EcommerceProduct, EcommerceOrder, EcommerceCustomer
-    from modules.integration.integration_framework import integration_manager
-    
-    # Register ecommerce integrations
-    # This would connect to Shopify, WooCommerce, etc.
-    
-    logger = logging.getLogger(__name__)
-    logger.info("Ecommerce module initialized with enterprise features")
-
-def init_ai_module(app):
-    """Initialize AI module with enterprise features"""
-    from modules.ai.models import AIPrediction, AIInsight, AIRecommendation
-    
-    logger = logging.getLogger(__name__)
-    logger.info("AI module initialized with enterprise features")
-
-def init_sustainability_module(app):
-    """Initialize sustainability module with enterprise features"""
-    from modules.sustainability.models import EnvironmentalMetric, SocialMetric, GovernanceMetric, ESGReport
-    
-    logger = logging.getLogger(__name__)
-    logger.info("Sustainability module initialized with enterprise features")
 
 # Error handlers
 def register_error_handlers(app):

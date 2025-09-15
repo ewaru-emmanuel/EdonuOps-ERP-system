@@ -63,12 +63,50 @@ def init_database():
             # Create sample finance accounts
             print("Creating sample finance accounts...")
             sample_accounts = [
-                Account(code="1000", name="Cash", type="asset", balance=10000.00),
+                # ASSETS
+                Account(code="1000", name="Cash and Cash Equivalents", type="asset", balance=10000.00),
+                Account(code="1020", name="Business Checking", type="asset", balance=8000.00),
+                Account(code="1030", name="Petty Cash", type="asset", balance=200.00),
                 Account(code="1100", name="Accounts Receivable", type="asset", balance=5000.00),
+                Account(code="1110", name="Allowance for Bad Debts", type="asset", balance=-500.00),
+                Account(code="1200", name="Inventory", type="asset", balance=15000.00),
+                Account(code="1210", name="Finished Goods", type="asset", balance=12000.00),
+                Account(code="1220", name="Raw Materials", type="asset", balance=3000.00),
+                Account(code="1300", name="Prepaid Expenses", type="asset", balance=2000.00),
+                Account(code="1310", name="Prepaid Rent", type="asset", balance=1200.00),
+                Account(code="1320", name="Prepaid Insurance", type="asset", balance=800.00),
+                Account(code="1400", name="Fixed Assets", type="asset", balance=25000.00),
+                Account(code="1410", name="Store Equipment", type="asset", balance=15000.00),
+                Account(code="1420", name="Computer Equipment", type="asset", balance=8000.00),
+                Account(code="1430", name="Accumulated Depreciation", type="asset", balance=-2000.00),
+                
+                # LIABILITIES
                 Account(code="2000", name="Accounts Payable", type="liability", balance=3000.00),
-                Account(code="3000", name="Owner's Equity", type="equity", balance=12000.00),
+                Account(code="2100", name="Accrued Expenses", type="liability", balance=1500.00),
+                Account(code="2110", name="Accrued Wages", type="liability", balance=800.00),
+                Account(code="2200", name="Short-term Loans", type="liability", balance=5000.00),
+                Account(code="2300", name="Long-term Loans", type="liability", balance=10000.00),
+                
+                # EQUITY
+                Account(code="3000", name="Owner's Equity", type="equity", balance=20000.00),
+                Account(code="3100", name="Retained Earnings", type="equity", balance=15000.00),
+                Account(code="3200", name="Current Year Earnings", type="equity", balance=5000.00),
+                
+                # REVENUE
                 Account(code="4000", name="Sales Revenue", type="revenue", balance=0.00),
+                Account(code="4100", name="Service Revenue", type="revenue", balance=0.00),
+                
+                # EXPENSES
                 Account(code="5000", name="Cost of Goods Sold", type="expense", balance=0.00),
+                Account(code="6000", name="Operating Expenses", type="expense", balance=0.00),
+                Account(code="6100", name="Rent Expense", type="expense", balance=0.00),
+                Account(code="6200", name="Utilities", type="expense", balance=0.00),
+                Account(code="6300", name="Salaries and Wages", type="expense", balance=0.00),
+                Account(code="6400", name="Marketing and Advertising", type="expense", balance=0.00),
+                Account(code="6500", name="Insurance", type="expense", balance=0.00),
+                Account(code="6600", name="Professional Services", type="expense", balance=0.00),
+                Account(code="6700", name="Office Supplies", type="expense", balance=0.00),
+                Account(code="6800", name="Depreciation", type="expense", balance=0.00),
             ]
             db.session.add_all(sample_accounts)
             
@@ -124,111 +162,6 @@ def init_database():
             ]
             db.session.add_all(sample_products)
             
-            # Create sample HCM departments
-            print("Creating sample HCM departments...")
-            from modules.hcm.models import Department
-            sample_departments = [
-                Department(name="Engineering", code="ENG", description="Software development team"),
-                Department(name="Marketing", code="MKT", description="Marketing and sales team"),
-                Department(name="Human Resources", code="HR", description="HR and recruitment team"),
-                Department(name="Finance", code="FIN", description="Finance and accounting team"),
-            ]
-            db.session.add_all(sample_departments)
-            db.session.flush()
-            
-            # Create sample HCM employees
-            print("Creating sample HCM employees...")
-            from modules.hcm.models import Employee
-            sample_employees = [
-                Employee(
-                    first_name="John",
-                    last_name="Doe",
-                    email="john.doe@company.com",
-                    phone="+1-555-0101",
-                    position="Software Engineer",
-                    department_id=sample_departments[0].id,
-                    salary=75000.00,
-                    status="active",
-                    hire_date=datetime(2023, 1, 15)
-                ),
-                Employee(
-                    first_name="Jane",
-                    last_name="Smith",
-                    email="jane.smith@company.com",
-                    phone="+1-555-0102",
-                    position="Marketing Manager",
-                    department_id=sample_departments[1].id,
-                    salary=65000.00,
-                    status="active",
-                    hire_date=datetime(2023, 3, 20)
-                ),
-                Employee(
-                    first_name="Mike",
-                    last_name="Johnson",
-                    email="mike.johnson@company.com",
-                    phone="+1-555-0103",
-                    position="Sales Representative",
-                    department_id=sample_departments[1].id,
-                    salary=55000.00,
-                    status="active",
-                    hire_date=datetime(2023, 6, 10)
-                ),
-            ]
-            db.session.add_all(sample_employees)
-            db.session.flush()
-            
-            # Create sample HCM payroll records
-            print("Creating sample HCM payroll records...")
-            from modules.hcm.models import Payroll
-            sample_payroll = [
-                Payroll(
-                    employee_id=sample_employees[0].id,
-                    period="2024-01",
-                    gross_pay=7500.00,
-                    net_pay=5625.00,
-                    status="paid"
-                ),
-                Payroll(
-                    employee_id=sample_employees[1].id,
-                    period="2024-01",
-                    gross_pay=6500.00,
-                    net_pay=4875.00,
-                    status="paid"
-                ),
-                Payroll(
-                    employee_id=sample_employees[2].id,
-                    period="2024-01",
-                    gross_pay=5500.00,
-                    net_pay=4125.00,
-                    status="pending"
-                ),
-            ]
-            db.session.add_all(sample_payroll)
-            
-            # Create sample HCM recruitment records
-            print("Creating sample HCM recruitment records...")
-            from modules.hcm.models import Recruitment
-            sample_recruitment = [
-                Recruitment(
-                    position="Senior Developer",
-                    department="Engineering",
-                    status="Open",
-                    applications=15
-                ),
-                Recruitment(
-                    position="Product Manager",
-                    department="Product",
-                    status="Closed",
-                    applications=8
-                ),
-                Recruitment(
-                    position="UX Designer",
-                    department="Design",
-                    status="Open",
-                    applications=12
-                ),
-            ]
-            db.session.add_all(sample_recruitment)
             
             # Commit all changes
             db.session.commit()

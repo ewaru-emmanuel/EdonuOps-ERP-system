@@ -4,6 +4,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import apiClient from '../services/apiClient';
 
 const CurrencyContext = createContext();
 
@@ -33,9 +34,6 @@ export const CurrencyProvider = ({ children }) => {
       showSymbols: true
     };
   });
-
-  // Base API URL
-  import apiClient from '../services/apiClient';
 
   // Save preferences to localStorage
   useEffect(() => {

@@ -84,6 +84,14 @@ class Lead(db.Model):
     region = db.Column(db.String(50))
     assigned_team = db.Column(db.String(100))
     score = db.Column(db.Integer, default=0)
+    
+    # Enhanced AI scoring fields
+    ai_score = db.Column(db.Integer, default=0)  # AI-generated score
+    ai_explanation = db.Column(db.Text)  # AI explanation of score
+    ai_confidence = db.Column(db.Integer, default=0)  # AI confidence level
+    behavioral_data = db.Column(_get_json_type())  # Behavioral tracking data
+    last_ai_analysis = db.Column(db.DateTime)  # When AI last analyzed this lead
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -236,4 +244,21 @@ class TimeEntry(db.Model):
     invoice_id = db.Column(db.Integer)  # optional link to finance invoice
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class BehavioralEvent(db.Model):
+    __tablename__ = 'behavioral_events'
+    id = db.Column(db.Integer, primary_key=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey('leads.id'))
+    contact_id = db.Column(db.Integer, db.ForeignKey('contacts.id'))
+    opportunity_id = db.Column(db.Integer, db.ForeignKey('opportunities.id'))
+    event_type = db.Column(db.String(50))  # email_open, email_click, website_visit, call_duration, meeting_attended
+    event_data = db.Column(_get_json_type())  # Additional event-specific data
+    engagement_score = db.Column(db.Integer, default=0)  # 0-100 engagement level
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    lead = db.relationship('Lead', backref='behavioral_events')
+    contact = db.relationship('Contact', backref='behavioral_events')
+    opportunity = db.relationship('Opportunity', backref='behavioral_events')
 

@@ -6,12 +6,13 @@ import {
   Alert, LinearProgress, Paper, Stack, useTheme, useMediaQuery
 } from '@mui/material';
 import {
-  Business, AccountBalance, Inventory, People, TrendingUp,
+  AccountBalance, Inventory, People,
   CheckCircle, ArrowForward, ArrowBack, Celebration,
-  ShoppingCart, Settings, Psychology, Store, Work, AdminPanelSettings
+  Store
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useVisitorSession } from '../hooks/useVisitorSession';
+import apiClient from '../services/apiClient';
 
 const OnboardingWizard = () => {
   const theme = useTheme();
@@ -36,11 +37,13 @@ const OnboardingWizard = () => {
     challenges: []
   });
 
-  const [selectedModules, setSelectedModules] = useState(['financials', 'inventory', 'coresetup']);
+  const [selectedModules, setSelectedModules] = useState(['financials', 'inventory']);
+  const [selectedCoATemplate, setSelectedCoATemplate] = useState('retail');
 
   const steps = [
     'Business Profile',
     'Module Selection',
+    'CoA Template',
     'Team Setup',
     'Data Import',
     'Activation'
@@ -116,71 +119,6 @@ const OnboardingWizard = () => {
       recommended: false
     },
     {
-      id: 'hcm',
-      name: 'Human Capital Management',
-      icon: <Business sx={{ fontSize: 40, color: 'warning.main' }} />,
-      description: 'Comprehensive HR and team management',
-      features: [
-        'Employee Management',
-        'Payroll Processing',
-        'Time & Attendance',
-        'Performance Reviews'
-      ],
-      recommended: false
-    },
-    {
-      id: 'sustainability',
-      name: 'Sustainability & ESG',
-      icon: <TrendingUp sx={{ fontSize: 40, color: 'success.main' }} />,
-      description: 'Environmental, Social & Governance tracking',
-      features: [
-        'Carbon Footprint Monitoring',
-        'ESG Compliance Reporting',
-        'Sustainability Metrics',
-        'Green Initiative Tracking'
-      ],
-      recommended: false
-    },
-    {
-      id: 'ai',
-      name: 'AI & Analytics',
-      icon: <Psychology sx={{ fontSize: 40, color: 'purple.main' }} />,
-      description: 'AI-powered insights and automation',
-      features: [
-        'Predictive Analytics',
-        'Smart Recommendations',
-        'Automated Workflows',
-        'Business Intelligence'
-      ],
-      recommended: false
-    },
-    {
-      id: 'ecommerce',
-      name: 'E-commerce Operations',
-      icon: <ShoppingCart sx={{ fontSize: 40, color: 'orange.main' }} />,
-      description: 'Complete e-commerce management',
-      features: [
-        'Order Management',
-        'Product Catalog',
-        'Customer Portal',
-        'Payment Processing'
-      ],
-      recommended: false
-    },
-    {
-      id: 'erp',
-      name: 'Enterprise Resource Planning',
-      icon: <Work sx={{ fontSize: 40, color: 'indigo.main' }} />,
-      description: 'Integrated business processes',
-      features: [
-        'Process Automation',
-        'Cross-module Integration',
-        'Workflow Management',
-        'Business Intelligence'
-      ],
-      recommended: false
-    },
-    {
       id: 'procurement',
       name: 'Procurement & Purchasing',
       icon: <Store sx={{ fontSize: 40, color: 'teal.main' }} />,
@@ -206,45 +144,6 @@ const OnboardingWizard = () => {
       ],
       recommended: false
     },
-    {
-      id: 'adminsettings',
-      name: 'Administrative Settings',
-      icon: <AdminPanelSettings sx={{ fontSize: 40, color: 'grey.main' }} />,
-      description: 'System configuration and control',
-      features: [
-        'User Management',
-        'Role Permissions',
-        'System Settings',
-        'Audit Logs'
-      ],
-      recommended: false
-    },
-    {
-      id: 'dashboardai',
-      name: 'AI Dashboard Copilot',
-      icon: <Psychology sx={{ fontSize: 40, color: 'pink.main' }} />,
-      description: 'AI-powered dashboard assistance',
-      features: [
-        'Smart Insights',
-        'Natural Language Queries',
-        'Automated Reporting',
-        'Predictive Alerts'
-      ],
-      recommended: false
-    },
-    {
-      id: 'coresetup',
-      name: 'Core System Setup',
-      icon: <Settings sx={{ fontSize: 40, color: 'brown.main' }} />,
-      description: 'Essential system configuration',
-      features: [
-        'Company Profile',
-        'Basic Settings',
-        'Data Import',
-        'System Integration'
-      ],
-      recommended: true
-    }
   ];
 
   const handleNext = () => {
@@ -276,6 +175,7 @@ const OnboardingWizard = () => {
           ? [...selectedModules, 'procurement']
           : selectedModules,
         businessProfile: businessProfile,
+        coaTemplate: selectedCoATemplate,
         activatedAt: new Date().toISOString(),
         visitorId: visitorId,
         deviceInfo: {
@@ -287,15 +187,14 @@ const OnboardingWizard = () => {
       
       // Store in visitor-specific storage
       setVisitorData('user_preferences', userPreferences);
-      try { localStorage.setItem('edonuops_business_profile', JSON.stringify(businessProfile)); } catch {}
+      try { 
+        localStorage.setItem('edonuops_business_profile', JSON.stringify(businessProfile)); 
+        localStorage.setItem('edonuops_coa_template', selectedCoATemplate);
+      } catch {}
       
-      // Send preferences to backend
+      // Send preferences to backend (uses configured API base URL)
       try {
-        await fetch(`/api/visitors/${visitorId}/preferences`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(userPreferences)
-        });
+        await apiClient.post(`/api/visitors/${visitorId}/preferences`, userPreferences);
       } catch (error) {
         console.error('Could not sync preferences to backend:', error);
       }
@@ -477,12 +376,61 @@ const OnboardingWizard = () => {
     </Box>
   );
 
+  const renderCoATemplateSelection = () => (
+    <Box>
+      <Typography variant="h4" component="h2" sx={{ fontWeight: 'bold', mb: 3 }}>
+        Choose Your Chart of Accounts Template
+      </Typography>
+      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+        Select a template that matches your business type. This will pre-populate your chart of accounts with the most relevant accounts for your industry.
+      </Typography>
+      
+      <Grid container spacing={3}>
+        {[
+          { id: 'retail', name: 'Retail Business', description: 'Perfect for stores, e-commerce, and retail operations', accounts: 45 },
+          { id: 'services', name: 'Services Business', description: 'Ideal for consulting, agencies, and service providers', accounts: 38 },
+          { id: 'manufacturing', name: 'Manufacturing', description: 'For production businesses with inventory and equipment', accounts: 52 },
+          { id: 'freelancer', name: 'Freelancer/Solo', description: 'Simple setup for individual entrepreneurs', accounts: 25 },
+          { id: 'ngo', name: 'Non-Profit', description: 'Specialized accounts for charitable organizations', accounts: 41 }
+        ].map((template) => (
+          <Grid item xs={12} md={6} key={template.id}>
+            <Card 
+              sx={{ 
+                cursor: 'pointer',
+                border: selectedCoATemplate === template.id ? 2 : 1,
+                borderColor: selectedCoATemplate === template.id ? 'primary.main' : 'divider',
+                '&:hover': { borderColor: 'primary.main' }
+              }}
+              onClick={() => setSelectedCoATemplate(template.id)}
+            >
+              <CardContent>
+                <Typography variant="h6" component="h3" sx={{ fontWeight: 'bold', mb: 1 }}>
+                  {template.name}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  {template.description}
+                </Typography>
+                <Chip 
+                  label={`${template.accounts} accounts`} 
+                  size="small" 
+                  color={selectedCoATemplate === template.id ? 'primary' : 'default'}
+                />
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+    </Box>
+  );
+
   const renderStepContent = () => {
     switch (activeStep) {
       case 0:
         return renderBusinessProfile();
       case 1:
         return renderModuleSelection();
+      case 2:
+        return renderCoATemplateSelection();
       default:
         return (
           <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -498,6 +446,8 @@ const OnboardingWizard = () => {
         return businessProfile.companyName && businessProfile.industry && businessProfile.employeeCount;
       case 1:
         return selectedModules.length > 0;
+      case 2:
+        return selectedCoATemplate !== '';
       default:
         return true;
     }

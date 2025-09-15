@@ -25,9 +25,6 @@ import PeopleIcon from '@mui/icons-material/People';
 import StoreIcon from '@mui/icons-material/Store';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import WorkIcon from '@mui/icons-material/Work';
-import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
-import PsychologyIcon from '@mui/icons-material/Psychology';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { useUserPreferences } from '../../../hooks/useUserPreferences';
 import { useVisitorSession } from '../../../hooks/useVisitorSession';
 
@@ -42,9 +39,6 @@ const DashboardSettings = () => {
     { id: 'financials', name: 'Financial Management', icon: <WorkIcon sx={{ fontSize: 20 }} />, description: 'Invoices, payments, GL', category: 'Finance' },
     { id: 'inventory', name: 'Inventory Management', icon: <Inventory2Icon sx={{ fontSize: 20 }} />, description: 'Products, stock, warehouses', category: 'Operations' },
     { id: 'procurement', name: 'Procurement & Purchasing', icon: <StoreIcon sx={{ fontSize: 20 }} />, description: 'Purchase orders and vendors', category: 'Operations' },
-    { id: 'ecommerce', name: 'E-commerce', icon: <ShoppingCartIcon sx={{ fontSize: 20 }} />, description: 'Orders and catalog', category: 'Sales' },
-    { id: 'ai', name: 'AI & Analytics', icon: <PsychologyIcon sx={{ fontSize: 20 }} />, description: 'AI-powered insights', category: 'Intelligence' },
-    { id: 'sustainability', name: 'Sustainability', icon: <TrendingUpIcon sx={{ fontSize: 20 }} />, description: 'ESG metrics & reports', category: 'Compliance' },
   ];
 
   const handleModuleToggle = (moduleId, isEnabled) => {

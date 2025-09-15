@@ -182,7 +182,7 @@ const CRMCommunicationHistory = ({ onOpenEntityDetail }) => {
   return (
     <Box sx={{ p: 3 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, gap: 2, flexWrap: 'wrap' }}>
         <Box>
           <Typography variant="h4" fontWeight="bold" color="primary">
             Communication History
@@ -407,12 +407,12 @@ const CRMCommunicationHistory = ({ onOpenEntityDetail }) => {
       )}
 
       {/* Add/Edit Communication Dialog */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
+      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth fullScreen={typeof window !== 'undefined' ? window.matchMedia('(max-width:600px)').matches : false}>
         <DialogTitle>
           {editingCommunication ? 'Edit Communication' : 'Log New Communication'}
         </DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 1 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, mt: 1 }}>
             <FormControl fullWidth>
               <InputLabel>Entity Type</InputLabel>
               <Select

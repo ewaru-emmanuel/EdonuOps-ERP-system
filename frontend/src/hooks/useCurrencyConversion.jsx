@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useCurrency } from '../contexts/CurrencyContext';
+import { useCurrency } from '../components/GlobalCurrencySettings';
 
 export const useCurrencyConversion = (data, dataType = 'financial') => {
   const { 

@@ -9,7 +9,6 @@ export const useWebSocket = (channel, callback) => {
   useEffect(() => {
     // For now, we'll mock the WebSocket functionality
     // In a real implementation, this would connect to an actual WebSocket
-    console.log(`🔗 Mock WebSocket connection to channel: ${channel}`);
     setConnectionStatus('Connected');
 
     // Simulate receiving messages periodically (for testing)
@@ -59,7 +58,6 @@ export const useWebSocket = (channel, callback) => {
     lastMessage,
     connectionStatus,
     sendMessage: (message) => {
-      console.log(`📤 Mock sending message to ${channel}:`, message);
       // In a real implementation, this would send the message through the WebSocket
     }
   };

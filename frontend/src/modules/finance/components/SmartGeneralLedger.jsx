@@ -12,6 +12,7 @@ import {
 } from '@mui/icons-material';
 import { useRealTimeData } from '../../../hooks/useRealTimeData';
 import { getERPApiService } from '../../../services/erpApiService';
+import { useCoA } from '../context/CoAContext';
 
 const SmartGeneralLedger = ({ isMobile, isTablet }) => {
   const theme = useTheme();
@@ -47,10 +48,11 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
 
   // Real-time data hooks
   const { data: generalLedger, loading: glLoading, error: glError, create, update, remove, refresh } = useRealTimeData('/api/finance/general-ledger');
-  const { data: chartOfAccounts, loading: coaLoading, refresh: refreshChartOfAccounts } = useRealTimeData('/api/finance/chart-of-accounts');
+  
+  // Chart of Accounts context
+  const { accounts: chartOfAccounts, loading: coaLoading } = useCoA();
   
   // Debug log for chart of accounts
-  console.log('Chart of accounts data:', chartOfAccounts);
 
   // Calculate real-time trial balance
   const trialBalance = useMemo(() => {
@@ -140,7 +142,7 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
       type: 'info',
       icon: <Lightbulb />,
       title: 'Common Entries',
-      message: `Based on your patterns, you might want to record: ${commonAccounts.map(acc => acc.account_name).join(', ')}`,
+      message: `Based on your patterns, you might want to record: ${commonAccounts.map(acc => acc.name).join(', ')}`,
       action: 'Quick Entry'
     });
     
@@ -192,7 +194,6 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
         account_id: parseInt(formData.account_id) || null
       };
       
-      console.log('Submitting form data:', submitData); // Debug log
       
       if (editDialogOpen && selectedEntry) {
         await update(selectedEntry.id, submitData);
@@ -313,22 +314,16 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
   };
 
   const handleAiSuggestion = (suggestion) => {
-    console.log('AI Suggestion:', suggestion);
     setShowAiDialog(false);
   };
 
   return (
-    <Box>
+    <Box sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
       {/* Header with Smart Controls */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Box>
-          <Typography variant="h5" gutterBottom>
-            Smart General Ledger
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Real-time double-entry accounting with AI insights
-          </Typography>
-        </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, gap: 2, flexWrap: 'wrap' }}>
+        <Typography variant="h5" component="h3" sx={{ fontWeight: 'bold' }}>
+          Smart General Ledger
+        </Typography>
         <Box display="flex" gap={1}>
           <Button
             variant="outlined"
@@ -353,6 +348,57 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
           </Button>
         </Box>
       </Box>
+
+      {/* Quick Workflow Actions */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Quick Workflow Actions
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Button
+                variant="outlined"
+                fullWidth
+                startIcon={<Receipt />}
+                onClick={() => {}}
+              >
+                Record Sale
+              </Button>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Button
+                variant="outlined"
+                fullWidth
+                startIcon={<Payment />}
+                onClick={() => {}}
+              >
+                Record Purchase
+              </Button>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Button
+                variant="outlined"
+                fullWidth
+                startIcon={<AccountBalance />}
+                onClick={() => {}}
+              >
+                Bank Reconciliation
+              </Button>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Button
+                variant="outlined"
+                fullWidth
+                startIcon={<LocalTaxi />}
+                onClick={() => {}}
+              >
+                Tax Entry
+              </Button>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
       {/* Real-time Trial Balance */}
       <Card sx={{ mb: 3 }}>
@@ -427,9 +473,9 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
             <Grid item xs={12} sm={6} md={3}>
               <Autocomplete
                 options={chartOfAccounts || []}
-                getOptionLabel={(option) => option.account_name || ''}
-                value={filters.account ? chartOfAccounts?.find(acc => acc.account_name === filters.account) || null : null}
-                onChange={(e, value) => setFilters({ ...filters, account: value?.account_name || '' })}
+                getOptionLabel={(option) => option.name}
+                value={filters.account ? chartOfAccounts?.find(acc => acc.name === filters.account) || null : null}
+                onChange={(e, value) => setFilters({ ...filters, account: value?.name || '' })}
                 renderInput={(params) => (
                   <TextField {...params} label="Account" size="small" />
                 )}
@@ -481,7 +527,6 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
                 startIcon={<Refresh />}
                 onClick={() => {
                   refresh();
-                  refreshChartOfAccounts();
                 }}
                 disabled={glLoading || coaLoading}
               >
@@ -498,8 +543,8 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
             </Alert>
           )}
 
-          <TableContainer component={Paper} sx={{ maxHeight: 600 }}>
-            <Table stickyHeader>
+          <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
+            <Table sx={{ minWidth: 900 }} stickyHeader>
               <TableHead>
                 <TableRow>
                   <TableCell>
@@ -566,7 +611,7 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
                       {editingRow === entry.id ? (
                         <Autocomplete
                           options={chartOfAccounts || []}
-                          getOptionLabel={(option) => option.account_name || ''}
+                          getOptionLabel={(option) => option.name}
                           value={chartOfAccounts?.find(acc => acc.id === editData.account_id) || null}
                           onChange={(e, value) => setEditData({ ...editData, account_id: value?.id || null })}
                           renderInput={(params) => (
@@ -768,7 +813,7 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
                   >
                     {chartOfAccounts?.map((account) => (
                       <MenuItem key={account.id} value={account.id}>
-                        {account.account_name}
+                        {account.name}
                       </MenuItem>
                     ))}
                   </Select>
@@ -874,7 +919,12 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
       {/* Floating Action Button */}
       <SpeedDial
         ariaLabel="General Ledger Actions"
-        sx={{ position: 'fixed', bottom: 16, right: 16 }}
+        sx={{ 
+          position: 'absolute', 
+          bottom: 16, 
+          right: 16,
+          zIndex: 1000
+        }}
         icon={<SpeedDialIcon />}
       >
         <SpeedDialAction

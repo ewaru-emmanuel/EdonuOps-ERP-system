@@ -10,10 +10,8 @@ export const useFinanceData = (endpoint) => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      console.log(`🔄 Fetching finance data: ${endpoint}`);
       
       const response = await apiClient.get(`/finance/${endpoint}`);
-      console.log(`✅ Finance data received:`, response);
       
       // Handle paginated responses (like GL entries)
       if (response.data && Array.isArray(response.data)) {

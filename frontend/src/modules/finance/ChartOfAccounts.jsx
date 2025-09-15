@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useCurrency } from '../../contexts/CurrencyContext';
+import { useCurrency } from '../../components/GlobalCurrencySettings';
 import { useCurrencyConversion } from '../../hooks/useCurrencyConversion';
 import CurrencySelector from '../../components/CurrencySelector';
 import { 
@@ -32,7 +32,8 @@ import {
   IconButton,
   Tooltip,
   Menu,
-  MenuItem
+  MenuItem,
+  Snackbar
 } from '@mui/material';
 import { 
   Add as AddIcon,
@@ -47,14 +48,17 @@ import {
   Edit as EditIcon,
   FilterList as FilterIcon,
   CheckBox as CheckBoxIcon,
-  CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon
+  CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon,
+  Work as WorkIcon,
+  List as ListIcon
 } from '@mui/icons-material';
 import { CoAProvider, useCoA } from './context/CoAContext';
 import CoATree from './components/CoATree';
 import CoATreeEnhanced from './components/CoATreeEnhanced';
 import CoAForm from './forms/CoAForm';
-import CoASetupWizard from './wizards/CoASetupWizard';
 import FinanceTableDisplay from '../../components/tables/FinanceTableDisplay';
+import ProgressiveCoA from './components/ProgressiveCoA';
+import WorkflowBasedUX from './components/WorkflowBasedUX';
 
 const ChartOfAccountsContent = () => {
   const { 
@@ -79,15 +83,29 @@ const ChartOfAccountsContent = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [currentAccount, setCurrentAccount] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [setupWizardOpen, setSetupWizardOpen] = useState(false);
   const [selectedAccounts, setSelectedAccounts] = useState(new Set());
   const [showOnlySelected, setShowOnlySelected] = useState(false);
   const [sortBy, setSortBy] = useState('code');
   const [sortDirection, setSortDirection] = useState('asc');
   const [actionMenuAnchor, setActionMenuAnchor] = useState(null);
+  const [coaViewMode, setCoaViewMode] = useState('progressive'); // 'progressive', 'workflow', 'traditional'
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   const handleTabChange = (_, newValue) => {
     setViewMode(newValue);
+  };
+
+  const handleCoaViewModeChange = (mode) => {
+    setCoaViewMode(mode);
+  };
+
+  const handleWorkflowComplete = (workflowId, data) => {
+    // Here you would process the workflow and create journal entries
+    setSnackbar({
+      open: true,
+      message: 'Transaction recorded successfully!',
+      severity: 'success'
+    });
   };
 
   const handleEdit = (account) => {
@@ -217,15 +235,7 @@ const ChartOfAccountsContent = () => {
     </Box>
   );
 
-  const handleSetupComplete = async (setupData) => {
-    // Deploy the Chart of Accounts based on setup
-    console.log('Deploying CoA with setup:', setupData);
-    // Here you would call your API to set up the CoA
-    setSetupWizardOpen(false);
-  };
 
-  // Check if accounts are empty to show setup wizard
-  const isEmptyCoA = !loading && (convertedAccounts || []).length === 0;
 
   return (
     <Box sx={{ p: 3 }}>
@@ -235,8 +245,8 @@ const ChartOfAccountsContent = () => {
         </Alert>
       )}
 
-      {/* Empty state with setup wizard */}
-      {isEmptyCoA && (
+      {/* Empty state */}
+      {(convertedAccounts || []).length === 0 && (
         <Card sx={{ mb: 3, textAlign: 'center', py: 4 }}>
           <CardContent>
             <LightbulbIcon sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
@@ -252,20 +262,20 @@ const ChartOfAccountsContent = () => {
                 <Button 
                   variant="contained" 
                   size="large"
-                  startIcon={<MagicIcon />}
-                  onClick={() => setSetupWizardOpen(true)}
+                  startIcon={<AddIcon />}
+                  onClick={handleCreate}
                 >
-                  Smart Setup Wizard
+                  Add Your First Account
                 </Button>
               </Grid>
               <Grid item>
                 <Button 
                   variant="outlined" 
                   size="large"
-                  startIcon={<AddIcon />}
-                  onClick={handleCreate}
+                  startIcon={<SettingsIcon />}
+                  onClick={() => {}}
                 >
-                  Manual Setup
+                  Import Template
                 </Button>
               </Grid>
             </Grid>
@@ -294,7 +304,9 @@ const ChartOfAccountsContent = () => {
             )}
           </Box>
           {(convertedAccounts || []).length > 0 && (
-            <Tabs value={viewMode} onChange={handleTabChange}>
+            <Tabs value={coaViewMode} onChange={(_, newValue) => handleCoaViewModeChange(newValue)}>
+              <Tab label="Progressive View" value="progressive" />
+              <Tab label="Workflow View" value="workflow" />
               <Tab label="Table View" value="table" />
               <Tab label="Tree View" value="tree" />
             </Tabs>
@@ -307,15 +319,6 @@ const ChartOfAccountsContent = () => {
             size="small"
             showLabel={false}
           />
-          {(convertedAccounts || []).length > 0 && (
-            <Button 
-              variant="outlined"
-              startIcon={<SettingsIcon />}
-              onClick={() => setSetupWizardOpen(true)}
-            >
-              Setup Wizard
-            </Button>
-          )}
           <Button 
             variant="contained" 
             startIcon={<AddIcon />}
@@ -328,7 +331,18 @@ const ChartOfAccountsContent = () => {
       </Box>
 
       {(convertedAccounts || []).length > 0 && (
-        viewMode === 'table' ? (
+        coaViewMode === 'progressive' ? (
+          <ProgressiveCoA 
+            accounts={convertedAccounts || accounts}
+            onAccountSelect={handleEdit}
+            onModeChange={(mode) => {}}
+          />
+        ) : coaViewMode === 'workflow' ? (
+          <WorkflowBasedUX 
+            accounts={convertedAccounts || accounts}
+            onWorkflowComplete={handleWorkflowComplete}
+          />
+        ) : coaViewMode === 'table' ? (
           <Paper sx={{ mt: 2 }}>
             {/* Toolbar with bulk actions */}
             <Toolbar sx={{ pl: 2, pr: 1, minHeight: '64px !important' }}>
@@ -569,13 +583,13 @@ const ChartOfAccountsContent = () => {
               </Box>
             )}
           </Paper>
-        ) : (
+        ) : coaViewMode === 'tree' ? (
           <CoATreeEnhanced 
             onSelect={handleEdit}
             selectedAccounts={selectedAccounts}
             onSelectAccount={handleSelectAccount}
           />
-        )
+        ) : null
       )}
 
       <Dialog 
@@ -595,23 +609,15 @@ const ChartOfAccountsContent = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Setup Wizard */}
-      <CoASetupWizard
-        open={setupWizardOpen}
-        onClose={() => setSetupWizardOpen(false)}
-        onComplete={handleSetupComplete}
-      />
 
-      {/* Floating Action Button for quick actions */}
-      {(convertedAccounts || []).length > 0 && (
-        <Button
-          variant="contained"
-          sx={{ position: 'fixed', bottom: 24, right: 24 }}
-          onClick={() => setSetupWizardOpen(true)}
-        >
-          <MagicIcon />
-        </Button>
-      )}
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+        message={snackbar.message}
+      />
     </Box>
   );
 };

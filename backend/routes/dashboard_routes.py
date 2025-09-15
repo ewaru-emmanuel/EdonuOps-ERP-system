@@ -4,7 +4,6 @@ from app import db
 from modules.finance.models import JournalEntry, JournalLine, Account
 from modules.crm.models import Contact, Lead, Opportunity
 from modules.inventory.models import Product
-from modules.hcm.models import Employee
 from datetime import datetime, timedelta
 import sqlalchemy as sa
 

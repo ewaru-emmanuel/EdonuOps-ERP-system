@@ -193,7 +193,6 @@ const InvoiceForm = ({ open, onClose, invoice = null, onSave }) => {
         created_at: new Date().toISOString()
       };
 
-      console.log('💾 Saving invoice:', invoiceData);
       
       // Simulate API call - replace with actual API when ready
       setTimeout(() => {
@@ -217,6 +216,7 @@ const InvoiceForm = ({ open, onClose, invoice = null, onSave }) => {
       onClose={onClose}
       maxWidth="md"
       fullWidth
+      fullScreen={typeof window !== 'undefined' ? window.matchMedia('(max-width:600px)').matches : false}
       PaperProps={{ sx: { minHeight: '80vh' } }}
       aria-labelledby="invoice-dialog-title"
       aria-describedby="invoice-dialog-content"

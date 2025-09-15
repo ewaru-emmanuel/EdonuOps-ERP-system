@@ -1,5 +1,5 @@
 import React, { useState, createContext, useContext, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { CurrencyProvider, useCurrency } from './components/GlobalCurrencySettings';
 import {
   AppBar,
@@ -30,7 +30,8 @@ import {
   TextField,
   Button,
   Snackbar,
-  Alert
+  Alert,
+  Tooltip
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -41,15 +42,30 @@ import {
   Person as PersonIcon,
   Logout as LogoutIcon,
   Notifications as NotificationsIcon,
-  Business as BusinessIcon,
   Settings as SettingsIcon,
-  People as PeopleIcon,
-  Store as StoreIcon,
-  Psychology as PsychologyIcon,
-  Nature as NatureIcon,
   CurrencyExchange as CurrencyIcon,
   ShoppingCart,
-  AdminPanelSettings as AdminPanelSettingsIcon
+  AdminPanelSettings as AdminPanelSettingsIcon,
+  // Finance module icons
+  Assessment as AssessmentIcon,
+  Receipt as ReceiptIcon,
+  Payment as PaymentIcon,
+  Business as BusinessIcon,
+  TrendingUp as TrendingUpIcon,
+  LocalTaxi as TaxIcon,
+  AccountBalanceWallet as BankIcon,
+  BarChart as BarChartIcon,
+  Security as SecurityIcon,
+  // CRM module icons
+  People as PeopleIcon,
+  Timeline as TimelineIcon,
+  Assignment as AssignmentIcon,
+  Support as SupportIcon,
+  AutoAwesome as AutoAwesomeIcon,
+  School as SchoolIcon,
+  DataObject as DataObjectIcon,
+  // Procurement module icons
+  Description as DescriptionIcon
 } from '@mui/icons-material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
@@ -59,22 +75,16 @@ import AttachmentIcon from '@mui/icons-material/Attachment';
 // Import components
 import Dashboard from './components/Dashboard';
 import LandingPage from './components/LandingPage';
+import OnboardingWizard from './components/OnboardingWizard';
 import DashboardSettings from './modules/erp/dashboard/DashboardSettings';
 import AdminSettings from './modules/erp/admin/AdminSettings';
 import NotificationsCenter from './components/NotificationsCenter';
 import FinanceModule from './modules/finance/FinanceModule';
 import CRMModule from './modules/crm/CRMModule';
 import { CRMProvider } from './modules/crm/context/CRMContext';
-import ERPMainModule from './modules/erp/ERPMainModule';
 import InventoryModule from './modules/erp/InventoryModule';
 import CoreInventoryModule from './modules/inventory/CoreInventoryModule';
-import WarehouseManagementModule from './modules/inventory/WarehouseManagementModule';
-import HCMModule from './modules/hcm/HCMModule';
-import EcommerceModule from './modules/ecommerce/EcommerceModule';
-import AIModule from './modules/ai/AIModule';
-import SustainabilityModule from './modules/sustainability/SustainabilityModule';
 import ProcurementModule from './modules/erp/procurement/ProcurementModule';
-import OnboardingWizard from './components/OnboardingWizard';
 
 // Import API service
 import { initializeERPApiService } from './services/erpApiService';
@@ -133,20 +143,30 @@ const AuthProvider = ({ children }) => {
 // App Content Component (inside Router)
 const AppContent = () => {
   const location = useLocation();
+  const theme = useTheme();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   
   return (
     <Box sx={{ display: 'flex' }}>
-      <Navigation />
-              <Box
-          component="main"
-          sx={{
-            flexGrow: 1,
-            p: { xs: 2, md: 3 },
-            mt: location.pathname === '/onboarding' ? 0 : { xs: 7, md: 8 },
-            minHeight: '100vh',
-            backgroundColor: location.pathname === '/onboarding' ? 'transparent' : 'grey.50'
-          }}
-        >
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          p: { xs: 1, md: location.pathname.startsWith('/finance') ? 0 : 2 },
+          mt: location.pathname === '/onboarding' ? 0 : { xs: 7, md: 8 },
+          minHeight: '100vh',
+          backgroundColor: location.pathname === '/onboarding' ? 'transparent' : '#f8f9fa',
+          width: { xs: '100%', md: `calc(100% - ${sidebarOpen ? 200 : 60}px)` },
+          maxWidth: { xs: '100%', md: `calc(100% - ${sidebarOpen ? 200 : 60}px)` },
+          marginLeft: 0,
+          marginRight: 0,
+          paddingLeft: 0,
+          transition: theme.transitions.create(['width'], {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.enteringScreen,
+          }),
+        }}
+      >
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/onboarding" element={<OnboardingWizard />} />
@@ -157,25 +177,21 @@ const AppContent = () => {
           <Route path="/finance" element={<FinanceModule />} />
           <Route path="/crm" element={<CRMProvider><CRMModule /></CRMProvider>} />
           <Route path="/procurement" element={<ProcurementModule />} />
-          <Route path="/erp" element={<ERPMainModule />} />
           <Route path="/inventory" element={<CoreInventoryModule />} />
-          <Route path="/warehouse" element={<WarehouseManagementModule />} />
-          <Route path="/hcm" element={<HCMModule />} />
-          <Route path="/ecommerce" element={<EcommerceModule />} />
-          <Route path="/ai" element={<AIModule />} />
-          <Route path="/sustainability" element={<SustainabilityModule />} />
           {/* Catch-all route */}
           <Route path="*" element={<LandingPage />} />
         </Routes>
-      </Box>
+        </Box>
+      <Navigation sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
     </Box>
   );
 };
 
 // Navigation Component
-const Navigation = () => {
+const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -196,7 +212,7 @@ const Navigation = () => {
   });
   const { logout } = useAuth();
   const { baseCurrency, setShowChangeDialog } = useCurrency();
-  const { isModuleEnabled, hasPreferences } = useUserPreferences();
+  const { isModuleEnabled, hasPreferences, selectedModules } = useUserPreferences();
 
   // Hide navigation on onboarding and landing page
   const hideNavigation = location.pathname === '/onboarding' || location.pathname === '/';
@@ -207,24 +223,124 @@ const Navigation = () => {
     { name: 'Finance', path: '/finance', icon: <FinanceIcon />, moduleId: 'financials' },
     { name: 'CRM', path: '/crm', icon: <CRMIcon />, moduleId: 'crm' },
     { name: 'Procurement', path: '/procurement', icon: <ShoppingCart />, moduleId: 'procurement' },
-    { name: 'ERP', path: '/erp', icon: <BusinessIcon />, moduleId: 'erp' },
-    { name: 'HCM', path: '/hcm', icon: <PeopleIcon />, moduleId: 'hcm' },
-    { name: 'E-commerce', path: '/ecommerce', icon: <StoreIcon />, moduleId: 'ecommerce' },
-    { name: 'AI Intelligence', path: '/ai', icon: <PsychologyIcon />, moduleId: 'ai' },
-    { name: 'Sustainability', path: '/sustainability', icon: <NatureIcon />, moduleId: 'sustainability' },
-    { name: ' Inventory', path: '/inventory', icon: <InventoryIcon />, moduleId: 'inventory' },
-    { name: '🏭 Warehouse', path: '/warehouse', icon: <InventoryIcon />, moduleId: 'inventorywms' }
+    { name: ' Inventory', path: '/inventory', icon: <InventoryIcon />, moduleId: 'inventory' }
   ];
+
+  // Define Finance module features
+  const financeFeatures = [
+    { name: 'Dashboard', path: '/finance?feature=dashboard', icon: <AssessmentIcon />, featureId: 'dashboard' },
+    { name: 'General Ledger', path: '/finance?feature=general-ledger', icon: <FinanceIcon />, featureId: 'general-ledger' },
+    { name: 'Chart of Accounts', path: '/finance?feature=chart-of-accounts', icon: <BusinessIcon />, featureId: 'chart-of-accounts' },
+    { name: 'Accounts Payable', path: '/finance?feature=accounts-payable', icon: <PaymentIcon />, featureId: 'accounts-payable' },
+    { name: 'Accounts Receivable', path: '/finance?feature=accounts-receivable', icon: <ReceiptIcon />, featureId: 'accounts-receivable' },
+    { name: 'Fixed Assets', path: '/finance?feature=fixed-assets', icon: <BusinessIcon />, featureId: 'fixed-assets' },
+    { name: 'Budgeting', path: '/finance?feature=budgeting', icon: <TrendingUpIcon />, featureId: 'budgeting' },
+    { name: 'Tax Management', path: '/finance?feature=tax-management', icon: <TaxIcon />, featureId: 'tax-management' },
+    { name: 'Bank Reconciliation', path: '/finance?feature=bank-reconciliation', icon: <BankIcon />, featureId: 'bank-reconciliation' },
+    { name: 'Financial Reports', path: '/finance?feature=financial-reports', icon: <BarChartIcon />, featureId: 'financial-reports' },
+    { name: 'Audit Trail', path: '/finance?feature=audit-trail', icon: <SecurityIcon />, featureId: 'audit-trail' }
+  ];
+
+  // Define CRM module features
+  const crmFeatures = [
+    { name: 'Contacts', path: '/crm?feature=contacts', icon: <PersonIcon />, featureId: 'contacts' },
+    { name: 'Leads', path: '/crm?feature=leads', icon: <PeopleIcon />, featureId: 'leads' },
+    { name: 'Opportunities', path: '/crm?feature=opportunities', icon: <TrendingUpIcon />, featureId: 'opportunities' },
+    { name: 'Pipeline', path: '/crm?feature=pipeline', icon: <TimelineIcon />, featureId: 'pipeline' },
+    { name: 'Companies', path: '/crm?feature=companies', icon: <BusinessIcon />, featureId: 'companies' },
+    { name: 'Activities', path: '/crm?feature=activities', icon: <AssignmentIcon />, featureId: 'activities' },
+    { name: 'Tasks', path: '/crm?feature=tasks', icon: <AssignmentIcon />, featureId: 'tasks' },
+    { name: 'Tickets', path: '/crm?feature=tickets', icon: <SupportIcon />, featureId: 'tickets' },
+    { name: 'Reports', path: '/crm?feature=reports', icon: <BarChartIcon />, featureId: 'reports' },
+    { name: 'Automations', path: '/crm?feature=automations', icon: <AutoAwesomeIcon />, featureId: 'automations' },
+    { name: 'Knowledge Base', path: '/crm?feature=knowledge-base', icon: <SchoolIcon />, featureId: 'knowledge-base' },
+    { name: 'Data Quality', path: '/crm?feature=data-quality', icon: <DataObjectIcon />, featureId: 'data-quality' }
+  ];
+
+  // Define Inventory module features
+  const inventoryFeatures = [
+    { name: 'Dashboard', path: '/inventory?feature=dashboard', icon: <DashboardIcon />, featureId: 'dashboard' },
+    { name: 'Products', path: '/inventory?feature=products', icon: <InventoryIcon />, featureId: 'products' },
+    { name: 'Stock Levels', path: '/inventory?feature=stock-levels', icon: <AssessmentIcon />, featureId: 'stock-levels' },
+    { name: 'Adjustments', path: '/inventory?feature=adjustments', icon: <SettingsIcon />, featureId: 'adjustments' },
+    { name: 'Transfers', path: '/inventory?feature=transfers', icon: <TrendingUpIcon />, featureId: 'transfers' },
+    { name: 'Reports', path: '/inventory?feature=reports', icon: <BarChartIcon />, featureId: 'reports' },
+    { name: 'Settings', path: '/inventory?feature=settings', icon: <SettingsIcon />, featureId: 'settings' }
+  ];
+
+  // Define Procurement module features
+  const procurementFeatures = [
+    { name: 'Dashboard', path: '/procurement?feature=dashboard', icon: <ShoppingCart />, featureId: 'dashboard' },
+    { name: 'Vendors', path: '/procurement?feature=vendors', icon: <BusinessIcon />, featureId: 'vendors' },
+    { name: 'Purchase Orders', path: '/procurement?feature=purchase-orders', icon: <DescriptionIcon />, featureId: 'purchase-orders' },
+    { name: 'RFQ Management', path: '/procurement?feature=rfq', icon: <BusinessIcon />, featureId: 'rfq' },
+    { name: 'Contracts', path: '/procurement?feature=contracts', icon: <BusinessIcon />, featureId: 'contracts' },
+    { name: 'Analytics', path: '/procurement?feature=analytics', icon: <BarChartIcon />, featureId: 'analytics' }
+  ];
+
+  // Fallback: Check localStorage directly if hook data is not available
+  const getFallbackSelectedModules = () => {
+    try {
+      // Try to get from visitor session data first
+      const visitorData = localStorage.getItem('edonuops_visitor_data');
+      if (visitorData) {
+        const parsed = JSON.parse(visitorData);
+        const preferences = parsed.user_preferences;
+        if (preferences && preferences.selectedModules) {
+          return preferences.selectedModules;
+        }
+      }
+      
+      // Fallback: If we have business profile, assume basic modules are enabled
+      const businessProfile = localStorage.getItem('edonuops_business_profile');
+      if (businessProfile) {
+        return ['financials', 'inventory'];
+      }
+    } catch (error) {
+      console.error('Error reading localStorage:', error);
+    }
+    return [];
+  };
+
+  // Use hook data if available, otherwise fallback to localStorage
+  const effectiveSelectedModules = selectedModules.length > 0 ? selectedModules : getFallbackSelectedModules();
+  const effectiveHasPreferences = hasPreferences() || effectiveSelectedModules.length > 0;
 
   // Filter navigation links based on user's selected modules
   const navLinks = allNavLinks.filter(link => {
-    if (!hasPreferences) return true; // Show all if no preferences set
+    if (!effectiveHasPreferences) return true; // Show all if no preferences set
     if (link.moduleId === 'dashboard') return true; // Always show dashboard
-    return isModuleEnabled(link.moduleId);
+    return effectiveSelectedModules.includes(link.moduleId);
   });
+
+
+  // Determine which navigation items to show based on current path
+  const getCurrentNavigationItems = () => {
+    if (location.pathname.startsWith('/finance')) {
+      return financeFeatures;
+    }
+    if (location.pathname.startsWith('/crm')) {
+      return crmFeatures;
+    }
+    if (location.pathname.startsWith('/inventory')) {
+      return inventoryFeatures;
+    }
+    if (location.pathname.startsWith('/procurement')) {
+      return procurementFeatures;
+    }
+    // For dashboard and other pages, show enabled modules
+    return navLinks;
+  };
+
+  const currentNavItems = getCurrentNavigationItems();
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
+  };
+
+  // Gmail-style sidebar toggle
+  const handleSidebarToggle = () => {
+    setSidebarOpen(!sidebarOpen);
   };
 
   const handleUserMenuOpen = (event) => {
@@ -245,6 +361,7 @@ const Navigation = () => {
         message: `PO ${g.po_number} · Item ${g.item_id} missing product mapping`,
         href: '/inventory'
       }));
+      
       // CRM ticket SLA alerts
       let ticketItems = [];
       try {
@@ -264,11 +381,51 @@ const Navigation = () => {
       } catch (_) {
         // ignore ticket errors to avoid blocking other alerts
       }
+      
+      // Daily cycle notifications (temporarily disabled until backend restart)
+      let dailyCycleItems = [];
+      let criticalDailyCycleItems = [];
+      
+      // Check if daily cycle endpoints are available
+      const enableDailyCycleNotifications = false; // Set to true after backend restart
+      
+      if (enableDailyCycleNotifications) {
+        try {
+          const dailyCycleResp = await apiClient.get('/api/finance/daily-cycle/notifications/recent?hours_back=24&limit=10');
+          if (dailyCycleResp?.success && dailyCycleResp.notifications) {
+            dailyCycleItems = dailyCycleResp.notifications.map(notification => ({
+              id: notification.id,
+              type: notification.type,
+              message: notification.message,
+              href: notification.href || '/finance?feature=daily-cycle'
+            }));
+          }
+        } catch (_) {
+          // ignore daily cycle notification errors
+        }
+        
+        // Critical daily cycle notifications
+        try {
+          const criticalResp = await apiClient.get('/api/finance/daily-cycle/notifications/critical');
+          if (criticalResp?.success && criticalResp.critical_notifications) {
+            criticalDailyCycleItems = criticalResp.critical_notifications.map(notification => ({
+              id: notification.id,
+              type: notification.type,
+              message: notification.message,
+              href: notification.href || '/finance?feature=daily-cycle'
+            }));
+          }
+        } catch (_) {
+          // ignore critical notification errors
+        }
+      }
+      
       // CSV import errors (disabled when endpoint is unavailable)
       let importErrorItems = [];
       // Knowledge Base attachment safety flags (disabled when endpoint is unavailable)
       let kbFlagItems = [];
-      setNotifications([...gapItems, ...ticketItems, ...importErrorItems, ...kbFlagItems]);
+      
+      setNotifications([...gapItems, ...ticketItems, ...dailyCycleItems, ...criticalDailyCycleItems, ...importErrorItems, ...kbFlagItems]);
     } catch (e) {
       // ignore
     }
@@ -313,6 +470,25 @@ const Navigation = () => {
         return <MailOutlineIcon fontSize="small" color="info" />;
       case 'kb_attachment':
         return <AttachmentIcon fontSize="small" color="primary" />;
+      // Daily cycle notification types
+      case 'daily_cycle_opening':
+        return <NotificationsIcon fontSize="small" color="info" />;
+      case 'daily_cycle_closing':
+        return <NotificationsIcon fontSize="small" color="success" />;
+      case 'daily_cycle_locked':
+        return <WarningAmberIcon fontSize="small" color="warning" />;
+      case 'daily_cycle_unlocked':
+        return <NotificationsIcon fontSize="small" color="info" />;
+      case 'daily_cycle_failed':
+        return <ReportProblemIcon fontSize="small" color="error" />;
+      case 'adjustment_created':
+        return <MailOutlineIcon fontSize="small" color="info" />;
+      case 'adjustment_applied':
+        return <NotificationsIcon fontSize="small" color="success" />;
+      case 'adjustment_pending':
+        return <WarningAmberIcon fontSize="small" color="warning" />;
+      case 'grace_period_expired':
+        return <ReportProblemIcon fontSize="small" color="warning" />;
       default:
         return <NotificationsIcon fontSize="small" />;
     }
@@ -354,48 +530,151 @@ const Navigation = () => {
     handleUserMenuClose();
   };
 
+  // Auto-close sidebar on mobile when route changes
+  useEffect(() => {
+    if (isMobile) {
+      setMobileOpen(false);
+    }
+  }, [location.pathname, isMobile]);
+
+  // Adjust sidebar state based on screen size
+  useEffect(() => {
+    if (isMobile) {
+      setSidebarOpen(false);
+    } else {
+      setSidebarOpen(true);
+    }
+  }, [isMobile, setSidebarOpen]);
+
   const drawer = (
-    <Box sx={{ width: 250 }}>
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-          EdonuOps
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          Enterprise SaaS Platform
-        </Typography>
-        {hasPreferences && (
-          <Chip 
-            label={`${navLinks.length - 1} modules enabled`} 
-            size="small" 
-            color="primary" 
-            variant="outlined"
-            sx={{ mt: 1 }}
-          />
-        )}
-      </Box>
-      <List>
-        {navLinks.map((link) => (
-          <ListItem
-            key={link.name}
-            component={Link}
-            to={link.path}
-            selected={location.pathname === link.path}
-            sx={{
-              '&.Mui-selected': {
-                backgroundColor: 'primary.light',
-                '&:hover': {
-                  backgroundColor: 'primary.light',
-                },
-              },
+    <Box sx={{ width: sidebarOpen ? 200 : 60 }}>
+      {/* Gmail-style header */}
+      <Box sx={{ 
+        p: 2, 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: sidebarOpen ? 'space-between' : 'center',
+        minHeight: 64,
+        borderBottom: '1px solid #e0e0e0'
+      }}>
+        {sidebarOpen && (
+          <Typography 
+            variant="h6" 
+            sx={{ 
+              fontWeight: 400,
+              color: '#5f6368',
+              fontSize: '1.375rem'
             }}
           >
-            <ListItemIcon sx={{ color: location.pathname === link.path ? 'primary.main' : 'inherit' }}>
-              {link.icon}
-            </ListItemIcon>
-            <ListItemText primary={link.name} />
-          </ListItem>
-        ))}
-      </List>
+            {location.pathname.startsWith('/finance') ? 'Finance' : 'EdonuOps'}
+          </Typography>
+        )}
+        
+        <IconButton 
+          onClick={handleSidebarToggle}
+          sx={{ 
+            color: '#5f6368',
+            '&:hover': {
+              backgroundColor: 'rgba(95, 99, 104, 0.08)'
+            }
+          }}
+        >
+          <MenuIcon />
+        </IconButton>
+      </Box>
+
+      {/* Gmail-style navigation */}
+      <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
+        <List sx={{ px: 1, py: 1 }}>
+          {currentNavItems.map((link) => (
+            <ListItem key={link.name} disablePadding>
+              <Tooltip 
+                title={sidebarOpen ? '' : link.name} 
+                placement="right" 
+                arrow
+                disableHoverListener={sidebarOpen}
+              >
+                <ListItem
+                  component={Link}
+                  to={link.path}
+                  selected={link.featureId ? 
+                    (location.pathname.startsWith('/finance') && searchParams.get('feature') === link.featureId) :
+                    (location.pathname === link.path)
+                  }
+                  sx={{
+                    minHeight: 48,
+                    px: sidebarOpen ? 2 : 1.5,
+                    backgroundColor: (link.featureId ? 
+                      (location.pathname.startsWith('/finance') && searchParams.get('feature') === link.featureId) :
+                      (location.pathname === link.path)
+                    ) ? 'rgba(25, 118, 210, 0.08)' : 'transparent',
+                    borderRadius: sidebarOpen ? '0 25px 25px 0' : '0 20px 20px 0',
+                    margin: '0 8px',
+                    width: 'auto',
+                    '&.Mui-selected': {
+                      backgroundColor: 'rgba(25, 118, 210, 0.08)',
+                      '&:hover': {
+                        backgroundColor: 'rgba(25, 118, 210, 0.12)',
+                      },
+                    },
+                    '&:hover': {
+                      backgroundColor: (link.featureId ? 
+                        (location.pathname.startsWith('/finance') && searchParams.get('feature') === link.featureId) :
+                        (location.pathname === link.path)
+                      ) ? 'rgba(25, 118, 210, 0.12)' : 'rgba(95, 99, 104, 0.08)'
+                    }
+                  }}
+                >
+                  <ListItemIcon
+                    sx={{
+                      minWidth: sidebarOpen ? 40 : 'auto',
+                      color: (link.featureId ? 
+                        (location.pathname.startsWith('/finance') && searchParams.get('feature') === link.featureId) :
+                        (location.pathname === link.path)
+                      ) ? '#1976d2' : '#5f6368',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    {link.icon}
+                  </ListItemIcon>
+                  
+                  {sidebarOpen && (
+                    <ListItemText
+                      primary={
+                        <Typography 
+                          variant="body2" 
+                          sx={{ 
+                            fontWeight: (link.featureId ? 
+                              (location.pathname.startsWith('/finance') && searchParams.get('feature') === link.featureId) :
+                              (location.pathname === link.path)
+                            ) ? 500 : 400,
+                            color: (link.featureId ? 
+                              (location.pathname.startsWith('/finance') && searchParams.get('feature') === link.featureId) :
+                              (location.pathname === link.path)
+                            ) ? '#1976d2' : '#202124',
+                            fontSize: '0.875rem'
+                          }}
+                        >
+                          {link.name}
+                        </Typography>
+                      }
+                    />
+                  )}
+                </ListItem>
+              </Tooltip>
+            </ListItem>
+          ))}
+        </List>
+      </Box>
+
+      {/* Gmail-style footer */}
+      {sidebarOpen && (
+        <Box sx={{ p: 2, borderTop: '1px solid #e0e0e0' }}>
+          <Typography variant="caption" color="#5f6368">
+            Simple ERP Platform
+          </Typography>
+        </Box>
+      )}
     </Box>
   );
 
@@ -406,20 +685,62 @@ const Navigation = () => {
 
   return (
     <>
-      <AppBar position="fixed" sx={{ zIndex: theme.zIndex.drawer + 1 }}>
-        <Toolbar>
-          {isMobile && (
+      <AppBar 
+        position="fixed" 
+        sx={{ 
+          zIndex: theme.zIndex.drawer + 1,
+          backgroundColor: '#ffffff',
+          color: '#202124',
+          borderBottom: '1px solid #e0e0e0',
+          boxShadow: 'none'
+        }}
+      >
+        <Toolbar sx={{ minHeight: 64 }}>
+          {/* Gmail-style hamburger menu for desktop */}
+          {!isMobile && (
             <IconButton
               color="inherit"
               edge="start"
-              onClick={handleDrawerToggle}
-              sx={{ mr: 2 }}
+              onClick={handleSidebarToggle}
+              sx={{ 
+                mr: 2,
+                color: '#5f6368',
+                '&:hover': {
+                  backgroundColor: 'rgba(95, 99, 104, 0.08)'
+                }
+              }}
             >
               <MenuIcon />
             </IconButton>
           )}
           
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
+          {isMobile && (
+            <IconButton
+              color="inherit"
+              edge="start"
+              onClick={handleDrawerToggle}
+              sx={{ 
+                mr: 2,
+                color: '#5f6368',
+                '&:hover': {
+                  backgroundColor: 'rgba(95, 99, 104, 0.08)'
+                }
+              }}
+            >
+              <MenuIcon />
+            </IconButton>
+          )}
+          
+          <Typography 
+            variant="h6" 
+            component="div" 
+            sx={{ 
+              flexGrow: 1, 
+              fontWeight: 400,
+              color: '#202124',
+              fontSize: '1.375rem'
+            }}
+          >
             EdonuOps Enterprise
           </Typography>
 
@@ -541,15 +862,27 @@ const Navigation = () => {
         variant={isMobile ? 'temporary' : 'permanent'}
         open={isMobile ? mobileOpen : true}
         onClose={handleDrawerToggle}
+        anchor="right"
         sx={{
-          width: 250,
+          width: sidebarOpen ? 200 : 60,
           flexShrink: 0,
           '& .MuiDrawer-paper': {
-            width: 250,
+            width: sidebarOpen ? 200 : 60,
             boxSizing: 'border-box',
             top: { xs: 56, md: 64 },
             height: { xs: 'calc(100% - 56px)', md: 'calc(100% - 64px)' },
             zIndex: theme.zIndex.drawer,
+            position: 'fixed',
+            right: 0,
+            left: 'auto',
+            transition: theme.transitions.create('width', {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.enteringScreen,
+            }),
+            overflowX: 'hidden',
+            borderLeft: '1px solid #e0e0e0',
+            borderRight: 'none',
+            backgroundColor: '#ffffff'
           },
         }}
       >
@@ -623,6 +956,17 @@ const Navigation = () => {
 const App = () => {
   const [mode, setMode] = useState('light');
   const toggleMode = () => setMode(prev => (prev === 'light' ? 'dark' : 'light'));
+  const [viewportSize, setViewportSize] = useState({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1024,
+    height: typeof window !== 'undefined' ? window.innerHeight : 768
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onResize = () => setViewportSize({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const tooSmall = viewportSize.width < 480 || viewportSize.height < 600;
   const theme = createTheme({
     palette: {
       mode,
@@ -677,13 +1021,29 @@ const App = () => {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <CurrencyProvider>
-        <AuthProvider>
-          <Router>
-            <AppContent mode={mode} toggleMode={toggleMode} />
-          </Router>
-        </AuthProvider>
-      </CurrencyProvider>
+      {tooSmall ? (
+        <Box sx={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', p: 3, textAlign: 'center' }}>
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }}>
+              Screen too small
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Please use a device with a minimum display size of 480 × 600 pixels to access EdonuOps.
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              For the best experience, use a tablet, laptop, or desktop.
+            </Typography>
+          </Box>
+        </Box>
+      ) : (
+        <CurrencyProvider>
+          <AuthProvider>
+            <Router>
+              <AppContent mode={mode} toggleMode={toggleMode} />
+            </Router>
+          </AuthProvider>
+        </CurrencyProvider>
+      )}
     </ThemeProvider>
   );
 };

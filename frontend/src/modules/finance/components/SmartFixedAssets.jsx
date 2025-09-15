@@ -695,8 +695,8 @@ const SmartFixedAssets = ({ isMobile, isTablet }) => {
           </Box>
         ) : (
           <>
-            <TableContainer>
-              <Table>
+            <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
+              <Table sx={{ minWidth: 900 }}>
                 <TableHead>
                   <TableRow>
                                          <TableCell>
@@ -992,10 +992,8 @@ const SmartFixedAssets = ({ isMobile, isTablet }) => {
 
   return (
     <Box>
-             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-         <Typography variant="h4" gutterBottom>
-           Fixed Assets Management
-         </Typography>
+             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, gap: 2, flexWrap: 'wrap' }}>
+         <Typography variant="h5" component="h3" sx={{ fontWeight: 'bold' }}>Fixed Assets</Typography>
          <Box display="flex" gap={1}>
            <Button
              variant="outlined"
@@ -1592,8 +1590,8 @@ const SmartFixedAssets = ({ isMobile, isTablet }) => {
               ))}
             </Box>
           ) : (
-            <TableContainer component={Paper} variant="outlined">
-              <Table>
+            <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
+              <Table sx={{ minWidth: 900 }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Asset</TableCell>
@@ -1856,8 +1854,8 @@ const SmartFixedAssets = ({ isMobile, isTablet }) => {
               ))}
             </Box>
           ) : (
-            <TableContainer component={Paper} variant="outlined">
-              <Table>
+            <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
+              <Table sx={{ minWidth: 900 }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Asset</TableCell>

@@ -49,12 +49,10 @@ export const FinanceDataProvider = ({ children }) => {
     setErrors(prev => ({ ...prev, [endpoint]: null }));
     
     try {
-      console.log(`🔄 Fetching ${endpoint} data from /finance/${endpoint}...`);
       
       // First check if backend is reachable
       try {
         await apiClient.healthCheck();
-        console.log(`✅ Backend is reachable`);
       } catch (healthError) {
         throw new Error('Backend server not reachable. Please ensure backend is running.');
       }
@@ -63,7 +61,6 @@ export const FinanceDataProvider = ({ children }) => {
       
       setData(prev => ({ ...prev, [endpoint]: response }));
       setLastUpdated(prev => ({ ...prev, [endpoint]: new Date() }));
-      console.log(`✅ ${endpoint} data loaded:`, response);
       
     } catch (error) {
       console.error(`❌ Failed to fetch ${endpoint}:`, error);
@@ -96,7 +93,6 @@ export const FinanceDataProvider = ({ children }) => {
   // Data manipulation functions - will be handled by backend API
   const addJournalEntry = useCallback(async (formData) => {
     // Will be implemented with backend API call
-    console.log('✅ Journal entry creation will be handled by backend API');
   }, []);
 
   const updateJournalEntry = useCallback((id, formData) => {
@@ -106,12 +102,10 @@ export const FinanceDataProvider = ({ children }) => {
         entry.id === id ? { ...entry, ...formData, updated_at: new Date().toISOString() } : entry
       )
     }));
-    console.log('✅ Journal entry updated in local state:', id);
   }, []);
 
   const addInvoice = useCallback(async (formData) => {
     // Will be implemented with backend API call
-    console.log('✅ Invoice creation will be handled by backend API');
   }, []);
 
   const updateInvoice = useCallback((id, updates) => {
@@ -121,7 +115,6 @@ export const FinanceDataProvider = ({ children }) => {
         invoice.id === id ? { ...invoice, ...updates } : invoice
       )
     }));
-    console.log('✅ Invoice updated in local state:', id);
   }, []);
 
   const recordPayment = useCallback((invoiceId, paymentData) => {
@@ -137,12 +130,10 @@ export const FinanceDataProvider = ({ children }) => {
         } : invoice
       )
     }));
-    console.log('✅ Payment recorded in local state:', invoiceId, paymentData);
   }, []);
 
   const addBill = useCallback(async (formData) => {
     // Will be implemented with backend API call
-    console.log('✅ Bill creation will be handled by backend API');
   }, []);
 
   const processBillPayment = useCallback((billId, paymentData) => {
@@ -158,7 +149,6 @@ export const FinanceDataProvider = ({ children }) => {
         } : bill
       )
     }));
-    console.log('✅ Bill payment processed in local state:', billId, paymentData);
   }, []);
 
   // Initial data load
@@ -176,7 +166,6 @@ export const FinanceDataProvider = ({ children }) => {
     if (!isAuthenticated) return;
     
     const interval = setInterval(() => {
-      console.log('🔄 Auto-refreshing finance data...');
       fetchGLEntries();
       fetchInvoices();
       fetchBills();

@@ -398,34 +398,9 @@ const SmartProductManagement = () => {
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" component="h2" sx={{ fontWeight: 'bold' }}>
-          📦 Advanced Product Management
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
-            variant="outlined"
-            startIcon={<Inventory />}
-            onClick={() => {
-              setSnackbar({
-                open: true,
-                message: 'Please select a product first to add stock',
-                severity: 'info'
-              });
-            }}
-            sx={{ fontWeight: 'bold' }}
-          >
-            Add Stock
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={handleAddProduct}
-            sx={{ fontWeight: 'bold' }}
-          >
-            Add Product
-          </Button>
-        </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, gap: 2, flexWrap: 'wrap' }}>
+        <Typography variant="h5" component="h3" sx={{ fontWeight: 'bold' }}>Product Management</Typography>
+        {/* actions */}
       </Box>
 
       {/* Search and Filters */}
@@ -521,8 +496,8 @@ const SmartProductManagement = () => {
       {/* Products Table */}
       <Card>
         <CardContent>
-          <TableContainer>
-            <Table>
+          <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
+            <Table sx={{ minWidth: 900 }}>
               <TableHead>
                 <TableRow>
                   <TableCell>Product</TableCell>

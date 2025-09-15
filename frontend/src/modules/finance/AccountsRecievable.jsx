@@ -75,7 +75,6 @@ const AccountsReceivable = () => {
   const displayInvoices = convertedInvoices || invoices;
 
   const handleSendReminder = async (invoice) => {
-    console.log('📧 Sending payment reminder for invoice:', invoice.invoice_number);
     // TODO: Implement email reminder functionality
     alert(`Payment reminder sent to ${invoice.customer_name} (${invoice.customer_email})`);
   };
@@ -87,7 +86,6 @@ const AccountsReceivable = () => {
       date: new Date().toISOString().slice(0, 10)
     };
     
-    console.log('💰 Recording payment:', {
       invoice: selectedInvoice,
       payment: paymentData
     });
@@ -349,7 +347,6 @@ const AccountsReceivable = () => {
         title="Customer Invoices"
         exportable
         onExport={() => {
-          console.log('📊 Exporting AR data...');
           // TODO: Implement export functionality
         }}
       />
@@ -363,7 +360,6 @@ const AccountsReceivable = () => {
         }}
         invoice={selectedInvoice}
         onSave={(invoiceData) => {
-          console.log('✅ Invoice saved:', invoiceData);
           addInvoice(invoiceData);
         }}
       />

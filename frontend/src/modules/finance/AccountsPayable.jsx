@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import { Add, Payment, Send, Edit, Visibility } from '@mui/icons-material';
 import { useFinanceData } from './hooks/useFinanceData';
-import { useCurrency } from '../../contexts/CurrencyContext';
+import { useCurrency } from '../../components/GlobalCurrencySettings';
 import { useCurrencyConversion } from '../../hooks/useCurrencyConversion';
 import FinanceTable from '../../components/tables/FinanceTable';
 
@@ -44,8 +44,6 @@ const AccountsPayable = () => {
 
   const handleProcessPayment = async () => {
     // TODO: Implement payment processing
-    console.log('Processing payment:', {
-      bill: selectedBill,
       amount: paymentAmount,
       method: paymentMethod
     });
@@ -271,7 +269,6 @@ const AccountsPayable = () => {
         exportable
         onExport={() => {
           // TODO: Implement export functionality
-          console.log('Exporting AP data...');
         }}
       />
 

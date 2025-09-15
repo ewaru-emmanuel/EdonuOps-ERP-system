@@ -551,6 +551,53 @@ const SmartTaxManagement = ({ isMobile, isTablet }) => {
       
       {renderTaxMetrics()}
       
+      {/* Statutory Modules Section */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Statutory Compliance Modules
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card variant="outlined">
+                <CardContent sx={{ textAlign: 'center' }}>
+                  <LocalTaxi color="primary" sx={{ fontSize: 40, mb: 1 }} />
+                  <Typography variant="subtitle2">Income Tax</Typography>
+                  <Chip label="Active" color="success" size="small" />
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card variant="outlined">
+                <CardContent sx={{ textAlign: 'center' }}>
+                  <Receipt color="primary" sx={{ fontSize: 40, mb: 1 }} />
+                  <Typography variant="subtitle2">Sales Tax</Typography>
+                  <Chip label="Active" color="success" size="small" />
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card variant="outlined">
+                <CardContent sx={{ textAlign: 'center' }}>
+                  <Business color="primary" sx={{ fontSize: 40, mb: 1 }} />
+                  <Typography variant="subtitle2">Payroll Tax</Typography>
+                  <Chip label="Inactive" color="default" size="small" />
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card variant="outlined">
+                <CardContent sx={{ textAlign: 'center' }}>
+                  <AccountBalance color="primary" sx={{ fontSize: 40, mb: 1 }} />
+                  <Typography variant="subtitle2">Property Tax</Typography>
+                  <Chip label="Active" color="success" size="small" />
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+      
       <Grid container spacing={3}>
         <Grid item xs={12} lg={8}>
           {renderTaxTable()}

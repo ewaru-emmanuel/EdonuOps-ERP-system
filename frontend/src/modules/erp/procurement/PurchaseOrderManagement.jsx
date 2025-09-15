@@ -584,8 +584,8 @@ const PurchaseOrderManagement = () => {
             </Alert>
           )}
           
-          <TableContainer component={Paper} elevation={0}>
-            <Table>
+          <TableContainer component={Paper} elevation={0} sx={{ width: '100%', overflowX: 'auto' }}>
+            <Table sx={{ minWidth: 900 }}>
               <TableHead>
                 <TableRow sx={{ bgcolor: 'grey.50' }}>
                   <TableCell sx={{ fontWeight: 'bold' }}>PO Number</TableCell>
@@ -727,7 +727,7 @@ const PurchaseOrderManagement = () => {
       </Card>
 
       {/* Create/Edit PO Dialog */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="lg" fullWidth>
+      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="lg" fullWidth fullScreen={typeof window !== 'undefined' ? window.matchMedia('(max-width:600px)').matches : false}>
         <DialogTitle>
           <Box display="flex" justifyContent="space-between" alignItems="center">
             <Typography variant="h6">

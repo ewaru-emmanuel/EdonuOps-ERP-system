@@ -99,7 +99,6 @@ const SmartBudgeting = ({ isMobile, isTablet }) => {
   const handleCellSave = () => {
     if (editingCell) {
       // Here you would update the budget in the backend
-      console.log('Saving budget cell:', editingCell, editValue);
       setSnackbar({ open: true, message: 'Budget updated successfully', severity: 'success' });
       setEditingCell(null);
       setEditValue('');

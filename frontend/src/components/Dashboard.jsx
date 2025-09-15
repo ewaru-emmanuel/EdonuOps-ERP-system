@@ -40,7 +40,6 @@ import {
   Snackbar
 } from '@mui/material';
 import {
-  TrendingUp as TrendingUpIcon,
   People as PeopleIcon,
   ShoppingCart as OrdersIcon,
   Inventory as ProductsIcon,
@@ -53,11 +52,7 @@ import {
   Visibility as ViewIcon,
   PersonAdd as PersonAddIcon,
   Store as StoreIcon,
-  Settings as SettingsIcon,
   Tune as TuneIcon,
-  Psychology as PsychologyIcon,
-  ShoppingCart as ShoppingCartIcon,
-  Work as WorkIcon,
   AdminPanelSettings as AdminPanelSettingsIcon
 } from '@mui/icons-material';
 import { useAuth } from '../App';
@@ -162,68 +157,12 @@ const Dashboard = () => {
       category: 'Customer Management'
     },
     {
-      id: 'hcm',
-      name: 'Human Capital Management',
-      icon: <BusinessIcon sx={{ fontSize: 20 }} />,
-      description: 'Comprehensive HR and team management',
-      category: 'People Management'
-    },
-    {
-      id: 'sustainability',
-      name: 'Sustainability & ESG',
-      icon: <TrendingUpIcon sx={{ fontSize: 20 }} />,
-      description: 'Environmental, Social & Governance tracking',
-      category: 'Compliance'
-    },
-    {
-      id: 'ai',
-      name: 'AI & Analytics',
-      icon: <PsychologyIcon sx={{ fontSize: 20 }} />,
-      description: 'AI-powered insights and automation',
-      category: 'Intelligence'
-    },
-    {
-      id: 'ecommerce',
-      name: 'E-commerce Operations',
-      icon: <ShoppingCartIcon sx={{ fontSize: 20 }} />,
-      description: 'Complete e-commerce management',
-      category: 'Sales'
-    },
-    {
-      id: 'erp',
-      name: 'Enterprise Resource Planning',
-      icon: <WorkIcon sx={{ fontSize: 20 }} />,
-      description: 'Integrated business processes',
-      category: 'Integration'
-    },
-    {
       id: 'procurement',
       name: 'Procurement & Purchasing',
       icon: <StoreIcon sx={{ fontSize: 20 }} />,
       description: 'Streamlined procurement processes (auto-enabled with Finance)',
       category: 'Operations'
     },
-    {
-      id: 'inventorywms',
-      name: 'Advanced Warehouse Management',
-      icon: <ProductsIcon sx={{ fontSize: 20 }} />,
-      description: 'Professional warehouse operations',
-      category: 'Operations'
-    },
-    {
-      id: 'dashboardai',
-      name: 'AI Dashboard Copilot',
-      icon: <PsychologyIcon sx={{ fontSize: 20 }} />,
-      description: 'AI-powered dashboard assistance',
-      category: 'Intelligence'
-    },
-    {
-      id: 'coresetup',
-      name: 'Core System Setup',
-      icon: <SettingsIcon sx={{ fontSize: 20 }} />,
-      description: 'Essential system configuration',
-      category: 'System'
-    }
   ];
   
   const [dashboardData, setDashboardData] = useState(null);
@@ -361,10 +300,6 @@ const Dashboard = () => {
     { id: 'financials', name: 'Create Invoice', icon: <FinanceIcon />, color: 'success', path: '/finance', module: 'financials' },
     { id: 'inventory', name: 'Add Product', icon: <ProductsIcon />, color: 'warning', path: '/inventory', module: 'inventory' },
     { id: 'procurement', name: 'Create PO', icon: <StoreIcon />, color: 'warning', path: '/procurement', module: 'procurement' },
-    { id: 'hcm', name: 'Add Employee', icon: <PeopleIcon />, color: 'secondary', path: '/hcm', module: 'hcm' },
-    { id: 'sustainability', name: 'ESG Report', icon: <TrendingUpIcon />, color: 'success', path: '/sustainability', module: 'sustainability' },
-    { id: 'ai', name: 'AI Insights', icon: <PsychologyIcon />, color: 'purple', path: '/ai', module: 'ai' },
-    { id: 'ecommerce', name: 'New Order', icon: <ShoppingCartIcon />, color: 'info', path: '/ecommerce', module: 'ecommerce' }
   ];
 
   // Filter quick actions based on user's selected modules and limit to 3
@@ -390,7 +325,15 @@ const Dashboard = () => {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: 2 }}>
+    <Box sx={{ 
+      width: '100%', 
+      height: '100%',
+      backgroundColor: '#f8f9fa',
+      overflow: 'auto',
+      p: 2,
+      maxWidth: '100%',
+      boxSizing: 'border-box'
+    }}>
       {/* Welcome Header */}
       <Box sx={{ mb: { xs: 2, md: 4 } }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
@@ -422,7 +365,7 @@ const Dashboard = () => {
         
         <Alert severity="success" sx={{ mt: 2 }}>
           <Typography variant={isMobile ? "body1" : "h6"} sx={{ fontWeight: 'bold' }}>
-            ✅ System Ready - {hasPreferences ? `${quickActions.length} modules enabled` : 'All modules operational'}
+            ✅ System Ready - {hasPreferences ? `${selectedModules.length} modules enabled` : 'All modules operational'}
           </Typography>
           <Typography variant="body2">
             {hasPreferences 
@@ -498,7 +441,7 @@ const Dashboard = () => {
                   </Typography>
                 </Box>
                 <Avatar sx={{ bgcolor: 'primary.main', width: { xs: 40, md: 56 }, height: { xs: 40, md: 56 } }}>
-                  <TrendingUpIcon />
+                  <FinanceIcon />
                 </Avatar>
               </Box>
               {data.totalRevenue > 0 && (
@@ -894,7 +837,7 @@ const Dashboard = () => {
 
       {/* Success Notifications */}
 
-    </Container>
+    </Box>
   );
 };
 

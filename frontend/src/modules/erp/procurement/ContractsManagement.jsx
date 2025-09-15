@@ -115,7 +115,7 @@ const ContractsManagement = () => {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, gap: 2, flexWrap: 'wrap' }}>
         <Typography variant="h5" component="h3" sx={{ fontWeight: 'bold' }}>Contracts Management</Typography>
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => setCreateOpen(true)} sx={{ textTransform: 'none' }}>New Contract</Button>
       </Box>
@@ -123,8 +123,8 @@ const ContractsManagement = () => {
       <Card elevation={2}>
         <CardContent>
           <Typography variant="h6" component="h4" sx={{ fontWeight: 'bold', mb: 2 }}>Contracts</Typography>
-          <TableContainer component={Paper} elevation={0}>
-            <Table>
+          <TableContainer component={Paper} elevation={0} sx={{ width: '100%', overflowX: 'auto' }}>
+            <Table sx={{ minWidth: 800 }}>
               <TableHead>
                 <TableRow sx={{ bgcolor: 'grey.50' }}>
                   <TableCell sx={{ fontWeight: 'bold' }}>Title</TableCell>

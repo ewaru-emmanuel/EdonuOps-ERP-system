@@ -375,7 +375,7 @@ const ProcurementAnalytics = () => {
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, gap: 2, flexWrap: 'wrap' }}>
         <Typography variant="h5" component="h3" sx={{ fontWeight: 'bold' }}>
           Procurement Analytics
         </Typography>
@@ -650,8 +650,8 @@ const ProcurementAnalytics = () => {
           </Typography>
           
           {analytics.vendorStats && Object.keys(analytics.vendorStats).length > 0 ? (
-            <TableContainer component={Paper} elevation={0}>
-              <Table>
+            <TableContainer component={Paper} elevation={0} sx={{ width: '100%', overflowX: 'auto' }}>
+              <Table sx={{ minWidth: 700 }}>
                 <TableHead>
                   <TableRow sx={{ bgcolor: 'grey.50' }}>
                     <TableCell sx={{ fontWeight: 'bold' }}>Vendor</TableCell>

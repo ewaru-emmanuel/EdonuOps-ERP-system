@@ -1,7 +1,6 @@
 from flask import Blueprint, jsonify, request
 from app import db
 from modules.inventory.advanced_models import InventoryProduct, InventoryTransaction, StockLevel
-from modules.finance.ai_analytics_service import get_ai_insights
 from datetime import datetime, timedelta
 from sqlalchemy import func, desc
 

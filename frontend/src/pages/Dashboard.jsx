@@ -2,8 +2,6 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 
 const Dashboard = () => {
-    console.log('🏠 Dashboard component rendered'); // Debug log
-    
     const modules = [
         {
             name: 'Core Setup',

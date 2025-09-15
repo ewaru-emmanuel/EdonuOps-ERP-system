@@ -20,7 +20,8 @@ import {
   TableRow,
   Paper,
   Alert,
-  Autocomplete
+  Autocomplete,
+  Tooltip
 } from '@mui/material';
 import {
   Add,
@@ -201,7 +202,6 @@ const JournalEntryForm = ({ open, onClose, entry = null, onSave }) => {
         }))
       };
 
-      console.log('💾 Saving journal entry:', journalData);
       
       // For now, simulate API call - replace with actual API when ready
       setTimeout(() => {
@@ -225,6 +225,7 @@ const JournalEntryForm = ({ open, onClose, entry = null, onSave }) => {
       onClose={onClose}
       maxWidth="lg"
       fullWidth
+      fullScreen={typeof window !== 'undefined' ? window.matchMedia('(max-width:480px)').matches : false}
       PaperProps={{ sx: { minHeight: '80vh' } }}
       aria-labelledby="journal-entry-dialog-title"
       aria-describedby="journal-entry-dialog-content"
@@ -349,14 +350,25 @@ const JournalEntryForm = ({ open, onClose, entry = null, onSave }) => {
                   {formData.lines.map((line, index) => (
                     <TableRow key={index}>
                       <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Autocomplete
                           options={accounts}
-                          getOptionLabel={(option) => `${option.code} - ${option.name}`}
+                          getOptionLabel={(option) => option.name}
                           value={accounts.find(acc => acc.id === line.account_id) || null}
                           onChange={(e, newValue) => {
                             handleLineChange(index, 'account_id', newValue?.id || null);
                           }}
                           isOptionEqualToValue={(option, value) => option.id === value?.id}
+                          groupBy={(option) => {
+                            const categoryLabels = {
+                              asset: '💰 Assets',
+                              liability: '📋 Liabilities', 
+                              equity: '👤 Equity',
+                              revenue: '📈 Revenue',
+                              expense: '💸 Expenses'
+                            };
+                            return categoryLabels[option.category] || 'Other';
+                          }}
                           renderInput={(params) => (
                             <TextField
                               {...params}
@@ -367,7 +379,37 @@ const JournalEntryForm = ({ open, onClose, entry = null, onSave }) => {
                               sx={{ minWidth: 200 }}
                             />
                           )}
+                          renderOption={(props, option) => (
+                            <Box component="li" {...props}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                <Typography variant="body2" sx={{ flexGrow: 1 }}>
+                                  {option.name}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {option.type}
+                                </Typography>
+                              </Box>
+                            </Box>
+                          )}
                         />
+                          <Tooltip title="Quick Add Account">
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                // Quick add account functionality
+                                const newAccountCode = prompt('Enter account code:');
+                                const newAccountName = prompt('Enter account name:');
+                                if (newAccountCode && newAccountName) {
+                                  // Here you would call the API to create a new account
+                                  // For now, just show a message
+                                  alert('Account creation feature coming soon!');
+                                }
+                              }}
+                            >
+                              <Add />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
                       </TableCell>
                       <TableCell>
                         <TextField

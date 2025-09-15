@@ -113,12 +113,11 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
   };
 
   const handleInsightAction = (action) => {
-    console.log('AI Insight Action:', action);
     setInsightsOpen(false);
   };
 
   return (
-    <Box>
+    <Box sx={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
       {/* Header with Smart Controls */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Box>
@@ -481,28 +480,33 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
       {/* Floating Action Button for Quick Actions */}
       <SpeedDial
         ariaLabel="Quick Actions"
-        sx={{ position: 'fixed', bottom: 16, right: 16 }}
+        sx={{ 
+          position: 'absolute', 
+          bottom: 16, 
+          right: 16,
+          zIndex: 1000
+        }}
         icon={<SpeedDialIcon />}
       >
         <SpeedDialAction
           icon={<Add />}
           tooltipTitle="New Entry"
-          onClick={() => console.log('New Entry')}
+          onClick={() => {}}
         />
         <SpeedDialAction
           icon={<Receipt />}
           tooltipTitle="Create Invoice"
-          onClick={() => console.log('Create Invoice')}
+          onClick={() => {}}
         />
         <SpeedDialAction
           icon={<Payment />}
           tooltipTitle="Record Bill"
-          onClick={() => console.log('Record Bill')}
+          onClick={() => {}}
         />
         <SpeedDialAction
           icon={<Assessment />}
           tooltipTitle="Generate Report"
-          onClick={() => console.log('Generate Report')}
+          onClick={() => {}}
         />
       </SpeedDial>
     </Box>

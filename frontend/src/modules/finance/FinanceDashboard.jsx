@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useCurrency } from '../../contexts/CurrencyContext';
+import { useCurrency } from '../../components/GlobalCurrencySettings';
 import { useCurrencyConversion } from '../../hooks/useCurrencyConversion';
 import CurrencySelector from '../../components/CurrencySelector';
 import {
