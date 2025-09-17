@@ -2,6 +2,17 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from decimal import Decimal
 import json
+import logging
+
+# Import database models
+try:
+    from app import db
+    from modules.finance.advanced_models import GeneralLedgerEntry, JournalHeader, ChartOfAccounts
+    DB_AVAILABLE = True
+except ImportError:
+    DB_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
 
 class AutoJournalEngine:
     """Automated Journal Entry Engine - The heartbeat of Finance-Inventory integration"""
@@ -9,6 +20,101 @@ class AutoJournalEngine:
     def __init__(self):
         self.journal_entries = []
         self.transaction_counter = 0
+    
+    def _persist_to_database(self, journal_entry: Dict) -> bool:
+        """
+        Persist journal entry to the actual GeneralLedgerEntry database table
+        """
+        if not DB_AVAILABLE:
+            logger.warning("Database models not available, journal entry stored in memory only")
+            return False
+        
+        try:
+            # Create or get accounts
+            account_cache = {}
+            
+            for line in journal_entry['lines']:
+                account_name = line['account']
+                
+                # Check if account exists in cache
+                if account_name not in account_cache:
+                    account = ChartOfAccounts.query.filter_by(account_name=account_name).first()
+                    if not account:
+                        # Create account if it doesn't exist
+                        account_type = self._determine_account_type(account_name)
+                        account = ChartOfAccounts(
+                            account_name=account_name,
+                            account_code=self._generate_account_code(account_name),
+                            account_type=account_type,
+                            is_active=True,
+                            description=f"Auto-created for {account_name}"
+                        )
+                        db.session.add(account)
+                        db.session.flush()  # Get the ID
+                    account_cache[account_name] = account
+                
+                # Create GL entry
+                gl_entry = GeneralLedgerEntry(
+                    account_id=account_cache[account_name].id,
+                    entry_date=journal_entry['date'] if isinstance(journal_entry['date'], datetime) else datetime.now(),
+                    description=line['description'],
+                    debit_amount=float(line['debit']),
+                    credit_amount=float(line['credit']),
+                    reference=journal_entry['reference'],
+                    transaction_type=journal_entry.get('metadata', {}).get('transaction_type', 'auto_journal'),
+                    status='posted',
+                    created_by='auto_journal_engine'
+                )
+                db.session.add(gl_entry)
+            
+            db.session.commit()
+            logger.info(f"Journal entry {journal_entry['id']} persisted to database successfully")
+            return True
+            
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Failed to persist journal entry {journal_entry['id']} to database: {str(e)}")
+            return False
+    
+    def _determine_account_type(self, account_name: str) -> str:
+        """
+        Determine account type based on account name
+        """
+        account_name_lower = account_name.lower()
+        
+        if any(word in account_name_lower for word in ['cash', 'bank', 'inventory', 'asset', 'receivable', 'equipment']):
+            return 'asset'
+        elif any(word in account_name_lower for word in ['payable', 'liability', 'debt', 'loan', 'accrued']):
+            return 'liability'
+        elif any(word in account_name_lower for word in ['equity', 'capital', 'retained', 'stock']):
+            return 'equity'
+        elif any(word in account_name_lower for word in ['revenue', 'income', 'sales', 'service']):
+            return 'revenue'
+        elif any(word in account_name_lower for word in ['expense', 'cost', 'cogs', 'operating', 'admin']):
+            return 'expense'
+        else:
+            return 'asset'  # Default to asset
+    
+    def _generate_account_code(self, account_name: str) -> str:
+        """
+        Generate account code based on account name and type
+        """
+        account_type = self._determine_account_type(account_name)
+        
+        # Simple code generation based on type
+        type_prefixes = {
+            'asset': '1',
+            'liability': '2', 
+            'equity': '3',
+            'revenue': '4',
+            'expense': '5'
+        }
+        
+        prefix = type_prefixes.get(account_type, '1')
+        # Use hash of account name for uniqueness
+        suffix = str(abs(hash(account_name)) % 1000).zfill(3)
+        
+        return f"{prefix}{suffix}"
     
     def on_inventory_receipt(self, receipt_data: Dict) -> Dict:
         """
@@ -54,11 +160,15 @@ class AutoJournalEngine:
             
             self.journal_entries.append(journal_entry)
             
+            # Persist to database
+            db_success = self._persist_to_database(journal_entry)
+            
             return {
                 'success': True,
                 'journal_entry_id': je_id,
                 'message': 'Journal entry posted successfully for inventory receipt',
-                'data': journal_entry
+                'data': journal_entry,
+                'persisted_to_db': db_success
             }
             
         except Exception as e:
@@ -245,6 +355,75 @@ class AutoJournalEngine:
                 'error': f"Error posting journal entry for purchase order: {str(e)}"
             }
     
+    def on_vendor_bill_received(self, bill_data: Dict) -> Dict:
+        """
+        Post journal entry when vendor bill is received
+        Debit: Expense (or Inventory Asset)
+        Credit: Accounts Payable
+        """
+        try:
+            self.transaction_counter += 1
+            je_id = f"JE-{datetime.now().strftime('%Y%m%d')}-{self.transaction_counter:03d}"
+            
+            bill_amount = bill_data.get('bill_amount', 0)
+            bill_type = bill_data.get('bill_type', 'expense')  # expense, inventory, service
+            vendor_name = bill_data.get('vendor_name', 'Unknown Vendor')
+            
+            # Determine debit account based on bill type
+            if bill_type == 'inventory':
+                debit_account = 'Inventory Asset'
+            elif bill_type == 'service':
+                debit_account = 'Operating Expenses'
+            else:
+                debit_account = 'General Expenses'
+            
+            journal_entry = {
+                'id': je_id,
+                'date': bill_data.get('bill_date', datetime.now()),
+                'reference': bill_data.get('bill_reference', ''),
+                'description': f"Vendor Bill - {vendor_name}",
+                'status': 'posted',
+                'lines': [
+                    {
+                        'account': debit_account,
+                        'debit': bill_amount,
+                        'credit': 0,
+                        'description': f"Bill from {vendor_name} - {bill_data.get('description', '')}"
+                    },
+                    {
+                        'account': 'Accounts Payable',
+                        'debit': 0,
+                        'credit': bill_amount,
+                        'description': f"Amount owed to {vendor_name}"
+                    }
+                ],
+                'metadata': {
+                    'transaction_type': 'vendor_bill',
+                    'vendor_id': bill_data.get('vendor_id'),
+                    'bill_type': bill_type,
+                    'po_id': bill_data.get('po_id')
+                }
+            }
+            
+            self.journal_entries.append(journal_entry)
+            
+            # Persist to database
+            db_success = self._persist_to_database(journal_entry)
+            
+            return {
+                'success': True,
+                'journal_entry_id': je_id,
+                'message': 'Journal entry posted successfully for vendor bill',
+                'data': journal_entry,
+                'persisted_to_db': db_success
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f"Error posting journal entry for vendor bill: {str(e)}"
+            }
+
     def on_payment_made(self, payment_data: Dict) -> Dict:
         """
         Post journal entry when payment is made
@@ -288,11 +467,15 @@ class AutoJournalEngine:
             
             self.journal_entries.append(journal_entry)
             
+            # Persist to database
+            db_success = self._persist_to_database(journal_entry)
+            
             return {
                 'success': True,
                 'journal_entry_id': je_id,
                 'message': 'Journal entry posted successfully for payment',
-                'data': journal_entry
+                'data': journal_entry,
+                'persisted_to_db': db_success
             }
             
         except Exception as e:

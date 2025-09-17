@@ -85,6 +85,7 @@ import { CRMProvider } from './modules/crm/context/CRMContext';
 import InventoryModule from './modules/erp/InventoryModule';
 import CoreInventoryModule from './modules/inventory/CoreInventoryModule';
 import ProcurementModule from './modules/erp/procurement/ProcurementModule';
+import BreadcrumbNavigation from './components/BreadcrumbNavigation';
 
 // Import API service
 import { initializeERPApiService } from './services/erpApiService';
@@ -147,21 +148,20 @@ const AppContent = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box>
       <Box
         component="main"
         sx={{
-          flexGrow: 1,
           p: { xs: 1, md: location.pathname.startsWith('/finance') ? 0 : 2 },
           mt: location.pathname === '/onboarding' ? 0 : { xs: 7, md: 8 },
           minHeight: '100vh',
           backgroundColor: location.pathname === '/onboarding' ? 'transparent' : '#f8f9fa',
           width: { xs: '100%', md: `calc(100% - ${sidebarOpen ? 200 : 60}px)` },
           maxWidth: { xs: '100%', md: `calc(100% - ${sidebarOpen ? 200 : 60}px)` },
-          marginLeft: 0,
+          marginLeft: { xs: 0, md: `${sidebarOpen ? 200 : 60}px` },
           marginRight: 0,
           paddingLeft: 0,
-          transition: theme.transitions.create(['width'], {
+          transition: theme.transitions.create(['width', 'marginLeft'], {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.enteringScreen,
           }),
@@ -583,6 +583,9 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
         </IconButton>
       </Box>
 
+      {/* Breadcrumb Navigation */}
+      <BreadcrumbNavigation sidebarOpen={sidebarOpen} />
+
       {/* Gmail-style navigation */}
       <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
         <List sx={{ px: 1, py: 1 }}>
@@ -862,7 +865,7 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
         variant={isMobile ? 'temporary' : 'permanent'}
         open={isMobile ? mobileOpen : true}
         onClose={handleDrawerToggle}
-        anchor="right"
+        anchor="left"
         sx={{
           width: sidebarOpen ? 200 : 60,
           flexShrink: 0,
@@ -873,15 +876,15 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
             height: { xs: 'calc(100% - 56px)', md: 'calc(100% - 64px)' },
             zIndex: theme.zIndex.drawer,
             position: 'fixed',
-            right: 0,
-            left: 'auto',
+            left: 0,
+            right: 'auto',
             transition: theme.transitions.create('width', {
               easing: theme.transitions.easing.sharp,
               duration: theme.transitions.duration.enteringScreen,
             }),
             overflowX: 'hidden',
-            borderLeft: '1px solid #e0e0e0',
-            borderRight: 'none',
+            borderRight: '1px solid #e0e0e0',
+            borderLeft: 'none',
             backgroundColor: '#ffffff'
           },
         }}

@@ -3,6 +3,7 @@
 
 from flask import Blueprint, request, jsonify
 from datetime import datetime
+import logging
 from app import db
 from modules.procurement.models import (
     Vendor,
@@ -31,6 +32,7 @@ except Exception:
     _auto_journal_engine = None
 
 bp = Blueprint('procurement', __name__, url_prefix='/api/procurement')
+logger = logging.getLogger(__name__)
 
 # In-memory placeholder for POs until migrated fully to DB
 purchase_orders = []
@@ -63,10 +65,7 @@ def get_vendors():
         vendors = query.order_by(Vendor.name.asc()).all()
         return jsonify([_serialize_vendor(v) for v in vendors])
     except Exception as e:
-        # In local development, avoid masking as CORS by returning an empty list
-        if not os.getenv('RENDER'):
-            return jsonify([]), 200
-        raise
+        return jsonify({"error": f"Failed to fetch vendors: {str(e)}"}), 500
 
 @bp.route('/vendors', methods=['POST'])
 def create_vendor():
@@ -86,9 +85,7 @@ def create_vendor():
             risk_level=data.get('risk_level'),
             region=data.get('region'),
             is_preferred=bool(data.get('is_preferred') or False),
-            # Safe defaults for extended metrics/fields
-            total_orders=int(data.get('total_orders') or 0),
-            total_spent=float(data.get('total_spent') or 0.0),
+            # Performance metrics (only fields that exist in the model)
             on_time_delivery_rate=float(data.get('on_time_delivery_rate') or 0.0),
             quality_score=float(data.get('quality_score') or 0.0),
             price_variance_pct=float(data.get('price_variance_pct') or 0.0)
@@ -107,9 +104,8 @@ def create_vendor():
             pass
         return jsonify(_serialize_vendor(vendor)), 201
     except Exception as e:
-        if not os.getenv('RENDER'):
-            return jsonify({"error": "Unable to create vendor in dev"}), 200
-        raise
+        db.session.rollback()
+        return jsonify({"error": f"Failed to create vendor: {str(e)}"}), 500
 
 @bp.route('/vendors/<int:vendor_id>', methods=['GET'])
 def get_vendor(vendor_id: int):
@@ -298,16 +294,95 @@ def get_purchase_orders():
     if request.method == 'OPTIONS':
         return ('', 200)
     """Get all purchase orders with filters"""
-    vendor_id = request.args.get('vendor_id', type=int)
-    status = request.args.get('status')
-    
-    filtered_pos = purchase_orders
-    if vendor_id:
-        filtered_pos = [po for po in filtered_pos if po.get('vendor_id') == vendor_id]
-    if status:
-        filtered_pos = [po for po in filtered_pos if po.get('status') == status]
-    
-    return jsonify(filtered_pos)
+    try:
+        vendor_id = request.args.get('vendor_id', type=int)
+        status = request.args.get('status')
+        
+        # Query purchase orders from database
+        query = PurchaseOrder.query
+        
+        if vendor_id:
+            query = query.filter(PurchaseOrder.vendor_id == vendor_id)
+        if status:
+            query = query.filter(PurchaseOrder.status == status)
+            
+        pos = query.order_by(PurchaseOrder.created_at.desc()).all()
+        
+        # Serialize purchase orders for response
+        result = []
+        for po in pos:
+            po_data = {
+                "id": po.id,
+                "po_number": po.po_number,
+                "vendor_id": po.vendor_id,
+                "order_date": po.order_date.isoformat() if po.order_date else None,
+                "expected_delivery": po.expected_delivery.isoformat() if po.expected_delivery else None,
+                "status": po.status,
+                "total_amount": po.total_amount,
+                "tax_amount": po.tax_amount,
+                "notes": po.notes,
+                "created_by": po.created_by,
+                "created_at": po.created_at.isoformat() if po.created_at else None,
+                "items": [
+                    {
+                        "id": item.id,
+                        "product_id": item.product_id,
+                        "description": item.description,
+                        "quantity": item.quantity,
+                        "unit_price": item.unit_price,
+                        "tax_rate": item.tax_rate,
+                        "total_amount": item.total_amount,
+                        "received_quantity": item.received_quantity
+                    }
+                    for item in po.items
+                ]
+            }
+            result.append(po_data)
+        
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": f"Failed to fetch purchase orders: {str(e)}"}), 500
+
+@bp.route('/purchase-orders/<int:po_id>', methods=['GET', 'OPTIONS'])
+def get_purchase_order(po_id):
+    if request.method == 'OPTIONS':
+        return ('', 200)
+    """Get a specific purchase order by ID"""
+    try:
+        po = PurchaseOrder.query.get(po_id)
+        if not po:
+            return jsonify({"error": "Purchase order not found"}), 404
+        
+        po_data = {
+            "id": po.id,
+            "po_number": po.po_number,
+            "vendor_id": po.vendor_id,
+            "order_date": po.order_date.isoformat() if po.order_date else None,
+            "expected_delivery": po.expected_delivery.isoformat() if po.expected_delivery else None,
+            "status": po.status,
+            "total_amount": po.total_amount,
+            "tax_amount": po.tax_amount,
+            "notes": po.notes,
+            "created_by": po.created_by,
+            "created_at": po.created_at.isoformat() if po.created_at else None,
+            "items": [
+                {
+                    "id": item.id,
+                    "product_id": item.product_id,
+                    "description": item.description,
+                    "quantity": item.quantity,
+                    "unit_price": item.unit_price,
+                    "tax_rate": item.tax_rate,
+                    "total_amount": item.total_amount,
+                    "received_quantity": item.received_quantity
+                }
+                for item in po.items
+            ]
+        }
+        
+        return jsonify(po_data)
+    except Exception as e:
+        return jsonify({"error": f"Failed to fetch purchase order: {str(e)}"}), 500
 
 @bp.route('/purchase-orders', methods=['POST', 'OPTIONS'])
 def create_purchase_order():
@@ -352,8 +427,41 @@ def create_purchase_order():
         total_foreign += line_total_foreign
         total_base += line_total_base
 
+    # Create purchase order in database
+    po = PurchaseOrder(
+        po_number=po_number,
+        vendor_id=data.get('vendor_id'),
+        order_date=datetime.strptime(data.get('order_date', datetime.utcnow().date().isoformat()), '%Y-%m-%d').date(),
+        expected_delivery=datetime.strptime(data.get('expected_delivery'), '%Y-%m-%d').date() if data.get('expected_delivery') else None,
+        status='pending',
+        total_amount=round(total_base, 2),
+        tax_amount=float(data.get('tax_amount', 0.0)),
+        notes=data.get('notes'),
+        created_by=data.get('created_by')
+    )
+    
+    db.session.add(po)
+    db.session.flush()  # Get the ID
+    
+    # Create purchase order items
+    for item_data in items:
+        item = PurchaseOrderItem(
+            po_id=po.id,
+            product_id=item_data.get('product_id'),
+            description=item_data.get('description'),
+            quantity=item_data.get('quantity'),
+            unit_price=item_data.get('unit_price_foreign', 0.0),
+            tax_rate=item_data.get('tax_rate', 0.0),
+            total_amount=item_data.get('total_amount_base', 0.0),
+            received_quantity=item_data.get('received_quantity', 0.0)
+        )
+        db.session.add(item)
+    
+    db.session.commit()
+    
+    # Also add to in-memory list for backward compatibility
     new_po = {
-        "id": len(purchase_orders) + 1,
+        "id": po.id,
         "po_number": po_number,
         "vendor_id": data.get('vendor_id'),
         "order_date": data.get('order_date', datetime.utcnow().date().isoformat()),
@@ -374,6 +482,28 @@ def create_purchase_order():
     purchase_orders.append(new_po)
     
     # TODO: Auto-create budget/reserved amount in GL
+    
+    # Auto-create vendor bill journal entry
+    try:
+        if _auto_journal_engine is not None:
+            vendor = Vendor.query.get(data.get('vendor_id'))
+            vendor_name = vendor.name if vendor else f"Vendor {data.get('vendor_id')}"
+            
+            bill_result = _auto_journal_engine.on_vendor_bill_received({
+                'bill_amount': round(total_base, 2),
+                'bill_date': datetime.strptime(data.get('order_date', datetime.utcnow().date().isoformat()), '%Y-%m-%d'),
+                'bill_reference': po_number,
+                'vendor_id': data.get('vendor_id'),
+                'vendor_name': vendor_name,
+                'bill_type': 'inventory',
+                'description': f"Purchase Order {po_number}",
+                'po_id': po.id
+            })
+            
+            if bill_result.get('success'):
+                logger.info(f"Auto-journal entry created for PO {po_number}: {bill_result.get('journal_entry_id')}")
+    except Exception as e:
+        logger.warning(f"Failed to create auto-journal entry for PO {po_number}: {str(e)}")
     # create_budget_reservation(new_po['id'], new_po['total_amount'])
     try:
         AuditLogger.log(
@@ -385,7 +515,35 @@ def create_purchase_order():
         )
     except Exception:
         pass
-    return jsonify(new_po), 201
+    # Serialize the created purchase order for response
+    response_data = {
+        "id": po.id,
+        "po_number": po.po_number,
+        "vendor_id": po.vendor_id,
+        "order_date": po.order_date.isoformat() if po.order_date else None,
+        "expected_delivery": po.expected_delivery.isoformat() if po.expected_delivery else None,
+        "status": po.status,
+        "total_amount": po.total_amount,
+        "tax_amount": po.tax_amount,
+        "notes": po.notes,
+        "created_by": po.created_by,
+        "created_at": po.created_at.isoformat() if po.created_at else None,
+        "items": [
+            {
+                "id": item.id,
+                "product_id": item.product_id,
+                "description": item.description,
+                "quantity": item.quantity,
+                "unit_price": item.unit_price,
+                "tax_rate": item.tax_rate,
+                "total_amount": item.total_amount,
+                "received_quantity": item.received_quantity
+            }
+            for item in po.items
+        ]
+    }
+    
+    return jsonify(response_data), 201
 
 @bp.route('/purchase-orders/<int:po_id>', methods=['PUT', 'OPTIONS'])
 def update_purchase_order(po_id):
@@ -1115,6 +1273,11 @@ def upload_contract_document(contract_id: int):
 
 # ---------- Helpers ----------
 def _serialize_vendor(v: Vendor) -> dict:
+    # Calculate order totals from purchase orders
+    purchase_orders = PurchaseOrder.query.filter_by(vendor_id=v.id).all()
+    total_orders = len(purchase_orders)
+    total_spent = sum(po.total_amount or 0 for po in purchase_orders)
+    
     return {
         'id': v.id,
         'name': v.name,
@@ -1136,6 +1299,8 @@ def _serialize_vendor(v: Vendor) -> dict:
         'last_reviewed_at': v.last_reviewed_at.isoformat() if v.last_reviewed_at else None,
         'created_at': v.created_at.isoformat() if v.created_at else None,
         'updated_at': v.updated_at.isoformat() if v.updated_at else None,
+        'total_orders': total_orders,
+        'total_spent': total_spent,
     }
 
 

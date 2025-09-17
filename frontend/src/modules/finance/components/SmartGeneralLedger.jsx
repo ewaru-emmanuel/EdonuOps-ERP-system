@@ -48,6 +48,11 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
 
   // Real-time data hooks
   const { data: generalLedger, loading: glLoading, error: glError, create, update, remove, refresh } = useRealTimeData('/api/finance/general-ledger');
+
+  // Debug: Log general ledger data
+  console.log('SmartGeneralLedger - General Ledger data:', generalLedger);
+  console.log('SmartGeneralLedger - Loading:', glLoading);
+  console.log('SmartGeneralLedger - Error:', glError);
   
   // Chart of Accounts context
   const { accounts: chartOfAccounts, loading: coaLoading } = useCoA();

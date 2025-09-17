@@ -59,16 +59,67 @@ const SmartAccountsReceivable = ({ isMobile, isTablet }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Validate required fields
+      if (!formData.customer_id) {
+        setSnackbar({ open: true, message: 'Customer is required', severity: 'error' });
+        return;
+      }
+      if (!formData.invoice_number) {
+        setSnackbar({ open: true, message: 'Invoice number is required', severity: 'error' });
+        return;
+      }
+      if (!formData.invoice_date) {
+        setSnackbar({ open: true, message: 'Invoice date is required', severity: 'error' });
+        return;
+      }
+      if (!formData.due_date) {
+        setSnackbar({ open: true, message: 'Due date is required', severity: 'error' });
+        return;
+      }
+      if (!formData.total_amount || formData.total_amount <= 0) {
+        setSnackbar({ open: true, message: 'Total amount must be greater than 0', severity: 'error' });
+        return;
+      }
+
+      // Prepare data for API
+      const submitData = {
+        customer_id: parseInt(formData.customer_id),
+        invoice_number: formData.invoice_number,
+        invoice_date: formData.invoice_date,
+        due_date: formData.due_date,
+        total_amount: parseFloat(formData.total_amount),
+        tax_amount: parseFloat(formData.tax_amount || 0),
+        status: formData.status,
+        description: formData.description
+      };
+
+      // Debug: Log the data being sent
+      console.log('Submitting data:', submitData);
+      console.log('Customer ID type:', typeof submitData.customer_id);
+      console.log('Total amount type:', typeof submitData.total_amount);
+
       if (editDialogOpen && selectedInvoice) {
-        await update(selectedInvoice.id, formData);
+        await update(selectedInvoice.id, submitData);
         setSnackbar({ open: true, message: 'Invoice updated successfully!', severity: 'success' });
       } else {
-        await create(formData);
+        await create(submitData);
         setSnackbar({ open: true, message: 'Invoice created successfully!', severity: 'success' });
       }
       handleCloseDialog();
     } catch (error) {
-      setSnackbar({ open: true, message: 'Error saving invoice: ' + error.message, severity: 'error' });
+      console.error('Error saving invoice:', error);
+      let errorMessage = 'Error saving invoice: ' + error.message;
+      
+      // Parse specific error messages
+      if (error.message.includes('400')) {
+        errorMessage = 'Invalid data provided. Please check all required fields.';
+      } else if (error.message.includes('Invoice number already exists')) {
+        errorMessage = 'Invoice number already exists. Please use a different invoice number.';
+      } else if (error.message.includes('Customer is required')) {
+        errorMessage = 'Please select a customer.';
+      }
+      
+      setSnackbar({ open: true, message: errorMessage, severity: 'error' });
     }
   };
 
@@ -465,7 +516,7 @@ const SmartAccountsReceivable = ({ isMobile, isTablet }) => {
               <FormControl fullWidth size="small">
                 <InputLabel>Status</InputLabel>
                 <Select
-                  value={filters.status}
+                  value={filters.status || ''}
                   onChange={(e) => setFilters({ ...filters, status: e.target.value })}
                 >
                   <MenuItem value="">All Status</MenuItem>
@@ -489,7 +540,7 @@ const SmartAccountsReceivable = ({ isMobile, isTablet }) => {
               <FormControl fullWidth size="small">
                 <InputLabel>Aging</InputLabel>
                 <Select
-                  value={filters.aging}
+                  value={filters.aging || ''}
                   onChange={(e) => setFilters({ ...filters, aging: e.target.value })}
                 >
                   <MenuItem value="">All Aging</MenuItem>
@@ -694,10 +745,11 @@ const SmartAccountsReceivable = ({ isMobile, isTablet }) => {
                 <FormControl fullWidth margin="normal">
                   <InputLabel>Customer</InputLabel>
                   <Select
-                    value={formData.customer_id}
+                    value={formData.customer_id || ''}
                     onChange={(e) => handleInputChange('customer_id', e.target.value)}
                     label="Customer"
                     required
+                    error={!formData.customer_id}
                   >
                     {customers?.map((customer) => (
                       <MenuItem key={customer.id} value={customer.id}>
@@ -705,6 +757,9 @@ const SmartAccountsReceivable = ({ isMobile, isTablet }) => {
                       </MenuItem>
                     ))}
                   </Select>
+                  {!formData.customer_id && (
+                    <FormHelperText error>Customer is required</FormHelperText>
+                  )}
                 </FormControl>
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -783,7 +838,7 @@ const SmartAccountsReceivable = ({ isMobile, isTablet }) => {
                 <FormControl fullWidth margin="normal">
                   <InputLabel>Status</InputLabel>
                   <Select
-                    value={formData.status}
+                    value={formData.status || 'pending'}
                     onChange={(e) => handleInputChange('status', e.target.value)}
                     label="Status"
                   >

@@ -27,8 +27,13 @@ class ERPApiService {
       if (!this.apiClient) {
         throw new Error('API client not initialized');
       }
+      
+      // Debug: Log the API call details
+      console.log('ERP API Service POST:', endpoint, data);
+      
       return await this.apiClient.post(endpoint, data);
     } catch (error) {
+      console.error('ERP API Service POST Error:', error);
       this.handleError(error);
     }
   }

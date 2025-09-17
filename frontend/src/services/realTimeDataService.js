@@ -130,6 +130,10 @@ class RealTimeDataService {
         throw new Error('API service not available');
       }
       
+      // Debug: Log the endpoint and data
+      console.log('Creating item at endpoint:', endpoint);
+      console.log('Data being sent:', data);
+      
       const apiService = getERPApiService();
       const response = await apiService.post(endpoint, data);
       const responseData = response.data || response;

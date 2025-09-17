@@ -42,12 +42,19 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
   const { data: kpiData, loading: kpiLoading, error: kpiError } = useRealTimeData('/api/finance/kpis');
   const { data: generalLedgerData, loading: glLoading, error: glError } = useRealTimeData('/api/finance/general-ledger');
   
+  // Vendor and customer data for AR/AP integration
+  const { data: vendorData, loading: vendorLoading, error: vendorError } = useRealTimeData('/api/procurement/vendors');
+  const { data: customerData, loading: customerLoading, error: customerError } = useRealTimeData('/api/sales/customers');
+  
+  // Debug: Log financial reports data
+  
+  
   // Daily cycle data for real opening balances
   const [dailyCycleData, setDailyCycleData] = useState({});
   const [dailyCycleLoading, setDailyCycleLoading] = useState(false);
   
   // Feature flag to enable/disable daily cycle API calls
-  const enableDailyCycleAPI = false; // Set to true when backend is ready
+  const enableDailyCycleAPI = true; // Enhanced daily balance flow is now ready
 
   // Fetch daily cycle data for real opening balances
   const fetchDailyCycleData = async (date) => {
@@ -58,7 +65,7 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
     
     try {
       setDailyCycleLoading(true);
-      const response = await fetch(`/api/finance/daily-cycle/balances/${date}`);
+      const response = await fetch(`/api/finance/daily-balance/summary/${date}`);
       
       if (response.ok) {
         const contentType = response.headers.get('content-type');
@@ -72,109 +79,237 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
           }
         } else {
           // API endpoint doesn't exist or returns HTML (404 page)
-          console.warn(`Daily cycle API not available for date ${date}, using fallback data`);
         }
       } else {
         // API endpoint doesn't exist (404, 500, etc.)
-        console.warn(`Daily cycle API returned ${response.status} for date ${date}, using fallback data`);
       }
     } catch (error) {
       // Network error or other issues
-      console.warn(`Error fetching daily cycle data for ${date}:`, error.message);
     } finally {
       setDailyCycleLoading(false);
     }
   };
 
-  // Fetch daily cycle data for the last 7 days
+  // Fetch daily cycle data for the last 7 days (optimized for performance)
   useEffect(() => {
+    // Use local date to avoid timezone issues
     const today = new Date();
+    const todayStr = today.getFullYear() + '-' + 
+                    String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                    String(today.getDate()).padStart(2, '0');
+    
+    // Limit to last 7 days to avoid excessive API calls
+    const datesToFetch = [];
     for (let i = 0; i < 7; i++) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
-      fetchDailyCycleData(dateStr);
+      const dateStr = date.getFullYear() + '-' + 
+                     String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+                     String(date.getDate()).padStart(2, '0');
+      datesToFetch.push(dateStr);
     }
+    
+    // Fetch data for all dates
+    datesToFetch.forEach(dateStr => {
+      fetchDailyCycleData(dateStr);
+    });
   }, []);
 
   // Calculate daily cash movements from General Ledger
   const dailyCashData = useMemo(() => {
-    // If no real data, return mock data for demonstration
-    if (!generalLedgerData || !Array.isArray(generalLedgerData) || generalLedgerData.length === 0) {
-      const mockData = [];
-      const today = new Date();
+    // Calculate real data from general ledger
+    if (generalLedgerData && Array.isArray(generalLedgerData) && generalLedgerData.length > 0) {
+      const dailyTransactions = {};
       
-      for (let i = 0; i < 7; i++) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().split('T')[0];
+      generalLedgerData.forEach(entry => {
+        // Validate and parse the transaction date
+        if (!entry.entry_date) return; // Skip entries without dates
         
-        mockData.push({
-          date: dateStr,
-          cashInflows: Math.floor(Math.random() * 2000) + 500,
-          cashOutflows: Math.floor(Math.random() * 1500) + 300,
-          bankInflows: Math.floor(Math.random() * 5000) + 1000,
-          bankOutflows: Math.floor(Math.random() * 3000) + 500,
-          transactions: []
-        });
-      }
-      
-      return mockData.sort((a, b) => new Date(b.date) - new Date(a.date));
-    }
-    
-    // Group transactions by date and account
-    const dailyTransactions = {};
-    
-    generalLedgerData.forEach(entry => {
-      // Validate and parse the transaction date
-      if (!entry.transaction_date) return; // Skip entries without dates
-      
-      const transactionDate = new Date(entry.transaction_date);
-      if (isNaN(transactionDate.getTime())) return; // Skip invalid dates
-      
-      const date = transactionDate.toISOString().split('T')[0];
-      if (!dailyTransactions[date]) {
-        dailyTransactions[date] = {
-          date,
-          cashInflows: 0,
-          cashOutflows: 0,
-          bankInflows: 0,
-          bankOutflows: 0,
-          transactions: []
-        };
-      }
-      
-      // Categorize cash movements
-      entry.lines?.forEach(line => {
-        const accountName = line.account_name?.toLowerCase() || '';
-        const amount = Math.abs(line.debit_amount || line.credit_amount || 0);
+        const transactionDate = new Date(entry.entry_date);
+        if (isNaN(transactionDate.getTime())) return; // Skip invalid dates
         
-        if (accountName.includes('cash') || accountName.includes('petty cash')) {
-          if (line.debit_amount > 0) {
-            dailyTransactions[date].cashInflows += amount;
-          } else if (line.credit_amount > 0) {
-            dailyTransactions[date].cashOutflows += amount;
+        // Use local date formatting to avoid timezone issues
+        const date = transactionDate.getFullYear() + '-' + 
+                    String(transactionDate.getMonth() + 1).padStart(2, '0') + '-' + 
+                    String(transactionDate.getDate()).padStart(2, '0');
+        if (!dailyTransactions[date]) {
+          dailyTransactions[date] = {
+            date,
+            cashInflows: 0,
+            cashOutflows: 0,
+            bankInflows: 0,
+            bankOutflows: 0,
+            transactions: []
+          };
+        }
+        
+        // Categorize transactions by account type
+        const accountName = (entry.account_name || '').toLowerCase();
+        const debitAmount = parseFloat(entry.debit_amount || 0);
+        const creditAmount = parseFloat(entry.credit_amount || 0);
+        
+        // Cash accounts
+        if (accountName.includes('cash')) {
+          if (creditAmount > 0) {
+            dailyTransactions[date].cashInflows += creditAmount;
           }
-        } else if (accountName.includes('bank') || accountName.includes('checking')) {
-          if (line.debit_amount > 0) {
-            dailyTransactions[date].bankInflows += amount;
-          } else if (line.credit_amount > 0) {
-            dailyTransactions[date].bankOutflows += amount;
+          if (debitAmount > 0) {
+            dailyTransactions[date].cashOutflows += debitAmount;
           }
         }
         
-        dailyTransactions[date].transactions.push({
-          ...line,
-          entry_id: entry.id,
-          description: entry.description
-        });
+        // Bank accounts
+        if (accountName.includes('bank') || accountName.includes('checking')) {
+          if (creditAmount > 0) {
+            dailyTransactions[date].bankInflows += creditAmount;
+          }
+          if (debitAmount > 0) {
+            dailyTransactions[date].bankOutflows += debitAmount;
+          }
+        }
+        
+        // Revenue accounts (when they result in cash inflow)
+        if (accountName.includes('revenue') || accountName.includes('income') || 
+            accountName.includes('sales') || accountName.includes('service') ||
+            entry.description?.toLowerCase().includes('sold') ||
+            entry.description?.toLowerCase().includes('sale')) {
+          if (creditAmount > 0) {
+            // Revenue credit typically means cash inflow
+            dailyTransactions[date].cashInflows += creditAmount;
+          }
+        }
+        
+        // Expense accounts (when they result in cash outflow)
+        if (accountName.includes('expense') || accountName.includes('cost') || 
+            accountName.includes('operating') || accountName.includes('admin') ||
+            entry.description?.toLowerCase().includes('expense') ||
+            entry.description?.toLowerCase().includes('cost') ||
+            entry.description?.toLowerCase().includes('rent') ||
+            entry.description?.toLowerCase().includes('salary') ||
+            entry.description?.toLowerCase().includes('utilities') ||
+            entry.description?.toLowerCase().includes('supplies') ||
+            entry.description?.toLowerCase().includes('maintenance') ||
+            entry.description?.toLowerCase().includes('insurance') ||
+            entry.description?.toLowerCase().includes('fuel') ||
+            entry.description?.toLowerCase().includes('travel') ||
+            entry.description?.toLowerCase().includes('advertising') ||
+            entry.description?.toLowerCase().includes('marketing') ||
+            entry.description?.toLowerCase().includes('office') ||
+            entry.description?.toLowerCase().includes('phone') ||
+            entry.description?.toLowerCase().includes('internet') ||
+            entry.description?.toLowerCase().includes('training') ||
+            entry.description?.toLowerCase().includes('professional') ||
+            entry.description?.toLowerCase().includes('legal') ||
+            entry.description?.toLowerCase().includes('accounting') ||
+            entry.description?.toLowerCase().includes('consulting') ||
+            entry.description?.toLowerCase().includes('repair') ||
+            entry.description?.toLowerCase().includes('meal') ||
+            entry.description?.toLowerCase().includes('food') ||
+            entry.description?.toLowerCase().includes('entertainment') ||
+            entry.description?.toLowerCase().includes('subscription') ||
+            entry.description?.toLowerCase().includes('software') ||
+            entry.description?.toLowerCase().includes('license') ||
+            entry.description?.toLowerCase().includes('fee') ||
+            entry.description?.toLowerCase().includes('tax') ||
+            entry.description?.toLowerCase().includes('penalty') ||
+            entry.description?.toLowerCase().includes('fine') ||
+            entry.description?.toLowerCase().includes('interest') ||
+            entry.description?.toLowerCase().includes('bank charge') ||
+            entry.description?.toLowerCase().includes('service charge') ||
+            entry.description?.toLowerCase().includes('commission') ||
+            entry.description?.toLowerCase().includes('discount') ||
+            entry.description?.toLowerCase().includes('refund') ||
+            entry.description?.toLowerCase().includes('loss') ||
+            entry.description?.toLowerCase().includes('depreciation') ||
+            entry.description?.toLowerCase().includes('amortization') ||
+            entry.description?.toLowerCase().includes('bad debt') ||
+            entry.description?.toLowerCase().includes('write off') ||
+            entry.description?.toLowerCase().includes('inventory shrinkage') ||
+            entry.description?.toLowerCase().includes('waste') ||
+            entry.description?.toLowerCase().includes('donation') ||
+            entry.description?.toLowerCase().includes('charity') ||
+            entry.description?.toLowerCase().includes('gift') ||
+            entry.description?.toLowerCase().includes('bonus') ||
+            entry.description?.toLowerCase().includes('overtime') ||
+            entry.description?.toLowerCase().includes('benefit') ||
+            entry.description?.toLowerCase().includes('allowance')) {
+          // For expenses, use the larger amount (could be debit or credit depending on entry type)
+          if (Math.max(debitAmount, creditAmount) > 0) {
+            dailyTransactions[date].cashOutflows += Math.max(debitAmount, creditAmount);
+          }
+        }
+        
+        // Add transaction to the list (limit to 50 transactions per day for performance)
+        if (dailyTransactions[date].transactions.length < 50) {
+          dailyTransactions[date].transactions.push({
+            id: entry.id,
+            description: entry.description,
+            account_name: entry.account_name,
+            debit_amount: debitAmount,
+            credit_amount: creditAmount,
+            reference: entry.reference
+          });
+        }
       });
-    });
+      
+      // Fill in missing days to ensure continuity
+      const today = new Date();
+      const startDate = new Date(today);
+      startDate.setDate(startDate.getDate() - 90); // Last 90 days
+      
+      // Create entries for all days in the range, even if no transactions
+      for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.getFullYear() + '-' + 
+                       String(d.getMonth() + 1).padStart(2, '0') + '-' + 
+                       String(d.getDate()).padStart(2, '0');
+        
+        if (!dailyTransactions[dateStr]) {
+          dailyTransactions[dateStr] = {
+            date: dateStr,
+            cashInflows: 0,
+            cashOutflows: 0,
+            bankInflows: 0,
+            bankOutflows: 0,
+            transactions: []
+          };
+        }
+      }
+      
+      // Convert to array and sort by date, limit to last 90 days for performance
+      const result = Object.values(dailyTransactions)
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .slice(0, 90); // Limit to last 90 days for performance
+      
+      // If we have real data, return it
+      if (result.length > 0) {
+        return result;
+      }
+    }
     
-    // Convert to array and sort by date
-    return Object.values(dailyTransactions)
+    // No general ledger data - create empty daily entries for continuity
+    const today = new Date();
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() - 90); // Last 90 days
+    
+    const emptyDailyData = [];
+    for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.getFullYear() + '-' + 
+                     String(d.getMonth() + 1).padStart(2, '0') + '-' + 
+                     String(d.getDate()).padStart(2, '0');
+      
+      emptyDailyData.push({
+        date: dateStr,
+        cashInflows: 0,
+        cashOutflows: 0,
+        bankInflows: 0,
+        bankOutflows: 0,
+        transactions: []
+      });
+    }
+    
+    return emptyDailyData
       .sort((a, b) => new Date(b.date) - new Date(a.date))
-      .slice(0, 30); // Last 30 days
+      .slice(0, 90); // Limit to last 90 days for performance
   }, [generalLedgerData]);
 
   // Calculate opening/closing balances using real daily cycle data
@@ -183,16 +318,19 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
     
     const balances = {};
     
-    dailyCashData.forEach(day => {
+    // Process data in chronological order (oldest first) to ensure proper carry-forward
+    const sortedData = [...dailyCashData].sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    sortedData.forEach((day, index) => {
       const cycleData = dailyCycleData[day.date];
       
-      if (cycleData && cycleData.balances) {
+      if (cycleData && cycleData.daily_balances) {
         // Use real opening balances from daily cycle system
-        const cashAccounts = cycleData.balances.filter(b => 
+        const cashAccounts = cycleData.daily_balances.filter(b => 
           b.account_name?.toLowerCase().includes('cash') || 
           b.account_name?.toLowerCase().includes('petty cash')
         );
-        const bankAccounts = cycleData.balances.filter(b => 
+        const bankAccounts = cycleData.daily_balances.filter(b => 
           b.account_name?.toLowerCase().includes('bank') || 
           b.account_name?.toLowerCase().includes('checking')
         );
@@ -211,13 +349,16 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
           hasRealData: true
         };
       } else {
-        // Fallback to calculated values if no daily cycle data
-        const previousDay = dailyCashData.find(d => 
-          new Date(d.date) < new Date(day.date)
-        );
+        // No daily cycle data available - use calculated fallback
+        // Get previous day's closing balance for carry-forward
+        const previousDay = index > 0 ? sortedData[index - 1] : null;
+        const previousDayBalances = previousDay ? balances[previousDay.date] : null;
         
-        const openingCash = previousDay ? balances[previousDay.date]?.closingCash || 0 : 0;
-        const openingBank = previousDay ? balances[previousDay.date]?.closingBank || 0 : 0;
+        // Opening balance = previous day's closing balance (carry-forward)
+        const openingCash = previousDayBalances?.closingCash || 0;
+        const openingBank = previousDayBalances?.closingBank || 0;
+        
+        // Closing balance = opening + inflows - outflows
         const closingCash = openingCash + day.cashInflows - day.cashOutflows;
         const closingBank = openingBank + day.bankInflows - day.bankOutflows;
         
@@ -237,7 +378,11 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
 
   // Calculate metrics from real general ledger data
   const metrics = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
+    // Use local date formatting to avoid timezone issues
+    const todayDate = new Date();
+    const today = todayDate.getFullYear() + '-' + 
+                  String(todayDate.getMonth() + 1).padStart(2, '0') + '-' + 
+                  String(todayDate.getDate()).padStart(2, '0');
     const todayBalances = calculateBalances[today] || {};
     
     // Calculate real metrics from general ledger data
@@ -246,40 +391,206 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
     let realAssets = 0;
     let realLiabilities = 0;
     let realEquity = 0;
+    let totalDebits = 0;
+    let totalCredits = 0;
+    let totalAccountsReceivable = 0;
+    let totalAccountsPayable = 0;
+    let overdueReceivables = 0;
+    let currentReceivables = 0;
+    let overduePayables = 0;
+    let currentPayables = 0;
     
     if (generalLedgerData && Array.isArray(generalLedgerData)) {
-      generalLedgerData.forEach(entry => {
-        if (entry.lines && Array.isArray(entry.lines)) {
-          entry.lines.forEach(line => {
-            const accountType = line.account_type?.toLowerCase() || '';
-            const debitAmount = parseFloat(line.debit_amount || 0);
-            const creditAmount = parseFloat(line.credit_amount || 0);
+      // Limit processing to recent entries for performance (last 1000 entries)
+      const recentEntries = generalLedgerData.slice(0, 1000);
+      
+      recentEntries.forEach(entry => {
+        const debitAmount = parseFloat(entry.debit_amount || 0);
+        const creditAmount = parseFloat(entry.credit_amount || 0);
+        const accountName = (entry.account_name || '').toLowerCase();
+        
+        
+        // Sum up total debits and credits for trial balance
+        totalDebits += debitAmount;
+        totalCredits += creditAmount;
+        
+        // Calculate metrics based on account names/types
+        // Revenue accounts (can have both debit and credit entries)
+        if (accountName.includes('revenue') || accountName.includes('income') || 
+            accountName.includes('sales') || accountName.includes('service') ||
+            entry.description?.toLowerCase().includes('sold') ||
+            entry.description?.toLowerCase().includes('sale')) {
+          // Revenue can be either debit (unusual) or credit (normal)
+          realRevenue += Math.max(debitAmount, creditAmount);
+        }
+        
+        // Expense accounts (typically have debit balances)
+        if (accountName.includes('expense') || accountName.includes('cost') || 
+            accountName.includes('operating') || accountName.includes('admin') ||
+            entry.description?.toLowerCase().includes('expense') ||
+            entry.description?.toLowerCase().includes('cost') ||
+            entry.description?.toLowerCase().includes('rent') ||
+            entry.description?.toLowerCase().includes('salary') ||
+            entry.description?.toLowerCase().includes('utilities') ||
+            entry.description?.toLowerCase().includes('supplies') ||
+            entry.description?.toLowerCase().includes('maintenance') ||
+            entry.description?.toLowerCase().includes('insurance') ||
+            entry.description?.toLowerCase().includes('fuel') ||
+            entry.description?.toLowerCase().includes('travel') ||
+            entry.description?.toLowerCase().includes('advertising') ||
+            entry.description?.toLowerCase().includes('marketing') ||
+            entry.description?.toLowerCase().includes('office') ||
+            entry.description?.toLowerCase().includes('phone') ||
+            entry.description?.toLowerCase().includes('internet') ||
+            entry.description?.toLowerCase().includes('training') ||
+            entry.description?.toLowerCase().includes('professional') ||
+            entry.description?.toLowerCase().includes('legal') ||
+            entry.description?.toLowerCase().includes('accounting') ||
+            entry.description?.toLowerCase().includes('consulting') ||
+            entry.description?.toLowerCase().includes('repair') ||
+            entry.description?.toLowerCase().includes('meal') ||
+            entry.description?.toLowerCase().includes('food') ||
+            entry.description?.toLowerCase().includes('entertainment') ||
+            entry.description?.toLowerCase().includes('subscription') ||
+            entry.description?.toLowerCase().includes('software') ||
+            entry.description?.toLowerCase().includes('license') ||
+            entry.description?.toLowerCase().includes('fee') ||
+            entry.description?.toLowerCase().includes('tax') ||
+            entry.description?.toLowerCase().includes('penalty') ||
+            entry.description?.toLowerCase().includes('fine') ||
+            entry.description?.toLowerCase().includes('interest') ||
+            entry.description?.toLowerCase().includes('bank charge') ||
+            entry.description?.toLowerCase().includes('service charge') ||
+            entry.description?.toLowerCase().includes('commission') ||
+            entry.description?.toLowerCase().includes('discount') ||
+            entry.description?.toLowerCase().includes('refund') ||
+            entry.description?.toLowerCase().includes('loss') ||
+            entry.description?.toLowerCase().includes('depreciation') ||
+            entry.description?.toLowerCase().includes('amortization') ||
+            entry.description?.toLowerCase().includes('bad debt') ||
+            entry.description?.toLowerCase().includes('write off') ||
+            entry.description?.toLowerCase().includes('inventory shrinkage') ||
+            entry.description?.toLowerCase().includes('waste') ||
+            entry.description?.toLowerCase().includes('donation') ||
+            entry.description?.toLowerCase().includes('charity') ||
+            entry.description?.toLowerCase().includes('gift') ||
+            entry.description?.toLowerCase().includes('bonus') ||
+            entry.description?.toLowerCase().includes('overtime') ||
+            entry.description?.toLowerCase().includes('benefit') ||
+            entry.description?.toLowerCase().includes('allowance')) {
+          // For expenses, use debit amount (normal expense posting) or credit amount if it's larger
+          realExpenses += Math.max(debitAmount, creditAmount);
+        }
             
-            // Calculate revenue (credit side of revenue accounts)
-            if (accountType.includes('revenue') || accountType.includes('income')) {
-              realRevenue += creditAmount;
+        // Asset accounts (typically have debit balances)
+        if (accountName.includes('asset') || accountName.includes('cash') || 
+            accountName.includes('bank') || accountName.includes('inventory') ||
+            accountName.includes('receivable') || accountName.includes('equipment')) {
+          // For assets, use the balance field if available, otherwise calculate net
+          const assetAmount = entry.balance !== undefined ? Math.abs(entry.balance) : Math.max(debitAmount, creditAmount);
+          realAssets += assetAmount;
+          
+          // Track Accounts Receivable specifically
+          if (accountName.includes('receivable') || accountName.includes('debtor') ||
+              entry.description?.toLowerCase().includes('receivable') ||
+              entry.description?.toLowerCase().includes('invoice') ||
+              entry.description?.toLowerCase().includes('customer') ||
+              entry.description?.toLowerCase().includes('debtor')) {
+            totalAccountsReceivable += assetAmount;
+            
+            // Simple aging logic based on entry date (could be enhanced with due dates)
+            const entryDate = new Date(entry.entry_date);
+            const daysSinceEntry = Math.floor((new Date() - entryDate) / (1000 * 60 * 60 * 24));
+            if (daysSinceEntry > 30) {
+              overdueReceivables += assetAmount;
+            } else {
+              currentReceivables += assetAmount;
             }
+          }
+        }
+        
+        // Liability accounts (typically have credit balances)
+        if (accountName.includes('liability') || accountName.includes('payable') || 
+            accountName.includes('debt') || accountName.includes('loan')) {
+          // For liabilities, use the balance field if available, otherwise use the larger amount
+          const liabilityAmount = entry.balance !== undefined ? Math.abs(entry.balance) : Math.max(debitAmount, creditAmount);
+          realLiabilities += liabilityAmount;
+          
+          // Track Accounts Payable specifically
+          if (accountName.includes('payable') || accountName.includes('creditor') ||
+              entry.description?.toLowerCase().includes('payable') ||
+              entry.description?.toLowerCase().includes('vendor') ||
+              entry.description?.toLowerCase().includes('supplier') ||
+              entry.description?.toLowerCase().includes('creditor') ||
+              entry.description?.toLowerCase().includes('bill') ||
+              entry.description?.toLowerCase().includes('purchase')) {
+            totalAccountsPayable += liabilityAmount;
             
-            // Calculate expenses (debit side of expense accounts)
-            if (accountType.includes('expense') || accountType.includes('cost')) {
-              realExpenses += debitAmount;
+            // Simple aging logic based on entry date (could be enhanced with due dates)
+            const entryDate = new Date(entry.entry_date);
+            const daysSinceEntry = Math.floor((new Date() - entryDate) / (1000 * 60 * 60 * 24));
+            if (daysSinceEntry > 30) {
+              overduePayables += liabilityAmount;
+            } else {
+              currentPayables += liabilityAmount;
             }
-            
-            // Calculate assets (debit side of asset accounts)
-            if (accountType.includes('asset')) {
-              realAssets += debitAmount - creditAmount;
-            }
-            
-            // Calculate liabilities (credit side of liability accounts)
-            if (accountType.includes('liability')) {
-              realLiabilities += creditAmount - debitAmount;
-            }
-            
-            // Calculate equity (credit side of equity accounts)
-            if (accountType.includes('equity') || accountType.includes('capital')) {
-              realEquity += creditAmount - debitAmount;
+          }
+        }
+        
+        // Equity accounts (typically have credit balances)
+        if (accountName.includes('equity') || accountName.includes('capital') || 
+            accountName.includes('retained') || accountName.includes('stock')) {
+          // For equity, use the balance field if available, otherwise use the larger amount
+          const equityAmount = entry.balance !== undefined ? Math.abs(entry.balance) : Math.max(debitAmount, creditAmount);
+          realEquity += equityAmount;
             }
           });
+        }
+    
+    // Calculate vendor-based Accounts Payable from direct vendor data
+    let vendorAccountsPayable = 0;
+    let vendorOverduePayables = 0;
+    let vendorCurrentPayables = 0;
+    
+    if (vendorData && Array.isArray(vendorData)) {
+      vendorData.forEach(vendor => {
+        const outstanding = parseFloat(vendor.outstanding_balance || 0);
+        if (outstanding > 0 && vendor.status !== 'paid') {
+          vendorAccountsPayable += outstanding;
+          
+          // Check if overdue based on vendor due date or creation date
+          const dueDate = vendor.due_date ? new Date(vendor.due_date) : new Date(vendor.created_at);
+          const daysPastDue = Math.floor((new Date() - dueDate) / (1000 * 60 * 60 * 24));
+          
+          if (daysPastDue > 30) {
+            vendorOverduePayables += outstanding;
+          } else {
+            vendorCurrentPayables += outstanding;
+          }
+        }
+      });
+    }
+    
+    // Calculate customer-based Accounts Receivable from direct customer data  
+    let customerAccountsReceivable = 0;
+    let customerOverdueReceivables = 0;
+    let customerCurrentReceivables = 0;
+    
+    if (customerData && Array.isArray(customerData)) {
+      customerData.forEach(customer => {
+        const outstanding = parseFloat(customer.outstanding_balance || 0);
+        if (outstanding > 0 && customer.status !== 'paid') {
+          customerAccountsReceivable += outstanding;
+          
+          // Check if overdue based on customer due date or creation date
+          const dueDate = customer.due_date ? new Date(customer.due_date) : new Date(customer.created_at);
+          const daysPastDue = Math.floor((new Date() - dueDate) / (1000 * 60 * 60 * 24));
+          
+          if (daysPastDue > 30) {
+            customerOverdueReceivables += outstanding;
+          } else {
+            customerCurrentReceivables += outstanding;
+          }
         }
       });
     }
@@ -291,37 +602,74 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
     const revenue = realRevenue > 0 ? realRevenue : (baseMetrics.revenue || 0);
     const expenses = realExpenses > 0 ? realExpenses : (baseMetrics.expenses || 0);
     const netIncome = revenue - expenses;
-    const totalAssets = realAssets > 0 ? realAssets : (baseMetrics.total_assets || 0);
+    // Calculate total assets including cash
+    const baseAssets = realAssets > 0 ? realAssets : (baseMetrics.total_assets || 0);
+    const totalAssets = Math.max(baseAssets, (todayBalances.closingCash || 0) + (todayBalances.closingBank || 0));
     const totalLiabilities = realLiabilities > 0 ? realLiabilities : (baseMetrics.total_liabilities || 0);
-    const equity = realEquity > 0 ? realEquity : (baseMetrics.equity || 0);
+    // Calculate equity using accounting equation: Equity = Assets - Liabilities
+    const calculatedEquity = totalAssets - totalLiabilities;
+    const totalEquity = realEquity > 0 ? realEquity : (calculatedEquity > 0 ? calculatedEquity : (baseMetrics.total_equity || 0));
     
     // Calculate ratios
     const profitMargin = revenue > 0 ? (netIncome / revenue) * 100 : 0;
     const assetTurnover = totalAssets > 0 ? revenue / totalAssets : 0;
-    const debtToEquity = equity > 0 ? totalLiabilities / equity : 0;
+    const debtToEquity = totalEquity > 0 ? totalLiabilities / totalEquity : 0;
     const currentRatio = totalLiabilities > 0 ? totalAssets / totalLiabilities : 0;
     
-    return {
+    const finalMetrics = {
       revenue,
       expenses,
       netIncome,
       totalAssets,
       totalLiabilities,
-      equity,
+      equity: totalEquity,
       cashFlow: netIncome, // Simplified cash flow
       profitMargin,
       assetTurnover,
-      debtToEquity,
+      debtToEquity: totalEquity > 0 ? totalLiabilities / totalEquity : 0,
       currentRatio,
-      // Daily cash metrics
+      // Trial balance totals
+      totalDebits,
+      totalCredits,
+      trialBalanceDifference: totalDebits - totalCredits,
+      // Accounts Receivable & Payable metrics - prioritize direct vendor/customer data
+      totalAccountsReceivable: customerAccountsReceivable > 0 ? customerAccountsReceivable : totalAccountsReceivable,
+      totalAccountsPayable: vendorAccountsPayable > 0 ? vendorAccountsPayable : totalAccountsPayable,
+      overdueReceivables: customerOverdueReceivables > 0 ? customerOverdueReceivables : overdueReceivables,
+      currentReceivables: customerCurrentReceivables > 0 ? customerCurrentReceivables : currentReceivables,
+      overduePayables: vendorOverduePayables > 0 ? vendorOverduePayables : overduePayables,
+      currentPayables: vendorCurrentPayables > 0 ? vendorCurrentPayables : currentPayables,
+      netWorkingCapital: (customerAccountsReceivable > 0 ? customerAccountsReceivable : totalAccountsReceivable) - (vendorAccountsPayable > 0 ? vendorAccountsPayable : totalAccountsPayable),
+      receivablesTurnover: revenue > 0 ? (customerAccountsReceivable > 0 ? customerAccountsReceivable : totalAccountsReceivable) / revenue : 0,
+      payablesTurnover: expenses > 0 ? (vendorAccountsPayable > 0 ? vendorAccountsPayable : totalAccountsPayable) / expenses : 0,
+      daysReceivablesOutstanding: revenue > 0 ? ((customerAccountsReceivable > 0 ? customerAccountsReceivable : totalAccountsReceivable) / revenue) * 365 : 0,
+      daysPayablesOutstanding: expenses > 0 ? ((vendorAccountsPayable > 0 ? vendorAccountsPayable : totalAccountsPayable) / expenses) * 365 : 0,
+      // Daily cash metrics - use calculated balances or fallback to daily data
       todayCashBalance: todayBalances.closingCash || 0,
       todayBankBalance: todayBalances.closingBank || 0,
       todayNetCashFlow: todayBalances.netCashFlow || (todayData.cashInflows + todayData.bankInflows - todayData.cashOutflows - todayData.bankOutflows),
-      totalCashBalance: (todayBalances.closingCash || 0) + (todayBalances.closingBank || 0)
+      // Calculate total cash balance - use latest closing balance from daily data
+      totalCashBalance: (() => {
+        // First try to get from calculated balances
+        if (todayBalances.closingCash || todayBalances.closingBank) {
+          return (todayBalances.closingCash || 0) + (todayBalances.closingBank || 0);
+        }
+        // Fallback: calculate from daily cash data (use most recent day only)
+        if (dailyCashData.length > 0) {
+          const latestDay = dailyCashData[0]; // Most recent day
+          return latestDay.cashInflows + latestDay.bankInflows - latestDay.cashOutflows - latestDay.bankOutflows;
+        }
+        return 0;
+      })()
     };
-  }, [kpiData, calculateBalances, dailyCashData, generalLedgerData]);
+    
+    
+    return finalMetrics;
+  }, [kpiData, calculateBalances, dailyCashData, generalLedgerData, vendorData, customerData]);
 
-  const renderKPIMetrics = () => (
+  const renderKPIMetrics = () => {
+    
+    return (
     <Grid container spacing={3} sx={{ mb: 3 }}>
       <Grid item xs={12} sm={6} md={3}>
         <Card sx={{ bgcolor: 'success.main', color: 'white' }}>
@@ -400,6 +748,7 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
       </Grid>
     </Grid>
   );
+};
 
   const renderProfitLossStatement = () => (
     <Card>
@@ -576,15 +925,33 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
                 <Table size="small">
                   <TableBody>
                     <TableRow>
-                      <TableCell>Current Assets</TableCell>
+                      <TableCell>Cash & Bank</TableCell>
                       <TableCell align="right">
-                        ${((metrics.totalAssets || 0) * 0.6).toLocaleString()}
+                        ${(metrics.totalCashBalance || 0).toLocaleString()}
                       </TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell>Fixed Assets</TableCell>
+                      <TableCell>
+                        Accounts Receivable
+                        {hasCustomerData() && (
+                          <Typography component="span" variant="caption" color="success.main" sx={{ ml: 1 }}>
+                            📊 Customer Data
+                          </Typography>
+                        )}
+                        {metrics.overdueReceivables > 0 && (
+                          <Typography component="span" variant="caption" color="warning.main" sx={{ ml: 1 }}>
+                            (${metrics.overdueReceivables.toLocaleString()} overdue)
+                          </Typography>
+                        )}
+                      </TableCell>
                       <TableCell align="right">
-                        ${((metrics.totalAssets || 0) * 0.4).toLocaleString()}
+                        ${(metrics.totalAccountsReceivable || 0).toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Other Assets</TableCell>
+                      <TableCell align="right">
+                        ${Math.max(0, (metrics.totalAssets || 0) - (metrics.totalCashBalance || 0) - (metrics.totalAccountsReceivable || 0)).toLocaleString()}
                       </TableCell>
                     </TableRow>
                     <TableRow sx={{ bgcolor: 'primary.main', color: 'white' }}>
@@ -612,15 +979,27 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
                 <Table size="small">
                   <TableBody>
                     <TableRow>
-                      <TableCell>Current Liabilities</TableCell>
+                      <TableCell>
+                        Accounts Payable
+                        {hasVendorData() && (
+                          <Typography component="span" variant="caption" color="primary.main" sx={{ ml: 1 }}>
+                            📊 Vendor Data
+                          </Typography>
+                        )}
+                        {metrics.overduePayables > 0 && (
+                          <Typography component="span" variant="caption" color="error.main" sx={{ ml: 1 }}>
+                            (${metrics.overduePayables.toLocaleString()} overdue)
+                          </Typography>
+                        )}
+                      </TableCell>
                       <TableCell align="right">
-                        ${((metrics.totalLiabilities || 0) * 0.7).toLocaleString()}
+                        ${(metrics.totalAccountsPayable || 0).toLocaleString()}
                       </TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell>Long-term Liabilities</TableCell>
+                      <TableCell>Other Liabilities</TableCell>
                       <TableCell align="right">
-                        ${((metrics.totalLiabilities || 0) * 0.3).toLocaleString()}
+                        ${Math.max(0, (metrics.totalLiabilities || 0) - (metrics.totalAccountsPayable || 0)).toLocaleString()}
                       </TableCell>
                     </TableRow>
                     <TableRow>
@@ -657,12 +1036,28 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
           <Box>
             <Typography variant="h6">Daily Cash Flow Summary</Typography>
-            <Typography variant="caption" color="text.secondary">
-              {enableDailyCycleAPI 
-                ? "Opening balances from daily cycle system • Green checkmark indicates real data"
-                : "Opening balances calculated from transactions • Daily cycle API disabled"
-              }
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="caption" color="text.secondary">
+                {Object.keys(calculateBalances).length > 0 ? 
+                  `Data from ${Object.keys(calculateBalances).length} days (calculated from GL entries)` : 
+                  'No transaction data available'
+                }
+              </Typography>
+              {Object.keys(calculateBalances).length > 0 && (
+                <Box sx={{ 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  bgcolor: 'info.light', 
+                  color: 'info.contrastText',
+                  px: 1, 
+                  py: 0.5, 
+                  borderRadius: 1,
+                  fontSize: '0.7rem'
+                }}>
+                  📊 CALCULATED
+                </Box>
+              )}
+            </Box>
           </Box>
           <Box display="flex" gap={1}>
             <FormControl size="small" sx={{ minWidth: 120 }}>
@@ -737,11 +1132,26 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
                     <TableRow key={day.date} hover>
                       <TableCell>
                         <Typography variant="body2" fontWeight="bold">
-                          {new Date(day.date).toLocaleDateString()}
+                          {(() => {
+                            const date = new Date(day.date + 'T00:00:00');
+                            return date.toLocaleDateString('en-US', { 
+                              month: 'numeric', 
+                              day: 'numeric', 
+                              year: 'numeric' 
+                            });
+                          })()}
                         </Typography>
-                        {index === 0 && (
-                          <Chip label="Today" size="small" color="primary" />
-                        )}
+                        {(() => {
+                          // Use local date formatting to avoid timezone issues
+                          const todayDate = new Date();
+                          const today = todayDate.getFullYear() + '-' + 
+                                        String(todayDate.getMonth() + 1).padStart(2, '0') + '-' + 
+                                        String(todayDate.getDate()).padStart(2, '0');
+                          const isToday = day.date === today;
+                          return isToday && (
+                            <Chip label="Today" size="small" color="primary" />
+                          );
+                        })()}
                       </TableCell>
                       <TableCell align="right">
                         <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
@@ -881,12 +1291,28 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
           <Box>
             <Typography variant="h6">Daily Transaction Summary</Typography>
-            <Typography variant="caption" color="text.secondary">
-              {enableDailyCycleAPI 
-                ? "Opening balances from daily cycle system • Green checkmark indicates real data"
-                : "Opening balances calculated from transactions • Daily cycle API disabled"
-              }
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="caption" color="text.secondary">
+                {Object.keys(calculateBalances).length > 0 ? 
+                  `Data from ${Object.keys(calculateBalances).length} days (calculated from GL entries)` : 
+                  'No transaction data available'
+                }
+              </Typography>
+              {Object.keys(calculateBalances).length > 0 && (
+                <Box sx={{ 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  bgcolor: 'info.light', 
+                  color: 'info.contrastText',
+                  px: 1, 
+                  py: 0.5, 
+                  borderRadius: 1,
+                  fontSize: '0.7rem'
+                }}>
+                  📊 CALCULATED
+                </Box>
+              )}
+            </Box>
           </Box>
           <Box display="flex" gap={1}>
             <FormControl size="small" sx={{ minWidth: 120 }}>
@@ -958,7 +1384,14 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
                       <TableCell>
                         <Box>
                           <Typography variant="body2" fontWeight="bold">
-                            {new Date(day.date).toLocaleDateString()}
+                            {(() => {
+                              const date = new Date(day.date + 'T00:00:00');
+                              return date.toLocaleDateString('en-US', { 
+                                month: 'numeric', 
+                                day: 'numeric', 
+                                year: 'numeric' 
+                              });
+                            })()}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
                             {day.transactions.length} transactions
@@ -1031,6 +1464,143 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
             </Table>
           </TableContainer>
         )}
+      </CardContent>
+    </Card>
+  );
+
+  // Helper functions for data source detection
+  const hasVendorData = () => {
+    return vendorData && Array.isArray(vendorData) && vendorData.some(v => parseFloat(v.outstanding_balance || 0) > 0 && v.status !== 'paid');
+  };
+
+  const hasCustomerData = () => {
+    return customerData && Array.isArray(customerData) && customerData.some(c => parseFloat(c.outstanding_balance || 0) > 0 && c.status !== 'paid');
+  };
+
+  const hasOnlyGLData = () => {
+    return (metrics.totalAccountsReceivable > 0 || metrics.totalAccountsPayable > 0) && !hasVendorData() && !hasCustomerData();
+  };
+
+  const renderAccountsReceivablePayable = () => (
+    <Card>
+      <CardContent>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Typography variant="h6">Accounts Receivable & Payable Summary</Typography>
+          <Box display="flex" gap={1}>
+            {hasVendorData() && (
+              <Chip size="small" label="📊 VENDOR DATA" color="primary" variant="outlined" />
+            )}
+            {hasCustomerData() && (
+              <Chip size="small" label="📊 CUSTOMER DATA" color="success" variant="outlined" />
+            )}
+            {hasOnlyGLData() && (
+              <Chip size="small" label="📊 GL CALCULATED" color="warning" variant="outlined" />
+            )}
+          </Box>
+        </Box>
+        <Grid container spacing={3}>
+          {/* Accounts Receivable Section */}
+          <Grid item xs={12} md={6}>
+            <Typography variant="subtitle1" fontWeight="bold" mb={2} color="success.main">
+              📋 Accounts Receivable
+            </Typography>
+            <Box mb={2}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Typography variant="body2">Total Outstanding</Typography>
+                <Typography variant="h6" color="success.main">
+                  ${(metrics.totalAccountsReceivable || 0).toLocaleString()}
+                </Typography>
+              </Box>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Typography variant="body2">Current (0-30 days)</Typography>
+                <Typography variant="body2" color="success.main">
+                  ${(metrics.currentReceivables || 0).toLocaleString()}
+                </Typography>
+              </Box>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Typography variant="body2">Overdue (30+ days)</Typography>
+                <Typography variant="body2" color={metrics.overdueReceivables > 0 ? "warning.main" : "inherit"}>
+                  ${(metrics.overdueReceivables || 0).toLocaleString()}
+                </Typography>
+              </Box>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Typography variant="body2">Days Outstanding (DSO)</Typography>
+                <Typography variant="body2">
+                  {(metrics.daysReceivablesOutstanding || 0).toFixed(0)} days
+                </Typography>
+              </Box>
+            </Box>
+          </Grid>
+
+          {/* Accounts Payable Section */}
+          <Grid item xs={12} md={6}>
+            <Typography variant="subtitle1" fontWeight="bold" mb={2} color="error.main">
+              📄 Accounts Payable
+            </Typography>
+            <Box mb={2}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Typography variant="body2">Total Outstanding</Typography>
+                <Typography variant="h6" color="error.main">
+                  ${(metrics.totalAccountsPayable || 0).toLocaleString()}
+                </Typography>
+              </Box>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Typography variant="body2">Current (0-30 days)</Typography>
+                <Typography variant="body2" color="error.main">
+                  ${(metrics.currentPayables || 0).toLocaleString()}
+                </Typography>
+              </Box>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Typography variant="body2">Overdue (30+ days)</Typography>
+                <Typography variant="body2" color={metrics.overduePayables > 0 ? "error.main" : "inherit"}>
+                  ${(metrics.overduePayables || 0).toLocaleString()}
+                </Typography>
+              </Box>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Typography variant="body2">Days Outstanding (DPO)</Typography>
+                <Typography variant="body2">
+                  {(metrics.daysPayablesOutstanding || 0).toFixed(0)} days
+                </Typography>
+              </Box>
+            </Box>
+          </Grid>
+
+          {/* Working Capital Analysis */}
+          <Grid item xs={12}>
+            <Typography variant="subtitle1" fontWeight="bold" mb={2}>
+              💰 Working Capital Analysis
+            </Typography>
+            <Box display="flex" justifyContent="space-around" textAlign="center">
+              <Box>
+                <Typography variant="h6" color={metrics.netWorkingCapital >= 0 ? "success.main" : "error.main"}>
+                  ${(metrics.netWorkingCapital || 0).toLocaleString()}
+                </Typography>
+                <Typography variant="body2">Net Working Capital</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  (AR - AP)
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="h6" color="primary.main">
+                  {(metrics.receivablesTurnover || 0).toFixed(2)}x
+                </Typography>
+                <Typography variant="body2">Receivables Turnover</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  (Revenue / AR)
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="h6" color="primary.main">
+                  {(metrics.payablesTurnover || 0).toFixed(2)}x
+                </Typography>
+                <Typography variant="body2">Payables Turnover</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  (Expenses / AP)
+                </Typography>
+              </Box>
+            </Box>
+          </Grid>
+        </Grid>
       </CardContent>
     </Card>
   );
@@ -1141,32 +1711,6 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
         Financial Reports & Analytics
       </Typography>
       
-      {/* Debug Info - Remove this section in production */}
-      {process.env.NODE_ENV === 'development' && (
-        <Card sx={{ mb: 2, bgcolor: 'grey.50' }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>Debug Info (Development Only)</Typography>
-            <Typography variant="body2">
-              <strong>General Ledger Entries:</strong> {generalLedgerData?.length || 0} entries
-            </Typography>
-            <Typography variant="body2">
-              <strong>Real Revenue:</strong> ${metrics.revenue.toLocaleString()}
-            </Typography>
-            <Typography variant="body2">
-              <strong>Real Expenses:</strong> ${metrics.expenses.toLocaleString()}
-            </Typography>
-            <Typography variant="body2">
-              <strong>Real Assets:</strong> ${metrics.totalAssets.toLocaleString()}
-            </Typography>
-            <Typography variant="body2">
-              <strong>Real Liabilities:</strong> ${metrics.totalLiabilities.toLocaleString()}
-            </Typography>
-            <Typography variant="body2">
-              <strong>Real Equity:</strong> ${metrics.equity.toLocaleString()}
-            </Typography>
-          </CardContent>
-        </Card>
-      )}
       
       {renderKPIMetrics()}
       
@@ -1176,6 +1720,9 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
         </Grid>
         <Grid item xs={12}>
           {renderBalanceSheet()}
+        </Grid>
+        <Grid item xs={12}>
+          {renderAccountsReceivablePayable()}
         </Grid>
         <Grid item xs={12}>
           {renderCashFlowStatement()}
@@ -1199,7 +1746,14 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
         fullWidth
       >
         <DialogTitle>
-          Daily Transactions - {drillDownData && new Date(drillDownData.date).toLocaleDateString()}
+          Daily Transactions - {drillDownData && (() => {
+            const date = new Date(drillDownData.date + 'T00:00:00');
+            return date.toLocaleDateString('en-US', { 
+              month: 'numeric', 
+              day: 'numeric', 
+              year: 'numeric' 
+            });
+          })()}
         </DialogTitle>
         <DialogContent>
           {drillDownData && (
