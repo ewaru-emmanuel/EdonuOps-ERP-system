@@ -3,7 +3,7 @@ from app import db
 from typing import Dict, Callable
 from enum import Enum
 import logging
-from ..models import JournalHeader
+from ..advanced_models import JournalHeader
 from app.audit_logger import AuditLogger
 
 logger = logging.getLogger(__name__)

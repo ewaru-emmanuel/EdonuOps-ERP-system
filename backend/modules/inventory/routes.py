@@ -3,10 +3,12 @@ from flask import Blueprint, jsonify, request
 from app import db
 from modules.inventory.models import Product, Category, Warehouse, BasicInventoryTransaction
 from datetime import datetime
+from modules.core.permissions import require_permission, require_module_access
 
 inventory_bp = Blueprint('inventory', __name__)
 
 @inventory_bp.route('/products', methods=['GET'])
+@require_permission('inventory.products.read')
 def get_products():
     """Get all products from database"""
     try:
@@ -82,6 +84,7 @@ def get_transactions():
         return jsonify({"error": "Failed to fetch transactions"}), 500
 
 @inventory_bp.route('/products', methods=['POST'])
+@require_permission('inventory.products.create')
 def create_product():
     """Create a new product in database"""
     try:
@@ -142,6 +145,7 @@ def create_product():
         return jsonify({"error": f"Failed to create product: {str(e)}"}), 500
 
 @inventory_bp.route('/products/<int:product_id>', methods=['PUT'])
+@require_permission('inventory.products.update')
 def update_product(product_id):
     """Update a product in database"""
     try:
@@ -180,6 +184,7 @@ def update_product(product_id):
         return jsonify({"error": "Failed to update product"}), 500
 
 @inventory_bp.route('/products/<int:product_id>', methods=['DELETE'])
+@require_permission('inventory.products.delete')
 def delete_product(product_id):
     """Delete a product from database"""
     try:

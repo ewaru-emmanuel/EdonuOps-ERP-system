@@ -44,7 +44,11 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
   
   // Vendor and customer data for AR/AP integration
   const { data: vendorData, loading: vendorLoading, error: vendorError } = useRealTimeData('/api/procurement/vendors');
-  const { data: customerData, loading: customerLoading, error: customerError } = useRealTimeData('/api/sales/customers');
+  const { data: customersResponse, loading: customerLoading, error: customerError } = useRealTimeData('/api/sales/customers');
+  const { data: accountsReceivableData, loading: arLoading, error: arError } = useRealTimeData('/api/sales/accounts-receivable');
+  
+  // Extract customers array from response
+  const customerData = customersResponse?.customers || [];
   
   // Debug: Log financial reports data
   
@@ -119,30 +123,30 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
   const dailyCashData = useMemo(() => {
     // Calculate real data from general ledger
     if (generalLedgerData && Array.isArray(generalLedgerData) && generalLedgerData.length > 0) {
-      const dailyTransactions = {};
-      
-      generalLedgerData.forEach(entry => {
-        // Validate and parse the transaction date
+    const dailyTransactions = {};
+    
+    generalLedgerData.forEach(entry => {
+      // Validate and parse the transaction date
         if (!entry.entry_date) return; // Skip entries without dates
-        
+      
         const transactionDate = new Date(entry.entry_date);
-        if (isNaN(transactionDate.getTime())) return; // Skip invalid dates
-        
+      if (isNaN(transactionDate.getTime())) return; // Skip invalid dates
+      
         // Use local date formatting to avoid timezone issues
         const date = transactionDate.getFullYear() + '-' + 
                     String(transactionDate.getMonth() + 1).padStart(2, '0') + '-' + 
                     String(transactionDate.getDate()).padStart(2, '0');
-        if (!dailyTransactions[date]) {
-          dailyTransactions[date] = {
-            date,
-            cashInflows: 0,
-            cashOutflows: 0,
-            bankInflows: 0,
-            bankOutflows: 0,
-            transactions: []
-          };
-        }
-        
+      if (!dailyTransactions[date]) {
+        dailyTransactions[date] = {
+          date,
+          cashInflows: 0,
+          cashOutflows: 0,
+          bankInflows: 0,
+          bankOutflows: 0,
+          transactions: []
+        };
+      }
+      
         // Categorize transactions by account type
         const accountName = (entry.account_name || '').toLowerCase();
         const debitAmount = parseFloat(entry.debit_amount || 0);
@@ -241,7 +245,7 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
         
         // Add transaction to the list (limit to 50 transactions per day for performance)
         if (dailyTransactions[date].transactions.length < 50) {
-          dailyTransactions[date].transactions.push({
+        dailyTransactions[date].transactions.push({
             id: entry.id,
             description: entry.description,
             account_name: entry.account_name,
@@ -571,26 +575,26 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
       });
     }
     
-    // Calculate customer-based Accounts Receivable from direct customer data  
+    // Calculate customer-based Accounts Receivable from direct AR data  
     let customerAccountsReceivable = 0;
     let customerOverdueReceivables = 0;
     let customerCurrentReceivables = 0;
     
-    if (customerData && Array.isArray(customerData)) {
+    // Prioritize dedicated AR data over customer data
+    if (accountsReceivableData && accountsReceivableData.summary) {
+      customerAccountsReceivable = accountsReceivableData.summary.total_outstanding || 0;
+      customerOverdueReceivables = accountsReceivableData.summary.overdue_amount || 0;
+      customerCurrentReceivables = accountsReceivableData.summary.current_amount || 0;
+    } else if (customerData && Array.isArray(customerData)) {
+      // Fallback to customer data if AR data not available
       customerData.forEach(customer => {
         const outstanding = parseFloat(customer.outstanding_balance || 0);
-        if (outstanding > 0 && customer.status !== 'paid') {
+        if (outstanding > 0) {
           customerAccountsReceivable += outstanding;
           
-          // Check if overdue based on customer due date or creation date
-          const dueDate = customer.due_date ? new Date(customer.due_date) : new Date(customer.created_at);
-          const daysPastDue = Math.floor((new Date() - dueDate) / (1000 * 60 * 60 * 24));
-          
-          if (daysPastDue > 30) {
-            customerOverdueReceivables += outstanding;
-          } else {
-            customerCurrentReceivables += outstanding;
-          }
+          const overdueAmount = parseFloat(customer.overdue_amount || 0);
+          customerOverdueReceivables += overdueAmount;
+          customerCurrentReceivables += (outstanding - overdueAmount);
         }
       });
     }
@@ -665,7 +669,7 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
     
     
     return finalMetrics;
-  }, [kpiData, calculateBalances, dailyCashData, generalLedgerData, vendorData, customerData]);
+  }, [kpiData, calculateBalances, dailyCashData, generalLedgerData, vendorData, customerData, accountsReceivableData, customersResponse]);
 
   const renderKPIMetrics = () => {
     
@@ -1037,12 +1041,12 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
           <Box>
             <Typography variant="h6">Daily Cash Flow Summary</Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary">
                 {Object.keys(calculateBalances).length > 0 ? 
                   `Data from ${Object.keys(calculateBalances).length} days (calculated from GL entries)` : 
                   'No transaction data available'
-                }
-              </Typography>
+              }
+            </Typography>
               {Object.keys(calculateBalances).length > 0 && (
                 <Box sx={{ 
                   display: 'inline-flex', 
@@ -1149,7 +1153,7 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
                                         String(todayDate.getDate()).padStart(2, '0');
                           const isToday = day.date === today;
                           return isToday && (
-                            <Chip label="Today" size="small" color="primary" />
+                          <Chip label="Today" size="small" color="primary" />
                           );
                         })()}
                       </TableCell>
@@ -1292,12 +1296,12 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
           <Box>
             <Typography variant="h6">Daily Transaction Summary</Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary">
                 {Object.keys(calculateBalances).length > 0 ? 
                   `Data from ${Object.keys(calculateBalances).length} days (calculated from GL entries)` : 
                   'No transaction data available'
-                }
-              </Typography>
+              }
+            </Typography>
               {Object.keys(calculateBalances).length > 0 && (
                 <Box sx={{ 
                   display: 'inline-flex', 
@@ -1474,7 +1478,11 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
   };
 
   const hasCustomerData = () => {
-    return customerData && Array.isArray(customerData) && customerData.some(c => parseFloat(c.outstanding_balance || 0) > 0 && c.status !== 'paid');
+    // Check AR data first, then customer data
+    if (accountsReceivableData && accountsReceivableData.summary && accountsReceivableData.summary.total_outstanding > 0) {
+      return true;
+    }
+    return customerData && Array.isArray(customerData) && customerData.some(c => parseFloat(c.outstanding_balance || 0) > 0);
   };
 
   const hasOnlyGLData = () => {

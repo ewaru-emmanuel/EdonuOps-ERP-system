@@ -76,13 +76,15 @@ import AttachmentIcon from '@mui/icons-material/Attachment';
 import Dashboard from './components/Dashboard';
 import LandingPage from './components/LandingPage';
 import OnboardingWizard from './components/OnboardingWizard';
+import Login from './pages/Login';
+import Register from './pages/Register';
 import DashboardSettings from './modules/erp/dashboard/DashboardSettings';
 import AdminSettings from './modules/erp/admin/AdminSettings';
 import NotificationsCenter from './components/NotificationsCenter';
 import FinanceModule from './modules/finance/FinanceModule';
 import CRMModule from './modules/crm/CRMModule';
 import { CRMProvider } from './modules/crm/context/CRMContext';
-import InventoryModule from './modules/erp/InventoryModule';
+import InventoryModule from './modules/inventory/InventoryModule';
 import CoreInventoryModule from './modules/inventory/CoreInventoryModule';
 import ProcurementModule from './modules/erp/procurement/ProcurementModule';
 import BreadcrumbNavigation from './components/BreadcrumbNavigation';
@@ -93,53 +95,15 @@ import { initializeERPApiService } from './services/erpApiService';
 // Import centralized API client
 import apiClient from './services/apiClient';
 
+// Import permissions system
+import { PermissionsProvider, usePermissions } from './hooks/usePermissions';
+import ProtectedRoute from './components/ProtectedRoute';
+
 // Import user preferences hook
 import { useUserPreferences } from './hooks/useUserPreferences';
+import { useAuth, AuthProvider } from './hooks/useAuth';
 
-// Create Auth Context
-const AuthContext = createContext();
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
-
-const AuthProvider = ({ children }) => {
-  const [user] = useState({
-    id: 1,
-    name: 'John Doe',
-    email: 'admin@edonuops.com',
-    role: 'Administrator',
-    avatar: null
-  });
-
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
-
-  // Initialize the ERP API service with the apiClient
-  useEffect(() => {
-    initializeERPApiService(apiClient);
-  }, []);
-
-  const login = async (email, password) => {
-    // Simulate login
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setIsAuthenticated(true);
-    return { success: true };
-  };
-
-  const logout = () => {
-    setIsAuthenticated(false);
-  };
-
-  return (
-    <AuthContext.Provider value={{ user, isAuthenticated, login, logout, apiClient }}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
 
 // App Content Component (inside Router)
 const AppContent = () => {
@@ -147,18 +111,27 @@ const AppContent = () => {
   const theme = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   
+  // Hide navigation on public pages (landing, login, register)
+  // Show navigation only on authenticated pages
+  const { isAuthenticated } = useAuth() || { isAuthenticated: false };
+  const isPublicPage = location.pathname === '/' || 
+                      location.pathname === '/login' || 
+                      location.pathname === '/register';
+  
+  const hideNavigation = isPublicPage || !isAuthenticated;
+  
   return (
     <Box>
       <Box
         component="main"
         sx={{
           p: { xs: 1, md: location.pathname.startsWith('/finance') ? 0 : 2 },
-          mt: location.pathname === '/onboarding' ? 0 : { xs: 7, md: 8 },
+          mt: hideNavigation ? 0 : (location.pathname === '/onboarding' ? 0 : { xs: 7, md: 8 }),
           minHeight: '100vh',
           backgroundColor: location.pathname === '/onboarding' ? 'transparent' : '#f8f9fa',
-          width: { xs: '100%', md: `calc(100% - ${sidebarOpen ? 200 : 60}px)` },
-          maxWidth: { xs: '100%', md: `calc(100% - ${sidebarOpen ? 200 : 60}px)` },
-          marginLeft: { xs: 0, md: `${sidebarOpen ? 200 : 60}px` },
+          width: hideNavigation ? '100%' : { xs: '100%', md: `calc(100% - ${sidebarOpen ? 200 : 60}px)` },
+          maxWidth: hideNavigation ? '100%' : { xs: '100%', md: `calc(100% - ${sidebarOpen ? 200 : 60}px)` },
+          marginLeft: hideNavigation ? 0 : { xs: 0, md: `${sidebarOpen ? 200 : 60}px` },
           marginRight: 0,
           paddingLeft: 0,
           transition: theme.transitions.create(['width', 'marginLeft'], {
@@ -168,21 +141,27 @@ const AppContent = () => {
         }}
       >
         <Routes>
+          {/* Public routes - accessible without login */}
           <Route path="/" element={<LandingPage />} />
-          <Route path="/onboarding" element={<OnboardingWizard />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/dashboard/settings" element={<DashboardSettings />} />
-          <Route path="/admin/settings" element={<AdminSettings />} />
-          <Route path="/notifications" element={<NotificationsCenter />} />
-          <Route path="/finance" element={<FinanceModule />} />
-          <Route path="/crm" element={<CRMProvider><CRMModule /></CRMProvider>} />
-          <Route path="/procurement" element={<ProcurementModule />} />
-          <Route path="/inventory" element={<CoreInventoryModule />} />
-          {/* Catch-all route */}
-          <Route path="*" element={<LandingPage />} />
+          <Route path="/login" element={<ProtectedRoute requireAuth={false}><Login /></ProtectedRoute>} />
+          <Route path="/register" element={<ProtectedRoute requireAuth={false}><Register /></ProtectedRoute>} />
+          
+          {/* Protected routes - require authentication */}
+          <Route path="/onboarding" element={<ProtectedRoute><OnboardingWizard /></ProtectedRoute>} />
+          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/dashboard/settings" element={<ProtectedRoute><DashboardSettings /></ProtectedRoute>} />
+          <Route path="/admin/settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
+          <Route path="/notifications" element={<ProtectedRoute><NotificationsCenter /></ProtectedRoute>} />
+          <Route path="/finance" element={<ProtectedRoute><FinanceModule /></ProtectedRoute>} />
+          <Route path="/crm" element={<ProtectedRoute><CRMProvider><CRMModule /></CRMProvider></ProtectedRoute>} />
+          <Route path="/procurement" element={<ProtectedRoute><ProcurementModule /></ProtectedRoute>} />
+          <Route path="/inventory" element={<ProtectedRoute><CoreInventoryModule /></ProtectedRoute>} />
+          
+          {/* Catch-all route - redirect to login if not authenticated, otherwise landing */}
+          <Route path="*" element={<ProtectedRoute requireAuth={false}><LandingPage /></ProtectedRoute>} />
         </Routes>
         </Box>
-      <Navigation sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+      {!hideNavigation && <Navigation sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />}
     </Box>
   );
 };
@@ -213,17 +192,18 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
   const { logout } = useAuth();
   const { baseCurrency, setShowChangeDialog } = useCurrency();
   const { isModuleEnabled, hasPreferences, selectedModules } = useUserPreferences();
+  
+  // Use permissions hook
+  const { hasModuleAccess, getUserCapabilities, loading: permissionsLoading } = usePermissions();
 
-  // Hide navigation on onboarding and landing page
-  const hideNavigation = location.pathname === '/onboarding' || location.pathname === '/';
 
-  // Define all navigation links with their module IDs
+  // Define all navigation links with their module IDs and required permissions
   const allNavLinks = [
-    { name: 'Dashboard', path: '/dashboard', icon: <DashboardIcon />, moduleId: 'dashboard' },
-    { name: 'Finance', path: '/finance', icon: <FinanceIcon />, moduleId: 'financials' },
-    { name: 'CRM', path: '/crm', icon: <CRMIcon />, moduleId: 'crm' },
-    { name: 'Procurement', path: '/procurement', icon: <ShoppingCart />, moduleId: 'procurement' },
-    { name: ' Inventory', path: '/inventory', icon: <InventoryIcon />, moduleId: 'inventory' }
+    { name: 'Dashboard', path: '/dashboard', icon: <DashboardIcon />, moduleId: 'dashboard', requiredModule: 'general' },
+    { name: 'Finance', path: '/finance', icon: <FinanceIcon />, moduleId: 'financials', requiredModule: 'finance' },
+    { name: 'CRM', path: '/crm', icon: <CRMIcon />, moduleId: 'crm', requiredModule: 'sales' },
+    { name: 'Procurement', path: '/procurement', icon: <ShoppingCart />, moduleId: 'procurement', requiredModule: 'procurement' },
+    { name: ' Inventory', path: '/inventory', icon: <InventoryIcon />, moduleId: 'inventory', requiredModule: 'inventory' }
   ];
 
   // Define Finance module features
@@ -306,10 +286,18 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
   const effectiveSelectedModules = selectedModules.length > 0 ? selectedModules : getFallbackSelectedModules();
   const effectiveHasPreferences = hasPreferences() || effectiveSelectedModules.length > 0;
 
-  // Filter navigation links based on user's selected modules
+  // Filter navigation links based on permissions and user's selected modules
   const navLinks = allNavLinks.filter(link => {
+    // Always show dashboard
+    if (link.moduleId === 'dashboard') return true;
+    
+    // Check permissions first (most important)
+    if (!permissionsLoading && !hasModuleAccess(link.requiredModule)) {
+      return false;
+    }
+    
+    // Then check user preferences
     if (!effectiveHasPreferences) return true; // Show all if no preferences set
-    if (link.moduleId === 'dashboard') return true; // Always show dashboard
     return effectiveSelectedModules.includes(link.moduleId);
   });
 
@@ -601,14 +589,20 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
                   component={Link}
                   to={link.path}
                   selected={link.featureId ? 
-                    (location.pathname.startsWith('/finance') && searchParams.get('feature') === link.featureId) :
+                    ((location.pathname.startsWith('/finance') && searchParams.get('feature') === link.featureId) ||
+                     (location.pathname.startsWith('/crm') && searchParams.get('feature') === link.featureId) ||
+                     (location.pathname.startsWith('/inventory') && searchParams.get('feature') === link.featureId) ||
+                     (location.pathname.startsWith('/procurement') && searchParams.get('feature') === link.featureId)) :
                     (location.pathname === link.path)
                   }
                   sx={{
                     minHeight: 48,
                     px: sidebarOpen ? 2 : 1.5,
                     backgroundColor: (link.featureId ? 
-                      (location.pathname.startsWith('/finance') && searchParams.get('feature') === link.featureId) :
+                      ((location.pathname.startsWith('/finance') && searchParams.get('feature') === link.featureId) ||
+                       (location.pathname.startsWith('/crm') && searchParams.get('feature') === link.featureId) ||
+                       (location.pathname.startsWith('/inventory') && searchParams.get('feature') === link.featureId) ||
+                       (location.pathname.startsWith('/procurement') && searchParams.get('feature') === link.featureId)) :
                       (location.pathname === link.path)
                     ) ? 'rgba(25, 118, 210, 0.08)' : 'transparent',
                     borderRadius: sidebarOpen ? '0 25px 25px 0' : '0 20px 20px 0',
@@ -622,7 +616,10 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
                     },
                     '&:hover': {
                       backgroundColor: (link.featureId ? 
-                        (location.pathname.startsWith('/finance') && searchParams.get('feature') === link.featureId) :
+                        ((location.pathname.startsWith('/finance') && searchParams.get('feature') === link.featureId) ||
+                         (location.pathname.startsWith('/crm') && searchParams.get('feature') === link.featureId) ||
+                         (location.pathname.startsWith('/inventory') && searchParams.get('feature') === link.featureId) ||
+                         (location.pathname.startsWith('/procurement') && searchParams.get('feature') === link.featureId)) :
                         (location.pathname === link.path)
                       ) ? 'rgba(25, 118, 210, 0.12)' : 'rgba(95, 99, 104, 0.08)'
                     }
@@ -632,7 +629,10 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
                     sx={{
                       minWidth: sidebarOpen ? 40 : 'auto',
                       color: (link.featureId ? 
-                        (location.pathname.startsWith('/finance') && searchParams.get('feature') === link.featureId) :
+                        ((location.pathname.startsWith('/finance') && searchParams.get('feature') === link.featureId) ||
+                         (location.pathname.startsWith('/crm') && searchParams.get('feature') === link.featureId) ||
+                         (location.pathname.startsWith('/inventory') && searchParams.get('feature') === link.featureId) ||
+                         (location.pathname.startsWith('/procurement') && searchParams.get('feature') === link.featureId)) :
                         (location.pathname === link.path)
                       ) ? '#1976d2' : '#5f6368',
                       justifyContent: 'center'
@@ -648,11 +648,17 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
                           variant="body2" 
                           sx={{ 
                             fontWeight: (link.featureId ? 
-                              (location.pathname.startsWith('/finance') && searchParams.get('feature') === link.featureId) :
+                              ((location.pathname.startsWith('/finance') && searchParams.get('feature') === link.featureId) ||
+                               (location.pathname.startsWith('/crm') && searchParams.get('feature') === link.featureId) ||
+                               (location.pathname.startsWith('/inventory') && searchParams.get('feature') === link.featureId) ||
+                               (location.pathname.startsWith('/procurement') && searchParams.get('feature') === link.featureId)) :
                               (location.pathname === link.path)
                             ) ? 500 : 400,
                             color: (link.featureId ? 
-                              (location.pathname.startsWith('/finance') && searchParams.get('feature') === link.featureId) :
+                              ((location.pathname.startsWith('/finance') && searchParams.get('feature') === link.featureId) ||
+                               (location.pathname.startsWith('/crm') && searchParams.get('feature') === link.featureId) ||
+                               (location.pathname.startsWith('/inventory') && searchParams.get('feature') === link.featureId) ||
+                               (location.pathname.startsWith('/procurement') && searchParams.get('feature') === link.featureId)) :
                               (location.pathname === link.path)
                             ) ? '#1976d2' : '#202124',
                             fontSize: '0.875rem'
@@ -681,10 +687,6 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
     </Box>
   );
 
-  // Don't render navigation on landing page or onboarding
-  if (hideNavigation) {
-    return null;
-  }
 
   return (
     <>
@@ -969,7 +971,7 @@ const App = () => {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-  const tooSmall = viewportSize.width < 480 || viewportSize.height < 600;
+  const tooSmall = viewportSize.width < 280 || viewportSize.height < 300;
   const theme = createTheme({
     palette: {
       mode,
@@ -1031,7 +1033,7 @@ const App = () => {
               Screen too small
             </Typography>
             <Typography variant="body1" color="text.secondary">
-              Please use a device with a minimum display size of 480 × 600 pixels to access EdonuOps.
+              Please use a device with a minimum display size of 280 × 300 pixels to access EdonuOps.
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
               For the best experience, use a tablet, laptop, or desktop.
@@ -1041,9 +1043,11 @@ const App = () => {
       ) : (
         <CurrencyProvider>
           <AuthProvider>
-            <Router>
-              <AppContent mode={mode} toggleMode={toggleMode} />
-            </Router>
+            <PermissionsProvider>
+              <Router>
+                <AppContent mode={mode} toggleMode={toggleMode} />
+              </Router>
+            </PermissionsProvider>
           </AuthProvider>
         </CurrencyProvider>
       )}

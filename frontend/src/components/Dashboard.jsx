@@ -55,9 +55,10 @@ import {
   Tune as TuneIcon,
   AdminPanelSettings as AdminPanelSettingsIcon
 } from '@mui/icons-material';
-import { useAuth } from '../App';
+import { useAuth } from '../hooks/useAuth';
 import { useUserPreferences } from '../hooks/useUserPreferences';
 import { useVisitorSession } from '../hooks/useVisitorSession';
+import apiClient from '../services/apiClient';
 
 // Feedback Form Component using Formspree
 const FeedbackForm = () => {
@@ -124,7 +125,7 @@ const FeedbackForm = () => {
 };
 
 const Dashboard = () => {
-  const { apiClient } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));

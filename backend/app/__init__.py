@@ -231,6 +231,46 @@ def setup_middleware(app):
 
 def register_blueprints(app):
     """Register Flask blueprints"""
+    # Register authentication blueprint first
+    try:
+        from modules.core.auth import auth_bp
+        app.register_blueprint(auth_bp, url_prefix='/api/auth')
+        print("✓ Authentication API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import auth blueprint: {e}")
+    
+    # Register permissions blueprint
+    try:
+        from modules.core.permissions_routes import permissions_bp
+        app.register_blueprint(permissions_bp, url_prefix='/api/permissions')
+        print("✓ Permissions API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import permissions blueprint: {e}")
+    
+    # Register user management blueprint
+    try:
+        from modules.core.user_management_routes import user_management_bp
+        app.register_blueprint(user_management_bp, url_prefix='/api/admin')
+        print("✓ User Management API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import user management blueprint: {e}")
+    
+    # Register audit blueprint
+    try:
+        from modules.core.audit_routes import audit_bp
+        app.register_blueprint(audit_bp, url_prefix='/api/audit')
+        print("✓ Audit Trail API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import audit blueprint: {e}")
+    
+    # Register security blueprint
+    try:
+        from modules.core.security_routes import security_bp
+        app.register_blueprint(security_bp, url_prefix='/api/security')
+        print("✓ Security API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import security blueprint: {e}")
+    
     try:
         from modules.core.routes import core_bp
         app.register_blueprint(core_bp, url_prefix='/api/core')
@@ -247,9 +287,43 @@ def register_blueprints(app):
     try:
         from modules.finance.advanced_routes import advanced_finance_bp
         app.register_blueprint(advanced_finance_bp, url_prefix='/api/finance')
-        print("Finance API loaded")
     except ImportError as e:
-        print(f"Warning: Could not import finance blueprint: {e}")
+        print(f"Warning: Could not import advanced finance blueprint: {e}")
+    
+    try:
+        from modules.finance.double_entry_routes import double_entry_bp
+        app.register_blueprint(double_entry_bp)
+        print("Double Entry Accounting API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import double entry blueprint: {e}")
+    
+    try:
+        from modules.inventory.daily_cycle_routes import inventory_daily_cycle_bp
+        app.register_blueprint(inventory_daily_cycle_bp)
+        print("Inventory Daily Cycle API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import inventory daily cycle blueprint: {e}")
+    
+    try:
+        from modules.integration.inventory_finance_routes import inventory_finance_integration_bp
+        app.register_blueprint(inventory_finance_integration_bp)
+        print("Inventory-Finance Integration API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import inventory-finance integration blueprint: {e}")
+    
+    try:
+        from modules.inventory.variance_reports_routes import variance_reports_bp
+        app.register_blueprint(variance_reports_bp)
+        print("Inventory Variance Reports API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import variance reports blueprint: {e}")
+    
+    try:
+        from modules.finance.inventory_validation_routes import finance_inventory_validation_bp
+        app.register_blueprint(finance_inventory_validation_bp)
+        print("Finance-Inventory Validation API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import finance inventory validation blueprint: {e}")
     
     try:
         from modules.finance.statutory_routes import statutory_bp
@@ -408,11 +482,6 @@ def register_blueprints(app):
     except ImportError as e:
         print(f"Warning: Could not import performance blueprint: {e}")
     
-    try:
-        from routes.security_routes import security_bp
-        app.register_blueprint(security_bp, url_prefix='/api/security')
-    except ImportError as e:
-        print(f"Warning: Could not import security blueprint: {e}")
     
     
     try:
@@ -465,6 +534,11 @@ def _initialize_modules(app):
         init_inventory_module(app)
     except Exception as e:
         print(f"Warning: Could not initialize inventory module: {e}")
+    
+    try:
+        init_sales_module(app)
+    except Exception as e:
+        print(f"Warning: Could not initialize sales module: {e}")
 
 def init_finance_module(app):
     """Initialize finance module with enterprise features"""
@@ -495,6 +569,14 @@ def init_inventory_module(app):
     
     logger = logging.getLogger(__name__)
     logger.info("Inventory module initialized with enterprise features")
+
+def init_sales_module(app):
+    """Initialize sales module with customer and AR management"""
+    from modules.sales import init_sales_module
+    init_sales_module(app)
+    
+    logger = logging.getLogger(__name__)
+    logger.info("Sales module initialized with customer and AR management")
 
 # Error handlers
 def register_error_handlers(app):

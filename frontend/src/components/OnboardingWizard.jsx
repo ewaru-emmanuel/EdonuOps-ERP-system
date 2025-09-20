@@ -8,7 +8,7 @@ import {
 import {
   AccountBalance, Inventory, People,
   CheckCircle, ArrowForward, ArrowBack, Celebration,
-  Store
+  Store, Business
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useVisitorSession } from '../hooks/useVisitorSession';
@@ -39,6 +39,29 @@ const OnboardingWizard = () => {
 
   const [selectedModules, setSelectedModules] = useState(['financials', 'inventory']);
   const [selectedCoATemplate, setSelectedCoATemplate] = useState('retail');
+  
+  // Team Setup state
+  const [organizationSetup, setOrganizationSetup] = useState({
+    organizationType: 'single_owner', // 'single_owner', 'partnership', 'corporation', 'startup'
+    departments: ['Management', 'Finance', 'Operations'],
+    userPermissions: {
+      defaultUserRole: 'admin', // Since owner is setting up
+      restrictionLevel: 'flexible',
+      allowRoleOverride: true,
+      requireApprovalForAdjustments: false
+    },
+    teamMembers: [
+      {
+        id: 1,
+        name: 'Company Owner',
+        email: '',
+        role: 'owner',
+        department: 'Management',
+        permissions: ['all'],
+        status: 'active'
+      }
+    ]
+  });
 
   const steps = [
     'Business Profile',
@@ -202,8 +225,12 @@ const OnboardingWizard = () => {
       // Simulate account activation
       await new Promise(resolve => setTimeout(resolve, 2000));
       
+      // Save organization setup to AdminSettings format
+      localStorage.setItem('adminSettings_userPermissions', JSON.stringify(organizationSetup.userPermissions));
+      localStorage.setItem('edonuops_organization_setup', JSON.stringify(organizationSetup));
+      
       // Show success message
-      alert('🎉 Welcome to EdonuOps! Your personalized dashboard has been configured with your selected modules.');
+      alert('🎉 Welcome to EdonuOps! Your personalized dashboard has been configured with your selected modules and team settings.');
       
       // Navigate to the dashboard
       navigate('/dashboard');
@@ -423,6 +450,181 @@ const OnboardingWizard = () => {
     </Box>
   );
 
+  const renderTeamSetup = () => (
+    <Box>
+      <Typography variant="h4" component="h2" sx={{ fontWeight: 'bold', mb: 3 }}>
+        Organization & Team Setup
+      </Typography>
+      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+        Configure your organization structure and set up user permissions for your team.
+      </Typography>
+
+      {/* Organization Type */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Business color="primary" />
+            Organization Type
+          </Typography>
+          
+          <Grid container spacing={2}>
+            {[
+              { value: 'single_owner', label: 'Single Owner', desc: 'Individual business owner with full control' },
+              { value: 'partnership', label: 'Partnership', desc: 'Multiple partners sharing ownership and decisions' },
+              { value: 'corporation', label: 'Corporation', desc: 'Formal corporate structure with board and shareholders' },
+              { value: 'startup', label: 'Startup', desc: 'Growing company with flexible team structure' }
+            ].map((type) => (
+              <Grid item xs={12} sm={6} key={type.value}>
+                <Card 
+                  variant={organizationSetup.organizationType === type.value ? "elevation" : "outlined"}
+                  sx={{ 
+                    cursor: 'pointer',
+                    border: organizationSetup.organizationType === type.value ? 2 : 1,
+                    borderColor: organizationSetup.organizationType === type.value ? 'primary.main' : 'divider'
+                  }}
+                  onClick={() => setOrganizationSetup(prev => ({ ...prev, organizationType: type.value }))}
+                >
+                  <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                    <Typography variant="h6" sx={{ mb: 1 }}>{type.label}</Typography>
+                    <Typography variant="body2" color="text.secondary">{type.desc}</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </CardContent>
+      </Card>
+
+      {/* User Permissions */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <People color="primary" />
+            Default User Permissions
+          </Typography>
+          
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth>
+                <InputLabel>Default Role for New Users</InputLabel>
+                <Select
+                  value={organizationSetup.userPermissions.defaultUserRole}
+                  onChange={(e) => setOrganizationSetup(prev => ({
+                    ...prev,
+                    userPermissions: { ...prev.userPermissions, defaultUserRole: e.target.value }
+                  }))}
+                  label="Default Role for New Users"
+                >
+                  <MenuItem value="user">Regular User - Basic access</MenuItem>
+                  <MenuItem value="accountant">Accountant - Financial access</MenuItem>
+                  <MenuItem value="admin">Admin - Full system access</MenuItem>
+                  <MenuItem value="manager">Manager - Department oversight</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth>
+                <InputLabel>Smart Entry Restrictions</InputLabel>
+                <Select
+                  value={organizationSetup.userPermissions.restrictionLevel}
+                  onChange={(e) => setOrganizationSetup(prev => ({
+                    ...prev,
+                    userPermissions: { ...prev.userPermissions, restrictionLevel: e.target.value }
+                  }))}
+                  label="Smart Entry Restrictions"
+                >
+                  <MenuItem value="none">None - Full access for all</MenuItem>
+                  <MenuItem value="flexible">Flexible - Smart guidance with overrides</MenuItem>
+                  <MenuItem value="strict">Strict - Enforce accounting rules</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+
+          <Box sx={{ mt: 2 }}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={organizationSetup.userPermissions.allowRoleOverride}
+                  onChange={(e) => setOrganizationSetup(prev => ({
+                    ...prev,
+                    userPermissions: { ...prev.userPermissions, allowRoleOverride: e.target.checked }
+                  }))}
+                />
+              }
+              label="Allow users to temporarily override their permissions"
+            />
+          </Box>
+
+          <Box sx={{ mt: 1 }}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={organizationSetup.userPermissions.requireApprovalForAdjustments}
+                  onChange={(e) => setOrganizationSetup(prev => ({
+                    ...prev,
+                    userPermissions: { ...prev.userPermissions, requireApprovalForAdjustments: e.target.checked }
+                  }))}
+                />
+              }
+              label="Require approval for adjustment entries and corrections"
+            />
+          </Box>
+        </CardContent>
+      </Card>
+
+      {/* Current Setup Summary */}
+      <Card>
+        <CardContent>
+          <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <CheckCircle color="primary" />
+            Setup Summary
+          </Typography>
+          
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <Chip 
+                label={`Organization: ${organizationSetup.organizationType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}`}
+                color="primary" 
+                variant="outlined" 
+                sx={{ mb: 1, mr: 1 }}
+              />
+              <Chip 
+                label={`Default Role: ${organizationSetup.userPermissions.defaultUserRole}`}
+                color="secondary" 
+                variant="outlined" 
+                sx={{ mb: 1, mr: 1 }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <Chip 
+                label={`Restrictions: ${organizationSetup.userPermissions.restrictionLevel}`}
+                color={organizationSetup.userPermissions.restrictionLevel === 'none' ? 'success' : 
+                       organizationSetup.userPermissions.restrictionLevel === 'strict' ? 'error' : 'warning'} 
+                variant="outlined" 
+                sx={{ mb: 1, mr: 1 }}
+              />
+              <Chip 
+                label={`Overrides: ${organizationSetup.userPermissions.allowRoleOverride ? 'Allowed' : 'Disabled'}`}
+                color={organizationSetup.userPermissions.allowRoleOverride ? 'success' : 'default'} 
+                variant="outlined" 
+                sx={{ mb: 1 }}
+              />
+            </Grid>
+          </Grid>
+
+          <Alert severity="info" sx={{ mt: 2 }}>
+            <Typography variant="body2">
+              <strong>Note:</strong> You can modify these settings later in Admin Settings → User Permissions. 
+              As the owner, you'll have full access regardless of these restrictions.
+            </Typography>
+          </Alert>
+        </CardContent>
+      </Card>
+    </Box>
+  );
+
   const renderStepContent = () => {
     switch (activeStep) {
       case 0:
@@ -431,6 +633,8 @@ const OnboardingWizard = () => {
         return renderModuleSelection();
       case 2:
         return renderCoATemplateSelection();
+      case 3:
+        return renderTeamSetup();
       default:
         return (
           <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -448,6 +652,8 @@ const OnboardingWizard = () => {
         return selectedModules.length > 0;
       case 2:
         return selectedCoATemplate !== '';
+      case 3:
+        return organizationSetup.organizationType && organizationSetup.userPermissions.defaultUserRole;
       default:
         return true;
     }

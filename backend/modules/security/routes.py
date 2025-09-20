@@ -9,7 +9,7 @@ from modules.security.models import (
 )
 import uuid
 
-bp = Blueprint('security', __name__, url_prefix='/api/security')
+bp = Blueprint('enterprise_security', __name__, url_prefix='/api/security')
 
 # Sample data for initial state
 security_roles = []

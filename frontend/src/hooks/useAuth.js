@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import apiClient from '../services/apiClient';
+import { initializeERPApiService } from '../services/erpApiService';
 
 const AuthContext = createContext(null);
 
@@ -7,42 +8,47 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
+    if (initialized) return; // Prevent multiple initializations
+    
+    // Initialize the ERP API service
+    initializeERPApiService(apiClient);
+    
     const token = localStorage.getItem('access_token');
     if (token) {
-      // In a real-world scenario, you would decode the token to get user info
-      // For this project, we'll assume the token is valid for now.
+      // Token exists, set authenticated state
       setIsAuthenticated(true);
-      // You could also make an API call to get user details based on the token
-      // e.g., apiClient.get('/auth/me')
-      // For now, we'll set a placeholder user
+      // Set a placeholder user (in production, you'd decode the JWT or call /auth/me)
       setUser({ id: 1, username: 'Authenticated User', role: 'admin' });
+    } else {
+      // No token, ensure user is logged out
+      setIsAuthenticated(false);
+      setUser(null);
     }
     setLoading(false);
-  }, []);
+    setInitialized(true);
+  }, [initialized]);
 
   const login = async (email, password) => {
     try {
-      const response = await apiClient.post('/auth/login', { email, password });
-      const { access_token } = response.data;
+      const response = await apiClient.login({ email, password });
+      const { access_token, user: userData } = response;
       
       localStorage.setItem('access_token', access_token);
       setIsAuthenticated(true);
-      
-      // Fetch user data after successful login.
-      // This is a simplified example; a real app might decode the token
-      // or hit a /profile endpoint.
-      const userResponse = await apiClient.get('/auth/protected');
-      setUser({ 
-        username: userResponse.data.logged_in_as, 
-        role: 'admin' // Assuming a default role for this example
+      setUser({
+        id: userData.id || 1,
+        username: userData.username,
+        email: userData.email,
+        role: userData.role
       });
       
-      return response.data;
+      return response;
     } catch (error) {
       console.error("Login failed:", error);
-      throw new Error('Login failed');
+      throw new Error(error.response?.data?.message || 'Login failed');
     }
   };
 
@@ -59,11 +65,24 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     loading,
+    initialized
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+  if (!context) {
+    // Return default values instead of throwing error during initialization
+    return {
+      user: null,
+      isAuthenticated: false,
+      loading: true,
+      initialized: false,
+      login: () => Promise.reject(new Error('Auth not initialized')),
+      logout: () => {}
+    };
+  }
+  return context;
 };

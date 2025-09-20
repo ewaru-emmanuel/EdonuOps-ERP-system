@@ -4,6 +4,8 @@ from flask import Blueprint, request, jsonify
 from app import db
 from .models import User, Role
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from services.audit_logger_service import audit_logger
+from services.security_service import security_service
 from werkzeug.security import generate_password_hash, check_password_hash
 from modules.core.models import User  # make sure this import exists
 
@@ -22,6 +24,14 @@ def register():
 
     if User.query.filter_by(email=email).first():
         return jsonify({"message": "Email already exists"}), 409
+
+    # Validate password against security policy
+    is_valid, errors = security_service.validate_password(password, username)
+    if not is_valid:
+        return jsonify({
+            "message": "Password does not meet security requirements",
+            "errors": errors
+        }), 400
 
     hashed_password = generate_password_hash(password)
 
@@ -42,6 +52,20 @@ def register():
     new_user = User(username=username, email=email, password_hash=hashed_password, role_id=role.id)
     db.session.add(new_user)
     db.session.commit()
+
+    # Save password to history
+    security_service.save_password_to_history(new_user.id, hashed_password)
+
+    # Log user registration
+    audit_logger.log_action(
+        action='CREATE',
+        entity_type='user',
+        entity_id=str(new_user.id),
+        new_values={'username': username, 'email': email, 'role': role_name},
+        module='auth',
+        source='api',
+        success=True
+    )
 
     return jsonify({"message": "User registered successfully"}), 201
 

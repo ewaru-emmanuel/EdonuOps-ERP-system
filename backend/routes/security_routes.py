@@ -9,7 +9,7 @@ from services.security import SecurityService
 import logging
 
 # Create security blueprint
-security_bp = Blueprint('security', __name__)
+security_bp = Blueprint('legacy_security', __name__)
 security_service = SecurityService()
 
 @security_bp.route('/metrics', methods=['GET'])

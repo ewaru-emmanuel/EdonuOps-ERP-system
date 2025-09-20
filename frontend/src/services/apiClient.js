@@ -16,7 +16,7 @@ class ApiClient {
 
   // Get auth token from localStorage
   getAuthToken() {
-    return localStorage.getItem('token');
+    return localStorage.getItem('access_token');
   }
 
   // Get headers with authentication
@@ -55,6 +55,12 @@ class ApiClient {
       });
 
       if (!response.ok) {
+        // Handle token expiration
+        if (response.status === 401) {
+          // Clear expired token and redirect to login
+          localStorage.removeItem('access_token');
+          window.location.href = '/login';
+        }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
@@ -76,6 +82,12 @@ class ApiClient {
       });
 
       if (!response.ok) {
+        // Handle token expiration
+        if (response.status === 401) {
+          // Clear expired token and redirect to login
+          localStorage.removeItem('access_token');
+          window.location.href = '/login';
+        }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 

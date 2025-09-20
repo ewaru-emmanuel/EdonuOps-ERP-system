@@ -12,12 +12,14 @@ import {
   Email, Lock, Person
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 import DashboardMockup from './DashboardMockup';
 
 const LandingPage = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [signupData, setSignupData] = useState({
@@ -63,7 +65,11 @@ const LandingPage = () => {
   };
 
   const handleStartTrial = () => {
-    navigate('/onboarding');
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    } else {
+      navigate('/register');
+    }
   };
 
   return (
@@ -80,6 +86,8 @@ const LandingPage = () => {
               <Button color="inherit" onClick={() => handleModuleClick('financials')}>Financials</Button>
               <Button color="inherit" onClick={() => handleModuleClick('inventory')}>Inventory</Button>
               <Button color="inherit" onClick={() => handleModuleClick('crm')}>CRM</Button>
+              <Button color="inherit" onClick={() => navigate('/login')}>Login</Button>
+              <Button variant="outlined" sx={{ color: 'primary.main', borderColor: 'primary.main' }} onClick={() => navigate('/register')}>Sign Up</Button>
               <Button variant="contained" onClick={handleStartTrial}>Start Free Trial</Button>
             </Box>
           ) : (
@@ -101,6 +109,23 @@ const LandingPage = () => {
               <Typography variant="h5" sx={{ mb: 3, opacity: 0.9 }}>
                 Integrate your finance, inventory, sales, and team management in one place.
               </Typography>
+              
+              {/* Security Notice */}
+              <Alert 
+                severity="info" 
+                icon={<Security />}
+                sx={{ 
+                  mb: 3, 
+                  bgcolor: 'rgba(255,255,255,0.1)', 
+                  color: 'white',
+                  '& .MuiAlert-icon': { color: 'white' }
+                }}
+              >
+                <Typography variant="body2">
+                  🔒 <strong>Secure Enterprise ERP</strong> - Authentication required for all business operations
+                </Typography>
+              </Alert>
+              
               <Stack direction="row" spacing={2} sx={{ mb: 4 }}>
                 <Button
                   variant="contained"
@@ -113,7 +138,7 @@ const LandingPage = () => {
                     '&:hover': { bgcolor: 'grey.100' }
                   }}
                 >
-                  Start Your Free Trial
+                  {isAuthenticated ? 'Go to Dashboard' : 'Get Started'}
                 </Button>
                 <Button
                   variant="outlined"
@@ -218,7 +243,7 @@ const LandingPage = () => {
                 '&:hover': { bgcolor: 'grey.100' }
               }}
             >
-              Start Your Free Trial
+{isAuthenticated ? 'Go to Dashboard' : 'Get Started'}
             </Button>
             <Typography variant="body2" sx={{ mt: 2, opacity: 0.8 }}>
               No credit card required • 14-day free trial • Cancel anytime

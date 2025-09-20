@@ -48,6 +48,76 @@ class GeneralLedgerEntry(db.Model):
     # Audit fields
     audit_trail = db.Column(db.Text)  # JSON string for audit trail
 
+# Posting Rules Configuration
+class PostingRule(db.Model):
+    __tablename__ = 'posting_rules'
+    __table_args__ = {'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
+    event_type = db.Column(db.String(50), nullable=False)  # goods_receipt, invoice_received, payment_made
+    event_description = db.Column(db.String(200))
+    debit_account_name = db.Column(db.String(100), nullable=False)
+    credit_account_name = db.Column(db.String(100), nullable=False)
+    conditions = db.Column(JSON)  # JSON field for flexible conditions
+    priority = db.Column(db.Integer, default=1)  # For multiple rules per event
+    valid_from = db.Column(db.Date, default=datetime.utcnow)
+    valid_to = db.Column(db.Date)  # NULL = active indefinitely
+    company_id = db.Column(db.Integer)  # For multi-company support
+    business_unit = db.Column(db.String(50))  # For different BU rules
+    is_active = db.Column(db.Boolean, default=True)
+    created_by = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Audit trail for rule changes
+    change_reason = db.Column(db.Text)
+    version = db.Column(db.Integer, default=1)
+
+# Journal Header Model
+class JournalHeader(db.Model):
+    __tablename__ = 'advanced_journal_headers'
+    __table_args__ = {'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
+    journal_number = db.Column(db.String(50), unique=True, nullable=False)
+    source_module = db.Column(db.String(50), nullable=False)  # Finance, Inventory, Procurement, Sales
+    source_document_type = db.Column(db.String(50))  # PO, Invoice, Receipt, Payment
+    reference_id = db.Column(db.String(50))  # PO#123, INV#456, etc.
+    posting_date = db.Column(db.Date, nullable=False)
+    document_date = db.Column(db.Date, nullable=False)
+    fiscal_period = db.Column(db.String(10), nullable=False)  # YYYY-MM
+    description = db.Column(db.Text)
+    total_debit = db.Column(db.Float, default=0.0)
+    total_credit = db.Column(db.Float, default=0.0)
+    currency = db.Column(db.String(3), default='USD')
+    exchange_rate = db.Column(db.Float, default=1.0)
+    
+    # Status and workflow
+    status = db.Column(db.String(20), default='draft')  # draft, posted, reversed, cancelled
+    posting_status = db.Column(db.String(20), default='unposted')  # unposted, posted, error
+    approval_status = db.Column(db.String(20), default='pending')  # pending, approved, rejected
+    
+    # User metadata
+    created_by = db.Column(db.String(100))
+    posted_by = db.Column(db.String(100))
+    approved_by = db.Column(db.String(100))
+    reversed_by = db.Column(db.String(100))
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    posted_at = db.Column(db.DateTime)
+    approved_at = db.Column(db.DateTime)
+    reversed_at = db.Column(db.DateTime)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    lines = db.relationship('GeneralLedgerEntry', backref='journal_header', lazy='dynamic')
+    
+    # Audit and compliance
+    audit_trail = db.Column(JSON)  # JSON field for audit events
+    reversal_reason = db.Column(db.Text)
+    reversal_journal_id = db.Column(db.Integer, db.ForeignKey('advanced_journal_headers.id'))
+
 # Company Settings - Base Currency
 class CompanySettings(db.Model):
     __tablename__ = 'advanced_company_settings'
@@ -398,29 +468,6 @@ class MaintenanceRecord(db.Model):
     
     # Relationships
     asset = db.relationship('FixedAsset', backref='maintenance_records')
-
-# Journal Headers
-class JournalHeader(db.Model):
-    __tablename__ = 'advanced_journal_headers'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    journal_number = db.Column(db.String(50), unique=True, nullable=False)
-    journal_date = db.Column(db.Date, nullable=False)
-    reference = db.Column(db.String(100))
-    description = db.Column(db.Text)
-    journal_type = db.Column(db.String(50), nullable=False)  # manual, system, recurring
-    status = db.Column(db.String(20), default='draft')  # draft, posted, void
-    total_debit = db.Column(db.Float, default=0.0)
-    total_credit = db.Column(db.Float, default=0.0)
-    fiscal_period = db.Column(db.String(10))
-    created_by = db.Column(db.String(100))
-    posted_by = db.Column(db.String(100))
-    posted_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relationships
-    lines = db.relationship('GeneralLedgerEntry', backref='journal_header', lazy='dynamic')
 
 # Tax Filing History
 class TaxFilingHistory(db.Model):

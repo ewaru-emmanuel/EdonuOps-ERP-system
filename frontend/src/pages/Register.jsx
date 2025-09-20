@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/apiClient';
+import {
+  Box, Container, Typography, Button, TextField, Paper, Alert, CircularProgress,
+  FormControl, InputLabel, Select, MenuItem
+} from '@mui/material';
+import { PersonAdd } from '@mui/icons-material';
 
 function Register() {
   const [username, setUsername] = useState('');
@@ -17,77 +22,115 @@ function Register() {
     setLoading(true);
 
     try {
-      await apiClient.register({ username, email, password, role });
-      navigate('/login'); // Redirect to login
+      const response = await apiClient.register({ username, email, password, role });
+      // Show success message and redirect
+      alert('Registration successful! Please login with your credentials.');
+      navigate('/login');
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.message || err.message || 'Registration failed');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
-        <h2 className="text-2xl font-bold text-center">Register an Account</h2>
-        {error && <div className="text-red-500">{error}</div>}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block">Username</label>
-            <input
-              type="text"
-              required
-              className="w-full p-2 border rounded"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block">Email</label>
-            <input
-              type="email"
-              required
-              className="w-full p-2 border rounded"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block">Password</label>
-            <input
-              type="password"
-              required
-              className="w-full p-2 border rounded"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block">Role</label>
-            <select
-              className="w-full p-2 border rounded"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-            >
-              <option value="user">User</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-          <button
-            type="submit"
-            className={`w-full py-2 px-4 text-white rounded ${
-              loading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'
-            }`}
+    <Container maxWidth="sm" sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Paper elevation={3} sx={{ p: 4, width: '100%', maxWidth: 400 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
+          <PersonAdd color="primary" sx={{ fontSize: 48, mb: 2 }} />
+          <Typography variant="h4" component="h1" gutterBottom>
+            Create Account
+          </Typography>
+        </Box>
+        
+        <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
+          
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            id="username"
+            label="Username"
+            name="username"
+            autoComplete="username"
+            autoFocus
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
             disabled={loading}
+          />
+          
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            id="email"
+            label="Email Address"
+            name="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={loading}
+          />
+          
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            name="password"
+            label="Password"
+            type="password"
+            id="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={loading}
+          />
+          
+          <FormControl fullWidth margin="normal">
+            <InputLabel id="role-label">Role</InputLabel>
+            <Select
+              labelId="role-label"
+              id="role"
+              value={role}
+              label="Role"
+              onChange={(e) => setRole(e.target.value)}
+              disabled={loading}
+            >
+              <MenuItem value="user">Regular User</MenuItem>
+              <MenuItem value="accountant">Accountant</MenuItem>
+              <MenuItem value="manager">Manager</MenuItem>
+              <MenuItem value="admin">Admin</MenuItem>
+            </Select>
+          </FormControl>
+          
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            sx={{ mt: 3, mb: 2 }}
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={20} /> : null}
           >
-            {loading ? 'Registering...' : 'Register'}
-          </button>
-          <p className="text-sm text-center mt-2">
-            Already have an account? <a href="/login" className="text-blue-600 underline">Login</a>
-          </p>
-        </form>
-      </div>
-    </div>
+            {loading ? 'Creating Account...' : 'Create Account'}
+          </Button>
+          
+          <Box sx={{ textAlign: 'center' }}>
+            <Button 
+              variant="text" 
+              onClick={() => navigate('/login')}
+              sx={{ textTransform: 'none' }}
+            >
+              Already have an account? Login
+            </Button>
+          </Box>
+        </Box>
+      </Paper>
+    </Container>
   );
 }
 

@@ -12,10 +12,11 @@ import {
   Security, Lock, Notifications, Settings, FilterList, Search, Timeline, CurrencyExchange, Audit, Compliance,
   MoreVert, ExpandMore, ExpandLess, PlayArrow, Pause, Stop, Save, Cancel, AutoAwesome, Psychology, Lightbulb,
   CloudUpload, Description, ReceiptLong, PaymentOutlined, ScheduleSend, AutoFixHigh, SmartToy, QrCode, CameraAlt,
-  Email, CalendarToday
+  Email, CalendarToday, PersonAdd
 } from '@mui/icons-material';
 import { useRealTimeData } from '../../../hooks/useRealTimeData';
 import { getERPApiService } from '../../../services/erpApiService';
+import PermissionGuard, { PermissionButton } from '../../../components/PermissionGuard';
 
 const SmartAccountsReceivable = ({ isMobile, isTablet }) => {
   const theme = useTheme();
@@ -51,9 +52,28 @@ const SmartAccountsReceivable = ({ isMobile, isTablet }) => {
     status: 'pending'
   });
 
+  // Customer creation dialog states
+  const [addCustomerDialogOpen, setAddCustomerDialogOpen] = useState(false);
+  const [customerFormData, setCustomerFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    company_name: '',
+    tax_id: '',
+    credit_limit: '',
+    payment_terms: 'Net 30',
+    customer_type: 'regular',
+    category: '',
+    region: ''
+  });
+
   // Real-time data hooks
-  const { data: accountsReceivable, loading: arLoading, error: arError, create, update, remove, refresh } = useRealTimeData('/api/finance/accounts-receivable');
-  const { data: customers, loading: customersLoading, refresh: refreshCustomers } = useRealTimeData('/api/finance/customers');
+  const { data: accountsReceivable, loading: arLoading, error: arError, create, update, remove, refresh } = useRealTimeData('/api/sales/accounts-receivable');
+  const { data: customersResponse, loading: customersLoading, refresh: refreshCustomers } = useRealTimeData('/api/sales/customers');
+  
+  // Extract customers array from response
+  const customers = customersResponse?.customers || [];
 
   // Handle form submission
   const handleSubmit = async (e) => {
@@ -174,6 +194,73 @@ const SmartAccountsReceivable = ({ isMobile, isTablet }) => {
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleCustomerInputChange = (field, value) => {
+    setCustomerFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleCustomerSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      // Validate required fields
+      if (!customerFormData.name) {
+        setSnackbar({ open: true, message: 'Customer name is required', severity: 'error' });
+        return;
+      }
+
+      // Prepare customer data
+      const submitData = {
+        ...customerFormData,
+        credit_limit: parseFloat(customerFormData.credit_limit || 0),
+        created_by: 'user'
+      };
+
+      // Create customer via API call
+      const response = await fetch('/api/sales/customers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(submitData)
+      });
+
+      if (response.ok) {
+        const newCustomer = await response.json();
+        setSnackbar({ open: true, message: 'Customer created successfully!', severity: 'success' });
+        
+        // Refresh customers list
+        refreshCustomers();
+        
+        // Auto-select the new customer in invoice form
+        setFormData(prev => ({ ...prev, customer_id: newCustomer.id }));
+        
+        // Close customer dialog
+        handleCloseCustomerDialog();
+      } else {
+        const errorData = await response.json();
+        setSnackbar({ open: true, message: `Error: ${errorData.error}`, severity: 'error' });
+      }
+    } catch (error) {
+      setSnackbar({ open: true, message: `Error creating customer: ${error.message}`, severity: 'error' });
+    }
+  };
+
+  const handleCloseCustomerDialog = () => {
+    setAddCustomerDialogOpen(false);
+    setCustomerFormData({
+      name: '',
+      email: '',
+      phone: '',
+      address: '',
+      company_name: '',
+      tax_id: '',
+      credit_limit: '',
+      payment_terms: 'Net 30',
+      customer_type: 'regular',
+      category: '',
+      region: ''
+    });
   };
 
   // Calculate AR metrics and aging buckets
@@ -371,6 +458,13 @@ const SmartAccountsReceivable = ({ isMobile, isTablet }) => {
             disabled={selectedInvoices.length === 0}
           >
             Send Reminders ({selectedInvoices.length})
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<PersonAdd />}
+            onClick={() => setAddCustomerDialogOpen(true)}
+          >
+            Add Customer
           </Button>
           <Button
             variant="contained"
@@ -751,14 +845,30 @@ const SmartAccountsReceivable = ({ isMobile, isTablet }) => {
                     required
                     error={!formData.customer_id}
                   >
-                    {customers?.map((customer) => (
-                      <MenuItem key={customer.id} value={customer.id}>
-                        {customer.customer_name}
+                    {customers.length === 0 ? (
+                      <MenuItem disabled>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <PersonAdd fontSize="small" />
+                          <Typography variant="body2" color="text.secondary">
+                            No customers available - Click "Add Customer" to create one
+                          </Typography>
+                        </Box>
                       </MenuItem>
-                    ))}
+                    ) : (
+                      customers.map((customer) => (
+                        <MenuItem key={customer.id} value={customer.id}>
+                          {customer.name} {customer.company_name && `(${customer.company_name})`}
+                        </MenuItem>
+                      ))
+                    )}
                   </Select>
                   {!formData.customer_id && (
-                    <FormHelperText error>Customer is required</FormHelperText>
+                    <FormHelperText error>
+                      {customers.length === 0 
+                        ? 'Please add a customer first using the "Add Customer" button'
+                        : 'Customer is required'
+                      }
+                    </FormHelperText>
                   )}
                 </FormControl>
               </Grid>
@@ -856,6 +966,131 @@ const SmartAccountsReceivable = ({ isMobile, isTablet }) => {
           <Button onClick={handleCloseDialog}>Cancel</Button>
           <Button variant="contained" onClick={handleSubmit}>
             {editDialogOpen ? 'Update' : 'Create'} Invoice
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add Customer Dialog */}
+      <Dialog 
+        open={addCustomerDialogOpen} 
+        onClose={handleCloseCustomerDialog}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Add New Customer</DialogTitle>
+        <DialogContent>
+          <Box component="form" onSubmit={handleCustomerSubmit} sx={{ mt: 2 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Customer Name"
+                  value={customerFormData.name}
+                  onChange={(e) => handleCustomerInputChange('name', e.target.value)}
+                  fullWidth
+                  required
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Company Name"
+                  value={customerFormData.company_name}
+                  onChange={(e) => handleCustomerInputChange('company_name', e.target.value)}
+                  fullWidth
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Email"
+                  type="email"
+                  value={customerFormData.email}
+                  onChange={(e) => handleCustomerInputChange('email', e.target.value)}
+                  fullWidth
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Phone"
+                  value={customerFormData.phone}
+                  onChange={(e) => handleCustomerInputChange('phone', e.target.value)}
+                  fullWidth
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  label="Address"
+                  value={customerFormData.address}
+                  onChange={(e) => handleCustomerInputChange('address', e.target.value)}
+                  fullWidth
+                  margin="normal"
+                  multiline
+                  rows={2}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Credit Limit"
+                  type="number"
+                  value={customerFormData.credit_limit}
+                  onChange={(e) => handleCustomerInputChange('credit_limit', e.target.value)}
+                  fullWidth
+                  margin="normal"
+                  InputProps={{
+                    startAdornment: '$'
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Payment Terms</InputLabel>
+                  <Select
+                    value={customerFormData.payment_terms}
+                    onChange={(e) => handleCustomerInputChange('payment_terms', e.target.value)}
+                    label="Payment Terms"
+                  >
+                    <MenuItem value="Net 15">Net 15 Days</MenuItem>
+                    <MenuItem value="Net 30">Net 30 Days</MenuItem>
+                    <MenuItem value="Net 45">Net 45 Days</MenuItem>
+                    <MenuItem value="Net 60">Net 60 Days</MenuItem>
+                    <MenuItem value="Cash on Delivery">Cash on Delivery</MenuItem>
+                    <MenuItem value="Prepaid">Prepaid</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Customer Type</InputLabel>
+                  <Select
+                    value={customerFormData.customer_type}
+                    onChange={(e) => handleCustomerInputChange('customer_type', e.target.value)}
+                    label="Customer Type"
+                  >
+                    <MenuItem value="regular">Regular</MenuItem>
+                    <MenuItem value="vip">VIP</MenuItem>
+                    <MenuItem value="wholesale">Wholesale</MenuItem>
+                    <MenuItem value="retail">Retail</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Region"
+                  value={customerFormData.region}
+                  onChange={(e) => handleCustomerInputChange('region', e.target.value)}
+                  fullWidth
+                  margin="normal"
+                />
+              </Grid>
+            </Grid>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseCustomerDialog}>Cancel</Button>
+          <Button variant="contained" onClick={handleCustomerSubmit}>
+            Create Customer
           </Button>
         </DialogActions>
       </Dialog>

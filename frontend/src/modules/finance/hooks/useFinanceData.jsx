@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../../../App';
+import { useAuth } from '../../../hooks/useAuth';
+import apiClient from '../../../services/apiClient';
 
 export const useFinanceData = (endpoint) => {
-  const { apiClient } = useAuth();
+  const { user } = useAuth();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

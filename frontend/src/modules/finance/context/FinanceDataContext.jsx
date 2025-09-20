@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { useAuth } from '../../../App';
+import { useAuth } from '../../../hooks/useAuth';
 import apiClient from '../../../services/apiClient';
 
 const FinanceDataContext = createContext();
@@ -13,7 +13,7 @@ export const useFinanceData = () => {
 };
 
 export const FinanceDataProvider = ({ children }) => {
-  const { apiClient, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   
   // Centralized state for all finance data
   const [data, setData] = useState({

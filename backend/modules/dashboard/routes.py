@@ -5,7 +5,7 @@ from modules.dashboard.models import Dashboard, DashboardWidget, WidgetTemplate,
 
 bp = Blueprint('dashboard', __name__, url_prefix='/api/dashboard')
 
-# Sample data
+# Dashboard data will be created by users
 dashboards = []
 dashboard_widgets = []
 widget_templates = []

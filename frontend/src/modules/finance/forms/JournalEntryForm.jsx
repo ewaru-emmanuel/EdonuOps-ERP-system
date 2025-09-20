@@ -31,7 +31,7 @@ import {
   CheckCircle,
   Error
 } from '@mui/icons-material';
-import { useAuth } from '../../../App';
+import { useAuth } from '../../../hooks/useAuth';
 import { useCoA } from '../context/CoAContext';
 
 const JournalEntryForm = ({ open, onClose, entry = null, onSave }) => {
@@ -87,6 +87,90 @@ const JournalEntryForm = ({ open, onClose, entry = null, onSave }) => {
     }
   };
 
+  // Smart account behavior logic
+  const getAccountBehavior = (accountType) => {
+    switch(accountType?.toLowerCase()) {
+      case 'asset':
+        return {
+          debitEnabled: true,
+          creditEnabled: true,
+          debitLabel: 'Increase Asset',
+          creditLabel: 'Decrease Asset',
+          debitPlaceholder: 'Amount received/acquired',
+          creditPlaceholder: 'Amount paid/reduced',
+          normalSide: 'debit',
+          helpText: 'Assets increase with debits, decrease with credits',
+          color: '#1976d2', // Blue for assets
+          icon: '💰'
+        };
+      case 'liability':
+        return {
+          debitEnabled: true,
+          creditEnabled: true,
+          debitLabel: 'Pay/Reduce Liability',
+          creditLabel: 'Incur/Increase Liability',
+          debitPlaceholder: 'Amount paid/reduced',
+          creditPlaceholder: 'Amount owed/increased',
+          normalSide: 'credit',
+          helpText: 'Liabilities increase with credits, decrease with debits',
+          color: '#d32f2f', // Red for liabilities
+          icon: '💳'
+        };
+      case 'equity':
+        return {
+          debitEnabled: true,
+          creditEnabled: true,
+          debitLabel: 'Withdrawals/Losses',
+          creditLabel: 'Investments/Profits',
+          debitPlaceholder: 'Withdrawals/losses',
+          creditPlaceholder: 'Investments/profits',
+          normalSide: 'credit',
+          helpText: 'Equity increases with credits, decreases with debits',
+          color: '#388e3c', // Green for equity
+          icon: '🏢'
+        };
+      case 'revenue':
+        return {
+          debitEnabled: false,
+          creditEnabled: true,
+          debitLabel: 'Refund/Reversal',
+          creditLabel: 'Revenue Earned',
+          debitPlaceholder: 'Refunds only',
+          creditPlaceholder: 'Enter revenue amount',
+          normalSide: 'credit',
+          helpText: '💡 Revenue accounts normally have credit balances (money earned)',
+          color: '#388e3c', // Green for revenue
+          icon: '💵'
+        };
+      case 'expense':
+        return {
+          debitEnabled: true,
+          creditEnabled: false,
+          debitLabel: 'Expense Incurred',
+          creditLabel: 'Expense Reversal',
+          debitPlaceholder: 'Enter expense amount',
+          creditPlaceholder: 'Reversals only',
+          normalSide: 'debit',
+          helpText: '💡 Expense accounts normally have debit balances (money spent)',
+          color: '#f57c00', // Orange for expenses
+          icon: '💸'
+        };
+      default:
+        return {
+          debitEnabled: true,
+          creditEnabled: true,
+          debitLabel: 'Debit',
+          creditLabel: 'Credit',
+          debitPlaceholder: 'Enter debit amount',
+          creditPlaceholder: 'Enter credit amount',
+          normalSide: 'debit',
+          helpText: 'Select an account to see smart field behavior',
+          color: '#757575', // Gray for unknown
+          icon: '❓'
+        };
+    }
+  };
+
   const handleLineChange = (index, field, value) => {
     const newLines = [...formData.lines];
     
@@ -97,9 +181,29 @@ const JournalEntryForm = ({ open, onClose, entry = null, onSave }) => {
           ...newLines[index],
           account_id: value,
           account_code: selectedAccount.code,
-          account_name: selectedAccount.name
+          account_name: selectedAccount.name,
+          account_type: selectedAccount.category || selectedAccount.account_type || selectedAccount.type // Store for smart behavior
         };
+        
+        // Smart field behavior: Clear amounts and apply account-specific logic
+        const behavior = getAccountBehavior(selectedAccount.category || selectedAccount.account_type || selectedAccount.type);
+        
+        // Clear disabled fields
+        if (!behavior.debitEnabled) {
+          newLines[index].debit_amount = '';
+        }
+        if (!behavior.creditEnabled) {
+          newLines[index].credit_amount = '';
+        }
       }
+    } else if (field === 'debit_amount' || field === 'credit_amount') {
+      // Smart mutual exclusion: Clear opposite field when user enters amount
+      if (field === 'debit_amount' && value) {
+        newLines[index].credit_amount = '';
+      } else if (field === 'credit_amount' && value) {
+        newLines[index].debit_amount = '';
+      }
+      newLines[index][field] = value;
     } else {
       newLines[index] = { ...newLines[index], [field]: value };
     }
@@ -247,6 +351,22 @@ const JournalEntryForm = ({ open, onClose, entry = null, onSave }) => {
 
       <DialogContent id="journal-entry-dialog-content">
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {/* Smart Entry Information */}
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
+              🧠 Smart Double-Entry Form
+            </Typography>
+            <Typography variant="body2">
+              This form automatically enables/disables debit/credit fields based on account type to prevent errors:
+            </Typography>
+            <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              <Chip label="💰 Assets: Usually Debit" size="small" color="primary" variant="outlined" />
+              <Chip label="💳 Liabilities: Usually Credit" size="small" color="error" variant="outlined" />
+              <Chip label="💵 Revenue: Credit Only" size="small" color="success" variant="outlined" />
+              <Chip label="💸 Expenses: Debit Only" size="small" color="warning" variant="outlined" />
+            </Box>
+          </Alert>
+
           {/* Header Information */}
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom>
@@ -339,10 +459,29 @@ const JournalEntryForm = ({ open, onClose, entry = null, onSave }) => {
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>Account</TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        Account
+                        <Tooltip title="Select account to see smart field behavior">
+                          <Typography variant="caption" sx={{ color: '#1976d2' }}>ℹ️</Typography>
+                        </Tooltip>
+                      </Box>
+                    </TableCell>
                     <TableCell>Description</TableCell>
-                    <TableCell align="right">Debit</TableCell>
-                    <TableCell align="right">Credit</TableCell>
+                    <TableCell align="center">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" sx={{ color: '#1976d2' }}>💰</Typography>
+                        Debit
+                        <Typography variant="caption" color="text.secondary">(Dr)</Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell align="center">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" sx={{ color: '#388e3c' }}>💳</Typography>
+                        Credit
+                        <Typography variant="caption" color="text.secondary">(Cr)</Typography>
+                      </Box>
+                    </TableCell>
                     <TableCell align="center">Actions</TableCell>
                   </TableRow>
                 </TableHead>
@@ -423,32 +562,106 @@ const JournalEntryForm = ({ open, onClose, entry = null, onSave }) => {
                         />
                       </TableCell>
                       <TableCell>
-                        <TextField
-                          type="number"
-                          value={line.debit_amount}
-                          onChange={(e) => handleLineChange(index, 'debit_amount', e.target.value)}
-                          placeholder="0.00"
-                          size="small"
-                          error={!!errors[`line_${index}_amount`]}
-                          sx={{ width: 100 }}
-                          InputProps={{
-                            startAdornment: <Typography sx={{ mr: 1 }}>$</Typography>,
-                          }}
-                        />
+                        {(() => {
+                          const selectedAccount = accounts.find(acc => acc.id === line.account_id);
+                          const behavior = getAccountBehavior(selectedAccount?.category || selectedAccount?.account_type || selectedAccount?.type);
+                          
+                          return (
+                            <Box sx={{ position: 'relative' }}>
+                              <TextField
+                                type="number"
+                                value={line.debit_amount}
+                                onChange={(e) => handleLineChange(index, 'debit_amount', e.target.value)}
+                                placeholder={behavior.debitPlaceholder}
+                                size="small"
+                                disabled={!behavior.debitEnabled}
+                                error={!!errors[`line_${index}_amount`]}
+                                sx={{ 
+                                  width: 120,
+                                  '& .MuiInputBase-input.Mui-disabled': {
+                                    backgroundColor: '#f5f5f5',
+                                    color: '#999',
+                                    WebkitTextFillColor: '#999'
+                                  }
+                                }}
+                                InputProps={{
+                                  startAdornment: <Typography sx={{ mr: 1, color: behavior.debitEnabled ? behavior.color : '#999' }}>$</Typography>,
+                                }}
+                                label={behavior.debitLabel}
+                                InputLabelProps={{ shrink: true }}
+                              />
+                              {!behavior.debitEnabled && selectedAccount && (
+                                <Tooltip title={`${selectedAccount.category || selectedAccount.account_type || selectedAccount.type} accounts don't normally have debits. ${behavior.helpText}`}>
+                                  <Box sx={{ 
+                                    position: 'absolute', 
+                                    top: 0, 
+                                    right: 0, 
+                                    bgcolor: '#fff3cd', 
+                                    color: '#856404',
+                                    px: 0.5, 
+                                    py: 0.25, 
+                                    borderRadius: 1,
+                                    fontSize: '0.75rem',
+                                    border: '1px solid #ffeaa7'
+                                  }}>
+                                    🚫
+                                  </Box>
+                                </Tooltip>
+                              )}
+                            </Box>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell>
-                        <TextField
-                          type="number"
-                          value={line.credit_amount}
-                          onChange={(e) => handleLineChange(index, 'credit_amount', e.target.value)}
-                          placeholder="0.00"
-                          size="small"
-                          error={!!errors[`line_${index}_amount`]}
-                          sx={{ width: 100 }}
-                          InputProps={{
-                            startAdornment: <Typography sx={{ mr: 1 }}>$</Typography>,
-                          }}
-                        />
+                        {(() => {
+                          const selectedAccount = accounts.find(acc => acc.id === line.account_id);
+                          const behavior = getAccountBehavior(selectedAccount?.category || selectedAccount?.account_type || selectedAccount?.type);
+                          
+                          return (
+                            <Box sx={{ position: 'relative' }}>
+                              <TextField
+                                type="number"
+                                value={line.credit_amount}
+                                onChange={(e) => handleLineChange(index, 'credit_amount', e.target.value)}
+                                placeholder={behavior.creditPlaceholder}
+                                size="small"
+                                disabled={!behavior.creditEnabled}
+                                error={!!errors[`line_${index}_amount`]}
+                                sx={{ 
+                                  width: 120,
+                                  '& .MuiInputBase-input.Mui-disabled': {
+                                    backgroundColor: '#f5f5f5',
+                                    color: '#999',
+                                    WebkitTextFillColor: '#999'
+                                  }
+                                }}
+                                InputProps={{
+                                  startAdornment: <Typography sx={{ mr: 1, color: behavior.creditEnabled ? behavior.color : '#999' }}>$</Typography>,
+                                }}
+                                label={behavior.creditLabel}
+                                InputLabelProps={{ shrink: true }}
+                              />
+                              {!behavior.creditEnabled && selectedAccount && (
+                                <Tooltip title={`${selectedAccount.category || selectedAccount.account_type || selectedAccount.type} accounts don't normally have credits. ${behavior.helpText}`}>
+                                  <Box sx={{ 
+                                    position: 'absolute', 
+                                    top: 0, 
+                                    right: 0, 
+                                    bgcolor: '#fff3cd', 
+                                    color: '#856404',
+                                    px: 0.5, 
+                                    py: 0.25, 
+                                    borderRadius: 1,
+                                    fontSize: '0.75rem',
+                                    border: '1px solid #ffeaa7'
+                                  }}>
+                                    🚫
+                                  </Box>
+                                </Tooltip>
+                              )}
+                            </Box>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell align="center">
                         <IconButton
@@ -507,6 +720,57 @@ const JournalEntryForm = ({ open, onClose, entry = null, onSave }) => {
               </Alert>
             )}
           </Paper>
+
+          {/* Smart Account Guidance Panel */}
+          {formData.lines.some(line => line.account_id) && (
+            <Paper sx={{ p: 2, bgcolor: '#f8f9fa', border: '1px solid #e9ecef' }}>
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                💡 Smart Entry Guidance
+              </Typography>
+              <Grid container spacing={2}>
+                {formData.lines.map((line, index) => {
+                  const selectedAccount = accounts.find(acc => acc.id === line.account_id);
+                  if (!selectedAccount) return null;
+                  
+                  const behavior = getAccountBehavior(selectedAccount.category || selectedAccount.account_type || selectedAccount.type);
+                  
+                  return (
+                    <Grid item xs={12} md={6} key={index}>
+                      <Box sx={{ 
+                        p: 1.5, 
+                        border: '1px solid #dee2e6', 
+                        borderRadius: 1, 
+                        bgcolor: 'white',
+                        borderLeft: `4px solid ${behavior.color}`
+                      }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {behavior.icon} {selectedAccount.name}
+                          <Chip label={selectedAccount.category || selectedAccount.account_type || selectedAccount.type} size="small" sx={{ ml: 1 }} />
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                          {behavior.helpText}
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Chip 
+                            label={`${behavior.debitLabel}: ${behavior.debitEnabled ? 'ENABLED' : 'DISABLED'}`}
+                            size="small" 
+                            color={behavior.debitEnabled ? 'primary' : 'default'}
+                            variant={behavior.normalSide === 'debit' ? 'filled' : 'outlined'}
+                          />
+                          <Chip 
+                            label={`${behavior.creditLabel}: ${behavior.creditEnabled ? 'ENABLED' : 'DISABLED'}`}
+                            size="small" 
+                            color={behavior.creditEnabled ? 'primary' : 'default'}
+                            variant={behavior.normalSide === 'credit' ? 'filled' : 'outlined'}
+                          />
+                        </Box>
+                      </Box>
+                    </Grid>
+                  );
+                })}
+              </Grid>
+            </Paper>
+          )}
 
           {/* General Errors */}
           {errors.submit && (

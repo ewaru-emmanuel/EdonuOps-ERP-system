@@ -31,7 +31,7 @@ import {
   Person,
   Receipt
 } from '@mui/icons-material';
-import { useAuth } from '../../../App';
+import { useAuth } from '../../../hooks/useAuth';
 
 const InvoiceForm = ({ open, onClose, invoice = null, onSave }) => {
   const { user } = useAuth();
@@ -55,7 +55,7 @@ const InvoiceForm = ({ open, onClose, invoice = null, onSave }) => {
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
-  // Customers will be loaded from API
+  // Customers loaded from API - will be empty until you add customers
   const customers = [];
 
   // Populate form when editing

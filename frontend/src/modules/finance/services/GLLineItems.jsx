@@ -5,12 +5,13 @@ import {
   Alert, Divider, Paper
 } from '@mui/material';
 import { AddCircle, RemoveCircle, Link, LinkOff, Search } from '@mui/icons-material';
-import { useAuth } from '../../App';
+import { useAuth } from '../../../hooks/useAuth';
+import apiClient from '../../../services/apiClient';
 import { useCoA } from '../context/CoAContext';
 import { debounce } from 'lodash';
 
 const GLLineItems = ({ lineItems, onChange, onAdd, onRemove, readOnly = false }) => {
-  const { apiClient } = useAuth();
+  const { user } = useAuth();
   const { dimensions } = useCoA();
   const [accounts, setAccounts] = useState([]);
   const [sourceDocs, setSourceDocs] = useState([]);

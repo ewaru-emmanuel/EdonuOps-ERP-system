@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import realTimeDataService from '../services/realTimeDataService';
+import apiClient from '../services/apiClient';
+import { useAuth } from './useAuth';
 
 /**
  * Custom hook for real-time data management
@@ -12,13 +14,24 @@ export const useRealTimeData = (endpoint, autoPoll = true, pollInterval = 5000) 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { isAuthenticated, loading: authLoading } = useAuth();
 
   // Load initial data
   const loadData = useCallback(async () => {
+    // Don't load data if not authenticated or still checking auth
+    if (authLoading || !isAuthenticated) {
+      setLoading(false);
+      setError(null);
+      setData([]);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
-      const result = await realTimeDataService.loadData(endpoint, autoPoll);
+      
+      // Use apiClient directly instead of waiting for ERP API service
+      const result = await apiClient.get(endpoint);
       setData(Array.isArray(result) ? result : [result]);
     } catch (err) {
       setError(err.message || 'Failed to load data');
@@ -26,10 +39,24 @@ export const useRealTimeData = (endpoint, autoPoll = true, pollInterval = 5000) 
     } finally {
       setLoading(false);
     }
-  }, [endpoint, autoPoll]);
+  }, [endpoint, isAuthenticated, authLoading]);
 
-  // Subscribe to real-time updates
+  // Subscribe to real-time updates and load data
   useEffect(() => {
+    // Don't do anything if auth is still loading
+    if (authLoading) {
+      return;
+    }
+
+    // If not authenticated, clear data and return
+    if (!isAuthenticated) {
+      setLoading(false);
+      setError(null);
+      setData([]);
+      return;
+    }
+
+    // Only proceed if authenticated
     const unsubscribe = realTimeDataService.subscribe(endpoint, (updatedData) => {
       setData(Array.isArray(updatedData) ? updatedData : [updatedData]);
       setError(null);
@@ -42,7 +69,7 @@ export const useRealTimeData = (endpoint, autoPoll = true, pollInterval = 5000) 
     return () => {
       unsubscribe();
     };
-  }, [endpoint, loadData]);
+  }, [endpoint, loadData, authLoading, isAuthenticated]);
 
   // CRUD operations
   const create = useCallback(async (newData) => {

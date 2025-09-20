@@ -119,39 +119,8 @@ def add_multi_currency_support():
                 ON CONFLICT (setting_key) DO NOTHING;
             """))
             
-            # 6. Insert some sample exchange rates
-            print("Inserting sample exchange rates...")
-            sample_rates = [
-                ('USD', 'EUR', '2025-01-27', 0.85),
-                ('EUR', 'USD', '2025-01-27', 1.18),
-                ('USD', 'GBP', '2025-01-27', 0.73),
-                ('GBP', 'USD', '2025-01-27', 1.37),
-                ('USD', 'JPY', '2025-01-27', 110.0),
-                ('JPY', 'USD', '2025-01-27', 0.009),
-                ('USD', 'CAD', '2025-01-27', 1.25),
-                ('CAD', 'USD', '2025-01-27', 0.80),
-                ('USD', 'AUD', '2025-01-27', 1.35),
-                ('AUD', 'USD', '2025-01-27', 0.74),
-                ('USD', 'CHF', '2025-01-27', 0.92),
-                ('CHF', 'USD', '2025-01-27', 1.09),
-                ('USD', 'CNY', '2025-01-27', 6.45),
-                ('CNY', 'USD', '2025-01-27', 0.155)
-            ]
-            
-            for from_curr, to_curr, rate_date, rate in sample_rates:
-                try:
-                    db.engine.execute(text("""
-                        INSERT INTO advanced_exchange_rates (from_currency, to_currency, effective_date, rate)
-                        VALUES (:from_curr, :to_curr, :rate_date, :rate);
-                    """), {
-                        'from_curr': from_curr,
-                        'to_curr': to_curr,
-                        'rate_date': rate_date,
-                        'rate': rate
-                    })
-                except Exception as e:
-                    if "UNIQUE constraint failed" not in str(e):
-                        print(f"Warning: Could not insert exchange rate {from_curr}->{to_curr}: {e}")
+            # 6. Exchange rates will be added by users as needed
+            print("✅ Exchange rate system ready - users will add rates as needed")
             
             # 7. Update existing products to have USD as default currency
             print("Updating existing products with default currency...")

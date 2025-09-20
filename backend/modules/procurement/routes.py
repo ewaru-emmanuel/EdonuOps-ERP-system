@@ -5,6 +5,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 import logging
 from app import db
+from modules.core.permissions import require_permission, require_module_access
 from modules.procurement.models import (
     Vendor,
     PurchaseOrder,
@@ -39,6 +40,7 @@ purchase_orders = []
 
 # Vendor endpoints
 @bp.route('/vendors', methods=['GET'])
+@require_permission('procurement.vendors.read')
 def get_vendors():
     """Get vendors with optional filters and search"""
     try:
@@ -68,6 +70,7 @@ def get_vendors():
         return jsonify({"error": f"Failed to fetch vendors: {str(e)}"}), 500
 
 @bp.route('/vendors', methods=['POST'])
+@require_permission('procurement.vendors.create')
 def create_vendor():
     """Create a new vendor"""
     try:
@@ -385,6 +388,7 @@ def get_purchase_order(po_id):
         return jsonify({"error": f"Failed to fetch purchase order: {str(e)}"}), 500
 
 @bp.route('/purchase-orders', methods=['POST', 'OPTIONS'])
+@require_permission('procurement.po.create')
 def create_purchase_order():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -596,6 +600,7 @@ def delete_purchase_order(po_id):
     return jsonify({"error": "Purchase Order not found"}), 404
 
 @bp.route('/purchase-orders/<int:po_id>/approve', methods=['POST', 'OPTIONS'])
+@require_permission('procurement.po.approve')
 def approve_purchase_order(po_id):
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -689,6 +694,7 @@ def upload_po_attachment(po_id):
 
 # Receiving endpoint: locks FX, allocates landed costs, posts inventory
 @bp.route('/purchase-orders/<int:po_id>/receive', methods=['POST', 'OPTIONS'])
+@require_permission('procurement.po.receive')
 def receive_purchase_order(po_id: int):
     if request.method == 'OPTIONS':
         return ('', 200)

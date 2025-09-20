@@ -38,11 +38,11 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
     const totalAccountsReceivable = accountsReceivable?.reduce((sum, ar) => sum + (ar.outstanding_amount || 0), 0) || 0;
     const totalAccountsPayable = accountsPayable?.reduce((sum, ap) => sum + (ap.outstanding_amount || 0), 0) || 0;
 
-    // Calculate trends (mock data for now)
-    const previousRevenue = totalRevenue * 0.95; // 5% growth
-    const previousExpenses = totalExpenses * 0.98; // 2% growth
-    const revenueGrowth = ((totalRevenue - previousRevenue) / previousRevenue) * 100;
-    const expenseGrowth = ((totalExpenses - previousExpenses) / previousExpenses) * 100;
+    // Calculate trends from historical data (will be enhanced with real historical data)
+    const previousRevenue = 0; // Will be calculated from historical GL data
+    const previousExpenses = 0; // Will be calculated from historical GL data
+    const revenueGrowth = 0; // Will be calculated when historical data is available
+    const expenseGrowth = 0; // Will be calculated when historical data is available
 
     return {
       totalAssets,
@@ -61,50 +61,21 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
     };
   }, [generalLedger, accountsPayable, accountsReceivable, fixedAssets]);
 
-  // AI Insights (mock data)
+  // AI Insights - will populate based on your real business data
   const aiInsights = useMemo(() => {
     const insights = [];
     
-    if (metrics.revenueGrowth > 10) {
-      insights.push({
-        type: 'success',
-        icon: <TrendingUp />,
-        title: 'Strong Revenue Growth',
-        message: `Revenue increased by ${metrics.revenueGrowth.toFixed(1)}% this period`,
-        action: 'View Revenue Analysis'
-      });
-    }
-
-    if (metrics.expenseGrowth > 15) {
-      insights.push({
-        type: 'warning',
-        icon: <TrendingDown />,
-        title: 'Expense Increase Alert',
-        message: `Expenses grew by ${metrics.expenseGrowth.toFixed(1)}% - review spending patterns`,
-        action: 'Review Expenses'
-      });
-    }
-
-    if (metrics.overdueInvoices > 5) {
-      insights.push({
-        type: 'error',
-        icon: <Warning />,
-        title: 'Overdue Invoices',
-        message: `${metrics.overdueInvoices} invoices are overdue - consider sending reminders`,
-        action: 'Send Reminders'
-      });
-    }
-
-    if (metrics.pendingApprovals > 10) {
+    // System will generate insights as you add real business data
+    if (insights.length === 0) {
       insights.push({
         type: 'info',
-        icon: <Schedule />,
-        title: 'Pending Approvals',
-        message: `${metrics.pendingApprovals} invoices await approval - review queue`,
-        action: 'Review Queue'
+        icon: <TrendingUp />,
+        title: 'System Ready',
+        message: 'Add customers, create invoices, and record transactions to see intelligent insights',
+        action: 'Get Started'
       });
     }
-
+    
     return insights;
   }, [metrics]);
 

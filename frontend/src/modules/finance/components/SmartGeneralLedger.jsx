@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box, Typography, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Chip, Avatar, Dialog, DialogTitle, DialogContent, DialogActions, Alert, Snackbar, LinearProgress, Tooltip, useMediaQuery, useTheme,
   TextField, FormControl, InputLabel, Select, MenuItem, Autocomplete, SpeedDial, SpeedDialAction, SpeedDialIcon,
-  TablePagination, TableSortLabel, InputAdornment, OutlinedInput, FormHelperText, Collapse, List, ListItem, ListItemText, ListItemIcon
+  TablePagination, TableSortLabel, InputAdornment, OutlinedInput, FormHelperText, Collapse, List, ListItem, ListItemText, ListItemIcon,
+  Switch, FormControlLabel, Divider
 } from '@mui/material';
 import {
   Add, Edit, Delete, Visibility, Download, Refresh, CheckCircle, Warning, Error, Info, AttachMoney, Schedule, BarChart, PieChart, ShowChart,
@@ -13,6 +14,7 @@ import {
 import { useRealTimeData } from '../../../hooks/useRealTimeData';
 import { getERPApiService } from '../../../services/erpApiService';
 import { useCoA } from '../context/CoAContext';
+import PermissionGuard, { PermissionButton } from '../../../components/PermissionGuard';
 
 const SmartGeneralLedger = ({ isMobile, isTablet }) => {
   const theme = useTheme();
@@ -45,6 +47,37 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
     reference: '',
     status: 'posted'
   });
+
+  // Advanced features state
+  const [isAdjustmentMode, setIsAdjustmentMode] = useState(false);
+  const [userRole, setUserRole] = useState('admin'); // Default to admin/manager level for initial setup
+  
+  // Company-level configuration (loaded from AdminSettings)
+  const [companySettings, setCompanySettings] = useState({
+    defaultUserRole: 'admin',
+    restrictionLevel: 'flexible', // 'strict', 'flexible', 'none'
+    allowRoleOverride: true,
+    requireApprovalForAdjustments: false,
+    enableAuditTrail: true
+  });
+
+  // Load company settings from AdminSettings on component mount
+  useEffect(() => {
+    const loadCompanySettings = async () => {
+      try {
+        // In production, this would fetch from the same API that AdminSettings uses
+        const savedSettings = localStorage.getItem('adminSettings_userPermissions');
+        if (savedSettings) {
+          const parsed = JSON.parse(savedSettings);
+          setCompanySettings(parsed);
+          setUserRole(parsed.defaultUserRole || 'admin');
+        }
+      } catch (error) {
+        console.log('Using default company settings');
+      }
+    };
+    loadCompanySettings();
+  }, []);
 
   // Real-time data hooks
   const { data: generalLedger, loading: glLoading, error: glError, create, update, remove, refresh } = useRealTimeData('/api/finance/general-ledger');
@@ -257,12 +290,184 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
     });
   };
 
+  // Smart account behavior logic with company-level configuration support
+  const getAccountBehavior = (accountType, isAdjustmentMode = false, userRole = 'user') => {
+    // Check company-level restrictions first
+    if (companySettings.restrictionLevel === 'none') {
+      // Company has disabled all restrictions - everyone gets full access
+      return {
+        debitEnabled: true,
+        creditEnabled: true,
+        debitLabel: 'Debit',
+        creditLabel: 'Credit',
+        normalSide: 'debit',
+        helpText: 'Company policy: No field restrictions',
+        color: '#4caf50',
+        icon: '🏢'
+      };
+    }
+    
+    // Advanced users (accountants/admins) can override smart restrictions
+    const canOverride = userRole === 'accountant' || userRole === 'admin' || userRole === 'manager';
+    
+    // In adjustment mode or for advanced users, allow both fields
+    if (isAdjustmentMode || (canOverride && companySettings.allowRoleOverride)) {
+      switch(accountType?.toLowerCase()) {
+        case 'revenue':
+          return {
+            debitEnabled: true,
+            creditEnabled: true,
+            debitLabel: canOverride ? 'Refund/Reversal (Override)' : 'Refund/Reversal',
+            creditLabel: 'Revenue Earned',
+            normalSide: 'credit',
+            helpText: canOverride ? 'Advanced user: Both fields enabled' : 'Adjustment mode: Both fields enabled',
+            color: '#388e3c',
+            icon: '💵'
+          };
+        case 'expense':
+          return {
+            debitEnabled: true,
+            creditEnabled: true,
+            debitLabel: 'Expense Incurred',
+            creditLabel: canOverride ? 'Expense Reversal (Override)' : 'Expense Reversal',
+            normalSide: 'debit',
+            helpText: canOverride ? 'Advanced user: Both fields enabled' : 'Adjustment mode: Both fields enabled',
+            color: '#f57c00',
+            icon: '💸'
+          };
+      }
+    }
+    
+    // Normal smart behavior for regular users
+    const normalizedType = accountType?.toLowerCase().trim();
+    
+    switch(normalizedType) {
+      case 'asset':
+      case 'assets':
+      case 'current asset':
+      case 'fixed asset':
+      case 'intangible asset':
+        return {
+          debitEnabled: true,
+          creditEnabled: true,
+          debitLabel: 'Increase Asset',
+          creditLabel: 'Decrease Asset',
+          normalSide: 'debit',
+          helpText: 'Assets increase with debits, decrease with credits',
+          color: '#1976d2',
+          icon: '💰'
+        };
+        
+      case 'liability':
+      case 'liabilities':
+      case 'current liability':
+      case 'long-term liability':
+        return {
+          debitEnabled: true,
+          creditEnabled: true,
+          debitLabel: 'Pay/Reduce Liability',
+          creditLabel: 'Incur/Increase Liability',
+          normalSide: 'credit',
+          helpText: 'Liabilities increase with credits, decrease with debits',
+          color: '#d32f2f',
+          icon: '💳'
+        };
+        
+      case 'equity':
+      case 'owner equity':
+      case 'shareholders equity':
+        return {
+          debitEnabled: true,
+          creditEnabled: true,
+          debitLabel: 'Decrease Equity',
+          creditLabel: 'Increase Equity',
+          normalSide: 'credit',
+          helpText: 'Equity increases with credits, decreases with debits',
+          color: '#9c27b0',
+          icon: '👑'
+        };
+        
+      case 'revenue':
+      case 'income':
+      case 'sales revenue':
+      case 'service revenue':
+      case 'operating revenue':
+      case 'other income':
+        return {
+          debitEnabled: false,
+          creditEnabled: true,
+          debitLabel: 'Refund/Reversal',
+          creditLabel: 'Revenue Earned',
+          normalSide: 'credit',
+          helpText: 'Revenue accounts normally have credit balances (money earned). Use Adjustment Mode for reversals.',
+          color: '#388e3c',
+          icon: '💵'
+        };
+        
+      case 'expense':
+      case 'expenses':
+      case 'cost of sales':
+      case 'operating expense':
+      case 'cost of goods sold':
+        return {
+          debitEnabled: true,
+          creditEnabled: false,
+          debitLabel: 'Expense Incurred',
+          creditLabel: 'Expense Reversal',
+          normalSide: 'debit',
+          helpText: 'Expense accounts normally have debit balances (money spent). Use Adjustment Mode for reversals.',
+          color: '#f57c00',
+          icon: '💸'
+        };
+        
+      default:
+        return {
+          debitEnabled: true,
+          creditEnabled: true,
+          debitLabel: 'Debit',
+          creditLabel: 'Credit',
+          normalSide: 'debit',
+          helpText: 'Both fields available for this account type',
+          color: '#757575',
+          icon: '💼'
+        };
+    }
+  };
+
   // Handle form input changes
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setFormData(prev => {
+      const newData = { ...prev, [field]: value };
+      
+      // Smart field behavior when account changes
+      if (field === 'account_id') {
+        const selectedAccount = chartOfAccounts?.find(acc => acc.id == value);
+        if (selectedAccount) {
+          const behavior = getAccountBehavior(
+            selectedAccount.category || selectedAccount.account_type || selectedAccount.type,
+            isAdjustmentMode,
+            userRole
+          );
+          
+          // Clear disabled fields
+          if (!behavior.debitEnabled) {
+            newData.debit_amount = '';
+          }
+          if (!behavior.creditEnabled) {
+            newData.credit_amount = '';
+          }
+        }
+      }
+      
+      // Mutual exclusion: clear opposite field when entering amount
+      if (field === 'debit_amount' && value) {
+        newData.credit_amount = '';
+      } else if (field === 'credit_amount' && value) {
+        newData.debit_amount = '';
+      }
+      
+      return newData;
+    });
   };
 
   // Handle inline editing save
@@ -344,13 +549,14 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
           >
             Export GL
           </Button>
-          <Button
+          <PermissionButton
+            permission="finance.journal.create"
             variant="contained"
             startIcon={<Add />}
             onClick={() => setAddDialogOpen(true)}
           >
             Add Entry
-          </Button>
+          </PermissionButton>
         </Box>
       </Box>
 
@@ -712,16 +918,20 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
                               <Visibility />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title="Edit">
-                            <IconButton onClick={() => handleEdit(entry)} size="small">
-                              <Edit />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Delete">
-                            <IconButton color="error" size="small" onClick={() => handleDelete(entry.id)}>
-                              <Delete />
-                            </IconButton>
-                          </Tooltip>
+                          <PermissionGuard permission="finance.journal.update" showFallback={false}>
+                            <Tooltip title="Edit">
+                              <IconButton onClick={() => handleEdit(entry)} size="small">
+                                <Edit />
+                              </IconButton>
+                            </Tooltip>
+                          </PermissionGuard>
+                          <PermissionGuard permission="finance.journal.delete" showFallback={false}>
+                            <Tooltip title="Delete">
+                              <IconButton color="error" size="small" onClick={() => handleDelete(entry.id)}>
+                                <Delete />
+                              </IconButton>
+                            </Tooltip>
+                          </PermissionGuard>
                         </Box>
                       )}
                     </TableCell>
@@ -806,6 +1016,55 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
         </DialogTitle>
         <DialogContent>
           <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
+            {/* Company Configuration Status */}
+            <Alert severity="success" sx={{ mb: 2 }}>
+              <Typography variant="body2">
+                🏢 <strong>Company Mode:</strong> {companySettings.restrictionLevel === 'none' ? 'No Restrictions (Full Access)' : 
+                  userRole === 'admin' || userRole === 'manager' ? 'Manager Level - Full Access Enabled' : 'Smart Entry Mode Active'}
+              </Typography>
+              <Typography variant="caption" sx={{ display: 'block', mt: 0.5, opacity: 0.8 }}>
+                Default Role: {companySettings.defaultUserRole} | Restriction Level: {companySettings.restrictionLevel} | 
+                Role Override: {companySettings.allowRoleOverride ? 'Allowed' : 'Disabled'}
+              </Typography>
+            </Alert>
+            
+            <Grid container spacing={2} sx={{ mb: 2 }}>
+              <Grid item xs={12} sm={6}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={isAdjustmentMode}
+                      onChange={(e) => setIsAdjustmentMode(e.target.checked)}
+                      color="warning"
+                    />
+                  }
+                  label={
+                    <Typography variant="body2">
+                      🔧 Adjustment Mode {isAdjustmentMode ? '(ON - Both fields enabled)' : '(OFF - Smart restrictions)'}
+                    </Typography>
+                  }
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel>User Role</InputLabel>
+                  <Select
+                    value={userRole}
+                    onChange={(e) => setUserRole(e.target.value)}
+                    label="User Role"
+                    disabled={!companySettings.allowRoleOverride}
+                  >
+                    <MenuItem value="user">👤 Regular User</MenuItem>
+                    <MenuItem value="accountant">👨‍💼 Accountant</MenuItem>
+                    <MenuItem value="admin">👑 Admin</MenuItem>
+                    <MenuItem value="manager">🎯 Manager/Owner</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
+            
+            <Divider sx={{ mb: 2 }} />
+            
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
                 <FormControl fullWidth margin="normal">
@@ -870,30 +1129,72 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
                 </FormControl>
               </Grid>
               <Grid item xs={12} sm={6}>
-                <TextField
-                  label="Debit Amount"
-                  type="number"
-                  value={formData.debit_amount}
-                  onChange={(e) => handleInputChange('debit_amount', e.target.value)}
-                  fullWidth
-                  margin="normal"
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
-                  }}
-                />
+                {(() => {
+                  const selectedAccount = chartOfAccounts?.find(acc => acc.id == formData.account_id);
+                  const behavior = getAccountBehavior(
+                    selectedAccount?.category || selectedAccount?.account_type || selectedAccount?.type,
+                    isAdjustmentMode,
+                    userRole
+                  );
+                  
+                  return (
+                    <TextField
+                      label={behavior.debitLabel}
+                      type="number"
+                      value={formData.debit_amount}
+                      onChange={(e) => handleInputChange('debit_amount', e.target.value)}
+                      disabled={!behavior.debitEnabled}
+                      fullWidth
+                      margin="normal"
+                      placeholder={behavior.debitEnabled ? 'Enter amount' : 'Not applicable for this account type'}
+                      helperText={!behavior.debitEnabled ? `${behavior.icon} ${behavior.helpText}` : ''}
+                      sx={{
+                        '& .MuiInputBase-input.Mui-disabled': {
+                          backgroundColor: '#f5f5f5',
+                          color: '#999',
+                          WebkitTextFillColor: '#999'
+                        }
+                      }}
+                      InputProps={{
+                        startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                      }}
+                    />
+                  );
+                })()}
               </Grid>
               <Grid item xs={12} sm={6}>
-                <TextField
-                  label="Credit Amount"
-                  type="number"
-                  value={formData.credit_amount}
-                  onChange={(e) => handleInputChange('credit_amount', e.target.value)}
-                  fullWidth
-                  margin="normal"
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
-                  }}
-                />
+                {(() => {
+                  const selectedAccount = chartOfAccounts?.find(acc => acc.id == formData.account_id);
+                  const behavior = getAccountBehavior(
+                    selectedAccount?.category || selectedAccount?.account_type || selectedAccount?.type,
+                    isAdjustmentMode,
+                    userRole
+                  );
+                  
+                  return (
+                    <TextField
+                      label={behavior.creditLabel}
+                      type="number"
+                      value={formData.credit_amount}
+                      onChange={(e) => handleInputChange('credit_amount', e.target.value)}
+                      disabled={!behavior.creditEnabled}
+                      fullWidth
+                      margin="normal"
+                      placeholder={behavior.creditEnabled ? 'Enter amount' : 'Not applicable for this account type'}
+                      helperText={!behavior.creditEnabled ? `${behavior.icon} ${behavior.helpText}` : ''}
+                      sx={{
+                        '& .MuiInputBase-input.Mui-disabled': {
+                          backgroundColor: '#f5f5f5',
+                          color: '#999',
+                          WebkitTextFillColor: '#999'
+                        }
+                      }}
+                      InputProps={{
+                        startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                      }}
+                    />
+                  );
+                })()}
               </Grid>
             </Grid>
           </Box>

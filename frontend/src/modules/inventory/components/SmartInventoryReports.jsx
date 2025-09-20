@@ -1,362 +1,518 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Box, Typography, Paper, Grid, Card, CardContent, Button, Chip,
-  Alert, CircularProgress, FormControl, InputLabel, Select, MenuItem,
-  Dialog, DialogTitle, DialogContent, DialogActions, TextField,
-  TableContainer, Table, TableHead, TableBody, TableRow, TableCell
+  Box, Typography, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions, Alert, Snackbar, LinearProgress, Tooltip, useMediaQuery, useTheme,
+  TextField, FormControl, InputLabel, Select, MenuItem, Autocomplete, SpeedDial, SpeedDialAction, SpeedDialIcon,
+  TablePagination, TableSortLabel, InputAdornment, OutlinedInput, FormHelperText, Collapse, List, ListItem, ListItemText, ListItemIcon,
+  Checkbox, FormControlLabel, FormGroup, Badge, Avatar, Divider, Accordion, AccordionSummary, AccordionDetails,
+  Slider, Switch, Rating, ToggleButton, ToggleButtonGroup, Skeleton, Backdrop, Modal, Fade, Grow, Zoom, Slide
 } from '@mui/material';
 import {
-  Assessment as AssessmentIcon,
-  TrendingUp as TrendingUpIcon,
-  Warning as WarningIcon,
-  CheckCircle as CheckCircleIcon,
-  Download as DownloadIcon
+  Add, Edit, Delete, Visibility, Download, Refresh, CheckCircle, Warning, Error, Info, AttachMoney, Schedule, BarChart, PieChart, ShowChart,
+  TrendingUp, TrendingDown, AccountBalance, Receipt, Payment, Business, Assessment, LocalTaxi, AccountBalanceWallet,
+  Security, Lock, Notifications, Settings, FilterList, Search, Timeline, CurrencyExchange, Audit, Compliance,
+  MoreVert, ExpandMore, ExpandLess, PlayArrow, Pause, Stop, Save, Cancel, AutoAwesome, Psychology, Lightbulb,
+  CloudUpload, Description, ReceiptLong, PaymentOutlined, ScheduleSend, AutoFixHigh, SmartToy, QrCode, CameraAlt,
+  Email, Send, CreditCard, AccountBalanceWallet as WalletIcon, TrendingUp as TrendingUpIcon, CalendarToday,
+  Timeline as TimelineIcon, ShowChart as ShowChartIcon, TrendingUp as TrendingUpIcon2, CompareArrows, ScatterPlot,
+  Assessment as AssessmentIcon, Analytics, Timeline as TimelineIcon2, ShowChart as ShowChartIcon2, TrendingUp as TrendingUpIcon3,
+  PictureAsPdf, TableChart, BarChart as BarChartIcon, PieChart as PieChartIcon, ShowChart as ShowChartIcon3,
+  GetApp, Share, Print, Visibility as VisibilityIcon, Edit as EditIcon, Download as DownloadIcon, Inventory, Store, LocalShipping, Category, Warehouse
 } from '@mui/icons-material';
 import { useRealTimeData } from '../../../hooks/useRealTimeData';
-import { apiClient } from '../../../utils/apiClient';
 
-const SmartInventoryReports = () => {
-  const [selectedReport, setSelectedReport] = useState('overview');
-  const { data: kpis, loading: kpisLoading } = useRealTimeData('/api/inventory/core/reports/kpis');
-  const { data: stockLevels, loading: stockLoading } = useRealTimeData('/api/inventory/core/reports/stock-levels');
-  const { data: trends, loading: trendsLoading } = useRealTimeData('/api/inventory/core/reports/trends');
+const SmartInventoryReports = ({ isMobile, isTablet }) => {
+  const theme = useTheme();
+  const [activeTab, setActiveTab] = useState(0);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [detailViewOpen, setDetailViewOpen] = useState(false);
+  const [reportPeriod, setReportPeriod] = useState('current_month');
+  const [comparisonPeriod, setComparisonPeriod] = useState('previous_month');
+  const [selectedCurrency, setSelectedCurrency] = useState('USD');
+  const [drillDownOpen, setDrillDownOpen] = useState(false);
+  const [drillDownData, setDrillDownData] = useState(null);
+  const [viewPeriod, setViewPeriod] = useState('daily'); // daily, weekly, monthly
+  const [selectedDate, setSelectedDate] = useState(new Date());
 
-  const loading = kpisLoading || stockLoading || trendsLoading;
-  const [gaps, setGaps] = useState([]);
-  const [resolveOpen, setResolveOpen] = useState(false);
-  const [mapForm, setMapForm] = useState({ po_number: '', item_id: '', product_id: '' });
+  // Data hooks - inventory specific
+  const { data: inventoryKpiData, loading: kpiLoading, error: kpiError } = useRealTimeData('/api/inventory/analytics/kpis');
+  const { data: stockLevelsData, loading: stockLoading, error: stockError } = useRealTimeData('/api/inventory/core/reports/stock-levels');
+  const { data: trendsData, loading: trendsLoading, error: trendsError } = useRealTimeData('/api/inventory/analytics/trends');
+  
+  // Daily cycle data (using our new inventory daily cycle system)
+  const { data: dailyCycleData, loading: cycleLoading, error: cycleError } = useRealTimeData('/api/inventory/daily-cycle/summary');
+  const { data: dailyBalancesData, loading: balancesLoading, error: balancesError } = useRealTimeData('/api/inventory/daily-cycle/balances');
+  const { data: cycleHistoryData, loading: historyLoading, error: historyError } = useRealTimeData('/api/inventory/daily-cycle/history');
+  
+  // Integration data
+  const { data: procurementData, loading: procurementLoading, error: procurementError } = useRealTimeData('/api/procurement/vendors');
+  const { data: salesData, loading: salesLoading, error: salesError } = useRealTimeData('/api/sales/customers');
 
-  const loadGaps = async () => {
-    try {
-      const data = await apiClient.get('/api/procurement/integration/gaps');
-      setGaps(data.gaps || []);
-    } catch {}
-  };
+  // Calculate comprehensive inventory metrics (similar to finance module)
+  const metrics = useMemo(() => {
+    if (!inventoryKpiData || !stockLevelsData || !dailyCycleData) return {};
 
-  useEffect(() => { loadGaps(); }, []);
+    const today = new Date().toISOString().split('T')[0];
+    const todayCycle = dailyCycleData?.data || {};
+    
+    // Basic KPIs
+    const totalProducts = inventoryKpiData?.kpis?.total_products || 0;
+    const totalStockValue = inventoryKpiData?.kpis?.total_stock_value || 0;
+    const lowStockItems = inventoryKpiData?.kpis?.low_stock_items || 0;
+    
+    // Daily cycle metrics
+    const totalQuantityOnHand = todayCycle?.metrics?.total_quantity_on_hand || 0;
+    const totalInventoryValue = todayCycle?.metrics?.total_inventory_value || 0;
+    const totalTransactions = todayCycle?.metrics?.total_transactions || 0;
+    const totalReceipts = todayCycle?.metrics?.total_receipts || 0;
+    const totalIssues = todayCycle?.metrics?.total_issues || 0;
+    const totalAdjustments = todayCycle?.metrics?.total_adjustments || 0;
+    
+    // Calculate turnover and velocity
+    const inventoryTurnover = totalIssues > 0 && totalInventoryValue > 0 ? 
+      (totalIssues * 365) / totalInventoryValue : 0;
+    const daysInInventory = inventoryTurnover > 0 ? 365 / inventoryTurnover : 0;
+    
+    // Stock accuracy and health
+    const stockAccuracy = totalAdjustments > 0 && totalQuantityOnHand > 0 ?
+      ((totalQuantityOnHand - Math.abs(totalAdjustments)) / totalQuantityOnHand) * 100 : 100;
+    
+    // Movement ratios
+    const receiptToIssueRatio = totalIssues > 0 ? totalReceipts / totalIssues : 0;
+    const adjustmentRate = totalQuantityOnHand > 0 ? 
+      (Math.abs(totalAdjustments) / totalQuantityOnHand) * 100 : 0;
+    
+    return {
+      // Basic metrics
+      totalProducts,
+      totalStockValue,
+      lowStockItems,
+      totalQuantityOnHand,
+      totalInventoryValue,
+      totalTransactions,
+      
+      // Movement metrics
+      totalReceipts,
+      totalIssues,
+      totalAdjustments,
+      netMovement: totalReceipts - totalIssues,
+      
+      // Performance metrics
+      inventoryTurnover: Number(inventoryTurnover.toFixed(2)),
+      daysInInventory: Number(daysInInventory.toFixed(0)),
+      stockAccuracy: Number(stockAccuracy.toFixed(1)),
+      receiptToIssueRatio: Number(receiptToIssueRatio.toFixed(2)),
+      adjustmentRate: Number(adjustmentRate.toFixed(2)),
+      
+      // Health indicators
+      stockHealthScore: stockAccuracy > 95 ? 'Excellent' : 
+                       stockAccuracy > 90 ? 'Good' : 
+                       stockAccuracy > 85 ? 'Fair' : 'Poor',
+      turnoverHealth: inventoryTurnover > 12 ? 'Excellent' :
+                     inventoryTurnover > 6 ? 'Good' :
+                     inventoryTurnover > 3 ? 'Fair' : 'Poor',
+    };
+  }, [inventoryKpiData, stockLevelsData, dailyCycleData]);
 
-  const openResolve = (gap) => {
-    setMapForm({ po_number: gap.po_number || '', item_id: gap.item_id || '', product_id: '' });
-    setResolveOpen(true);
-  };
+  // Daily inventory data processing (similar to finance daily cash data)
+  const dailyInventoryData = useMemo(() => {
+    if (!cycleHistoryData?.data?.cycles) return [];
 
-  const submitMapping = async () => {
-    try {
-      await apiClient.post('/api/procurement/purchase-orders/map-item-product', mapForm);
-      setResolveOpen(false);
-      setMapForm({ po_number: '', item_id: '', product_id: '' });
-      loadGaps();
-    } catch {}
-  };
+    return cycleHistoryData.data.cycles.slice(0, 7).map(cycle => ({
+      date: cycle.cycle_date,
+      dateLabel: new Date(cycle.cycle_date).toLocaleDateString('en-US', { 
+        month: 'numeric', day: 'numeric', year: 'numeric' 
+      }),
+      isToday: cycle.cycle_date === new Date().toISOString().split('T')[0],
+      openingValue: cycle.total_inventory_value || 0,
+      closingValue: cycle.total_inventory_value || 0,
+      totalQuantity: cycle.total_quantity_on_hand || 0,
+      totalProducts: cycle.total_products || 0,
+      status: cycle.is_complete ? 'Complete' : 'Pending',
+      movements: {
+        receipts: 0, // Would come from transaction summaries
+        issues: 0,
+        adjustments: 0,
+        transfers: 0
+      }
+    }));
+  }, [cycleHistoryData]);
+
+  // Top products by value (similar to finance account analysis)
+  const topProductsData = useMemo(() => {
+    if (!dailyBalancesData?.data?.balances) return [];
+
+    return dailyBalancesData.data.balances
+      .filter(balance => balance.closing_total_value > 0)
+      .sort((a, b) => b.closing_total_value - a.closing_total_value)
+      .slice(0, 10)
+      .map(balance => ({
+        productId: balance.product_id,
+        productName: balance.product_name || `Product ${balance.product_id}`,
+        sku: balance.product_sku || 'N/A',
+        quantity: balance.closing_quantity,
+        unitCost: balance.closing_unit_cost,
+        totalValue: balance.closing_total_value,
+        netChange: balance.net_value_change,
+        warehouse: balance.warehouse_name || 'Main',
+        costMethod: balance.cost_method || 'FIFO'
+      }));
+  }, [dailyBalancesData]);
+
+  const loading = kpiLoading || stockLoading || trendsLoading || cycleLoading;
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-        <CircularProgress />
+      <Box sx={{ p: 3 }}>
+        <Skeleton variant="text" width="40%" height={40} />
+        <Grid container spacing={3} sx={{ mt: 2 }}>
+          {[1, 2, 3, 4].map(i => (
+            <Grid item xs={12} sm={6} md={3} key={i}>
+              <Skeleton variant="rectangular" height={120} />
+            </Grid>
+          ))}
+        </Grid>
+        <Skeleton variant="rectangular" height={400} sx={{ mt: 3 }} />
       </Box>
     );
   }
 
   return (
-    <Box>
+    <Box sx={{ p: 3 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, gap: 2, flexWrap: 'wrap' }}>
-        <Typography variant="h5" component="h3" sx={{ fontWeight: 'bold' }}>Inventory Reports</Typography>
-        {/* actions */}
-      </Box>
-
-      {gaps.length > 0 && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          Some received PO items are missing product mapping. Please resolve.
-          <Box sx={{ mt: 1 }}>
-            {gaps.slice(0, 5).map((g, i) => (
-              <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                <Typography variant="body2">PO {g.po_number} · Item {g.item_id}</Typography>
-                <Button size="small" onClick={() => openResolve(g)}>Resolve</Button>
-              </Box>
-            ))}
-            {gaps.length > 5 && <Typography variant="caption">+{gaps.length - 5} more…</Typography>}
-          </Box>
-        </Alert>
-      )}
-
-      {/* Report Type Selector */}
-      <Box sx={{ mb: 3 }}>
-        <FormControl sx={{ minWidth: 200 }}>
-          <InputLabel>Report Type</InputLabel>
-          <Select
-            value={selectedReport}
-            label="Report Type"
-            onChange={(e) => setSelectedReport(e.target.value)}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
+          📦 Smart Inventory Reports & Analytics
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            variant="outlined"
+            startIcon={<Refresh />}
+            onClick={() => window.location.reload()}
           >
-            <MenuItem value="overview">Overview Dashboard</MenuItem>
-            <MenuItem value="stock">Stock Levels Report</MenuItem>
-            <MenuItem value="trends">Trends Analysis</MenuItem>
-            <MenuItem value="low-stock">Low Stock Report</MenuItem>
-          </Select>
-        </FormControl>
+            Refresh Data
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<Download />}
+            onClick={() => setSnackbar({ open: true, message: 'Export feature coming soon!', severity: 'info' })}
+          >
+            Export Reports
+          </Button>
+        </Box>
       </Box>
 
-      {/* Overview Dashboard */}
-      {selectedReport === 'overview' && (
-        <Grid container spacing={3}>
-          {/* KPIs */}
-          <Grid item xs={12}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Key Performance Indicators
-                </Typography>
-                <Grid container spacing={3}>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Box sx={{ textAlign: 'center' }}>
-                      <Typography variant="h4" color="primary">
-                        {kpis?.total_products || 0}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Total Products
-                      </Typography>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Box sx={{ textAlign: 'center' }}>
-                      <Typography variant="h4" color="success.main">
-                        ${(kpis?.total_stock_value || 0).toLocaleString()}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Total Stock Value
-                      </Typography>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Box sx={{ textAlign: 'center' }}>
-                      <Typography variant="h4" color="warning.main">
-                        {kpis?.low_stock_items || 0}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Low Stock Items
-                      </Typography>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Box sx={{ textAlign: 'center' }}>
-                      <Typography variant="h4" color="info.main">
-                        {kpis?.turnover_rate || 0}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Turnover Rate
-                      </Typography>
-                    </Box>
-                  </Grid>
-                </Grid>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          {/* Performance Metrics */}
-          <Grid item xs={12} md={6}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Performance Metrics
-                </Typography>
-                <Box sx={{ mb: 2 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Stock Accuracy</Typography>
-                    <Typography variant="body2" fontWeight="bold">
-                      {kpis?.stock_accuracy || 0}%
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Order Fulfillment</Typography>
-                    <Typography variant="body2" fontWeight="bold">
-                      {kpis?.order_fulfillment_rate || 0}%
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2">Warehouse Utilization</Typography>
-                    <Typography variant="body2" fontWeight="bold">
-                      {kpis?.warehouse_utilization || 0}%
-                    </Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          {/* Recent Activity */}
-          <Grid item xs={12} md={6}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Recent Activity
-                </Typography>
+      {/* Key Performance Indicators */}
+      <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
+        📊 Inventory KPIs & Metrics
+      </Typography>
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ bgcolor: theme.palette.primary.light, color: 'white' }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <CheckCircleIcon sx={{ color: 'success.main', mr: 1, fontSize: 16 }} />
-                    <Typography variant="body2">
-                      Stock count completed for 15 items
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <WarningIcon sx={{ color: 'warning.main', mr: 1, fontSize: 16 }} />
-                    <Typography variant="body2">
-                      3 items reached reorder point
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <TrendingUpIcon sx={{ color: 'info.main', mr: 1, fontSize: 16 }} />
-                    <Typography variant="body2">
-                      Inventory value increased by 12%
-                    </Typography>
-                  </Box>
+                  <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                    ${metrics.totalInventoryValue?.toLocaleString() || '0'}
+                  </Typography>
+                  <Typography variant="body2">Total Inventory Value</Typography>
+                  <Typography variant="caption">
+                    📊 REAL-TIME DATA
+                  </Typography>
                 </Box>
-              </CardContent>
-            </Card>
-          </Grid>
+                <Inventory sx={{ fontSize: 40, opacity: 0.7 }} />
+              </Box>
+            </CardContent>
+          </Card>
         </Grid>
-      )}
 
-      {/* Stock Levels Report */}
-      {selectedReport === 'stock' && (
-        <Card>
-          <CardContent>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">
-                Stock Levels Report
-              </Typography>
-              <Button startIcon={<DownloadIcon />} variant="outlined">
-                Export Report
-              </Button>
-            </Box>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              {stockLevels?.length || 0} products in inventory
-            </Typography>
-            <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
-              <Table sx={{ minWidth: 900 }}>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Product ID</TableCell>
-                    <TableCell>Product Name</TableCell>
-                    <TableCell>Current Stock</TableCell>
-                    <TableCell>Reorder Point</TableCell>
-                    <TableCell>Status</TableCell>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ bgcolor: theme.palette.success.light, color: 'white' }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box>
+                  <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                    {metrics.totalQuantityOnHand?.toLocaleString() || '0'}
+                  </Typography>
+                  <Typography variant="body2">Total Quantity On Hand</Typography>
+                  <Typography variant="caption">
+                    Units: {metrics.totalProducts || 0} Products
+                  </Typography>
+                </Box>
+                <Store sx={{ fontSize: 40, opacity: 0.7 }} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ bgcolor: theme.palette.info.light, color: 'white' }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box>
+                  <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                    {metrics.inventoryTurnover || '0.0'}x
+                  </Typography>
+                  <Typography variant="body2">Inventory Turnover</Typography>
+                  <Typography variant="caption">
+                    {metrics.daysInInventory || 0} Days in Inventory
+                  </Typography>
+                </Box>
+                <TrendingUp sx={{ fontSize: 40, opacity: 0.7 }} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ bgcolor: theme.palette.warning.light, color: 'white' }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box>
+                  <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                    {metrics.stockAccuracy || '0.0'}%
+                  </Typography>
+                  <Typography variant="body2">Stock Accuracy</Typography>
+                  <Typography variant="caption">
+                    {metrics.stockHealthScore || 'Unknown'} Health
+                  </Typography>
+                </Box>
+                <CheckCircle sx={{ fontSize: 40, opacity: 0.7 }} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Daily Inventory Summary (like Finance Daily Cash Flow) */}
+      <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
+        📅 Daily Inventory Summary
+      </Typography>
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Daily inventory balances from inventory cycle system • 📊 CALCULATED indicates real-time data
+          </Typography>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Date</TableCell>
+                  <TableCell align="right">Opening Value</TableCell>
+                  <TableCell align="right">Receipts</TableCell>
+                  <TableCell align="right">Issues</TableCell>
+                  <TableCell align="right">Adjustments</TableCell>
+                  <TableCell align="right">Closing Value</TableCell>
+                  <TableCell align="right">Net Change</TableCell>
+                  <TableCell>Status</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {dailyInventoryData.map((day, index) => (
+                  <TableRow key={day.date} sx={{ bgcolor: day.isToday ? theme.palette.action.selected : 'inherit' }}>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {day.dateLabel}
+                        {day.isToday && <Chip label="Today" size="small" color="primary" />}
+                        <Chip label="📊 CALCULATED" size="small" variant="outlined" />
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">${day.openingValue.toLocaleString()}</TableCell>
+                    <TableCell align="right" sx={{ color: theme.palette.success.main }}>
+                      +${day.movements.receipts.toLocaleString()}
+                    </TableCell>
+                    <TableCell align="right" sx={{ color: theme.palette.error.main }}>
+                      -${day.movements.issues.toLocaleString()}
+                    </TableCell>
+                    <TableCell align="right" sx={{ color: theme.palette.warning.main }}>
+                      ${day.movements.adjustments.toLocaleString()}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                      ${day.closingValue.toLocaleString()}
+                    </TableCell>
+                    <TableCell align="right" sx={{ 
+                      color: (day.closingValue - day.openingValue) >= 0 ? theme.palette.success.main : theme.palette.error.main 
+                    }}>
+                      {(day.closingValue - day.openingValue) >= 0 ? '+' : ''}${(day.closingValue - day.openingValue).toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={day.status} 
+                        size="small" 
+                        color={day.status === 'Complete' ? 'success' : 'warning'} 
+                      />
+                    </TableCell>
                   </TableRow>
-                </TableHead>
-                <TableBody>
-                  {stockLevels?.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{item.product_id}</TableCell>
-                      <TableCell>{item.product_name}</TableCell>
-                      <TableCell>{item.current_stock}</TableCell>
-                      <TableCell>{item.reorder_point}</TableCell>
-                      <TableCell>
-                        {item.current_stock <= item.reorder_point ? (
-                          <Chip label="Low Stock" color="warning" />
-                        ) : (
-                          <Chip label="In Stock" color="success" />
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            <Typography variant="body2" color="text.secondary">
-              Detailed stock levels report with current quantities, reorder points, and status.
-            </Typography>
-          </CardContent>
-        </Card>
-      )}
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </CardContent>
+      </Card>
 
-      {/* Trends Analysis */}
-      {selectedReport === 'trends' && (
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Inventory Trends
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Analyze inventory movement patterns and trends over time.
-            </Typography>
-            {/* Trends chart would go here */}
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <TrendingUpIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
-              <Typography variant="h6" color="text.secondary">
-                Trends Analysis
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                View inventory movement trends and patterns
-              </Typography>
-            </Box>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Low Stock Report */}
-      {selectedReport === 'low-stock' && (
-        <Card>
-          <CardContent>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">
-                Low Stock Report
-              </Typography>
-              <Chip label={`${kpis?.low_stock_items || 0} items`} color="warning" />
-            </Box>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Products that have reached or fallen below their reorder points.
-            </Typography>
-            <TableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
-              <Table sx={{ minWidth: 900 }}>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Product ID</TableCell>
-                    <TableCell>Product Name</TableCell>
-                    <TableCell>Current Stock</TableCell>
-                    <TableCell>Reorder Point</TableCell>
-                    <TableCell>Status</TableCell>
+      {/* Top Products Analysis (like Finance Account Analysis) */}
+      <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
+        🏆 Top Products by Value
+      </Typography>
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            📊 CALCULATED from daily inventory balances
+          </Typography>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Product</TableCell>
+                  <TableCell>SKU</TableCell>
+                  <TableCell align="right">Quantity</TableCell>
+                  <TableCell align="right">Unit Cost</TableCell>
+                  <TableCell align="right">Total Value</TableCell>
+                  <TableCell align="right">Net Change</TableCell>
+                  <TableCell>Cost Method</TableCell>
+                  <TableCell>Location</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {topProductsData.map((product, index) => (
+                  <TableRow key={product.productId}>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Avatar sx={{ width: 32, height: 32, bgcolor: theme.palette.primary.light }}>
+                          {index + 1}
+                        </Avatar>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          {product.productName}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell>{product.sku}</TableCell>
+                    <TableCell align="right">{product.quantity.toLocaleString()}</TableCell>
+                    <TableCell align="right">${product.unitCost.toFixed(2)}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                      ${product.totalValue.toLocaleString()}
+                    </TableCell>
+                    <TableCell align="right" sx={{ 
+                      color: product.netChange >= 0 ? theme.palette.success.main : theme.palette.error.main 
+                    }}>
+                      {product.netChange >= 0 ? '+' : ''}${product.netChange.toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <Chip label={product.costMethod} size="small" variant="outlined" />
+                    </TableCell>
+                    <TableCell>{product.warehouse}</TableCell>
                   </TableRow>
-                </TableHead>
-                <TableBody>
-                  {stockLevels?.filter(item => item.current_stock <= item.reorder_point).map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{item.product_id}</TableCell>
-                      <TableCell>{item.product_name}</TableCell>
-                      <TableCell>{item.current_stock}</TableCell>
-                      <TableCell>{item.reorder_point}</TableCell>
-                      <TableCell>
-                        <Chip label="Low Stock" color="warning" />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <WarningIcon sx={{ fontSize: 48, color: 'warning.main', mb: 2 }} />
-              <Typography variant="h6" color="warning.main">
-                Low Stock Items
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {kpis?.low_stock_items || 0} items need reordering
-              </Typography>
-            </Box>
-          </CardContent>
-        </Card>
-      )}
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </CardContent>
+      </Card>
 
-      <Dialog open={resolveOpen} onClose={() => setResolveOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Resolve Missing Product Mapping</DialogTitle>
-        <DialogContent>
-          <TextField fullWidth label="PO Number" value={mapForm.po_number} onChange={(e) => setMapForm({ ...mapForm, po_number: e.target.value })} sx={{ mb: 2 }} />
-          <TextField fullWidth label="PO Item ID" value={mapForm.item_id} onChange={(e) => setMapForm({ ...mapForm, item_id: e.target.value })} sx={{ mb: 2 }} />
-          <TextField fullWidth label="Product ID" value={mapForm.product_id} onChange={(e) => setMapForm({ ...mapForm, product_id: e.target.value })} />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setResolveOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={submitMapping}>Save Mapping</Button>
-        </DialogActions>
-      </Dialog>
+      {/* Inventory Performance Ratios (like Finance Key Ratios) */}
+      <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
+        📈 Inventory Performance Ratios
+      </Typography>
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent sx={{ textAlign: 'center' }}>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
+                {metrics.inventoryTurnover}x
+              </Typography>
+              <Typography variant="body2">Inventory Turnover</Typography>
+              <Chip 
+                label={metrics.turnoverHealth} 
+                size="small" 
+                color={
+                  metrics.turnoverHealth === 'Excellent' ? 'success' :
+                  metrics.turnoverHealth === 'Good' ? 'info' :
+                  metrics.turnoverHealth === 'Fair' ? 'warning' : 'error'
+                }
+                sx={{ mt: 1 }}
+              />
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent sx={{ textAlign: 'center' }}>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: theme.palette.success.main }}>
+                {metrics.daysInInventory}
+              </Typography>
+              <Typography variant="body2">Days in Inventory</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Average holding period
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent sx={{ textAlign: 'center' }}>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: theme.palette.info.main }}>
+                {metrics.receiptToIssueRatio}
+              </Typography>
+              <Typography variant="body2">Receipt/Issue Ratio</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Replenishment balance
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent sx={{ textAlign: 'center' }}>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: theme.palette.warning.main }}>
+                {metrics.adjustmentRate}%
+              </Typography>
+              <Typography variant="body2">Adjustment Rate</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Inventory accuracy impact
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Report Actions */}
+      <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', mt: 4 }}>
+        <Button
+          variant="outlined"
+          startIcon={<Assessment />}
+          onClick={() => setSnackbar({ open: true, message: 'Detailed analytics coming soon!', severity: 'info' })}
+        >
+          Detailed Analytics
+        </Button>
+        <Button
+          variant="outlined"
+          startIcon={<Download />}
+          onClick={() => setSnackbar({ open: true, message: 'Export functionality coming soon!', severity: 'info' })}
+        >
+          Export to Excel
+        </Button>
+        <Button
+          variant="outlined"
+          startIcon={<Print />}
+          onClick={() => window.print()}
+        >
+          Print Report
+        </Button>
+      </Box>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+      >
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useAuth } from '../../../App';
+import { useAuth } from '../../../hooks/useAuth';
+import apiClient from '../../../services/apiClient';
 
 export const useWebSocket = (channel, callback) => {
-  const { apiClient } = useAuth();
+  const { user } = useAuth();
   const [lastMessage, setLastMessage] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('Disconnected');
 

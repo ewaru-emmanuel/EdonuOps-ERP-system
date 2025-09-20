@@ -3,6 +3,7 @@ from app import db
 from datetime import datetime, date
 from sqlalchemy import func, and_, or_
 import json
+from modules.core.permissions import require_permission, require_module_access
 from .advanced_models import (
     ChartOfAccounts, GeneralLedgerEntry, AccountsPayable, AccountsReceivable,
     FixedAsset, Budget, TaxRecord, BankReconciliation, APPayment, ARPayment,
@@ -35,6 +36,7 @@ def create_audit_trail(table_name, record_id, action, old_values=None, new_value
 
 # Chart of Accounts Routes
 @advanced_finance_bp.route('/chart-of-accounts', methods=['GET'])
+@require_permission('finance.accounts.read')
 def get_chart_of_accounts():
     try:
         accounts = ChartOfAccounts.query.filter_by(is_active=True).all()
@@ -53,6 +55,7 @@ def get_chart_of_accounts():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/chart-of-accounts', methods=['POST'])
+@require_permission('finance.accounts.create')
 def create_chart_of_account():
     try:
         data = request.get_json()
@@ -97,6 +100,7 @@ def create_chart_of_account():
 
 # General Ledger Routes
 @advanced_finance_bp.route('/general-ledger', methods=['GET'])
+@require_permission('finance.journal.read')
 def get_general_ledger():
     try:
         # Get query parameters
@@ -140,6 +144,7 @@ def get_general_ledger():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/general-ledger', methods=['POST'])
+@require_permission('finance.journal.create')
 def create_general_ledger_entry():
     try:
         data = request.get_json()
@@ -193,6 +198,7 @@ def create_general_ledger_entry():
 
 # Update General Ledger Entry
 @advanced_finance_bp.route('/general-ledger/<int:entry_id>', methods=['PUT'])
+@require_permission('finance.journal.update')
 def update_general_ledger_entry(entry_id):
     try:
         entry = GeneralLedgerEntry.query.get_or_404(entry_id)
@@ -245,6 +251,7 @@ def update_general_ledger_entry(entry_id):
 
 # Delete General Ledger Entry
 @advanced_finance_bp.route('/general-ledger/<int:entry_id>', methods=['DELETE'])
+@require_permission('finance.journal.delete')
 def delete_general_ledger_entry(entry_id):
     try:
         entry = GeneralLedgerEntry.query.get_or_404(entry_id)
@@ -1807,6 +1814,7 @@ def create_customer():
 
 # Payment Management Routes
 @advanced_finance_bp.route('/ap-payments', methods=['GET'])
+@require_permission('finance.payments.read')
 def get_ap_payments():
     try:
         payments = APPayment.query.all()
@@ -1825,6 +1833,7 @@ def get_ap_payments():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/ap-payments', methods=['POST'])
+@require_permission('finance.payments.create')
 def create_ap_payment():
     try:
         data = request.get_json()
@@ -1867,6 +1876,7 @@ def create_ap_payment():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/ar-payments', methods=['GET'])
+@require_permission('finance.payments.read')
 def get_ar_payments():
     try:
         payments = ARPayment.query.all()
@@ -1885,6 +1895,7 @@ def get_ar_payments():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/ar-payments', methods=['POST'])
+@require_permission('finance.payments.create')
 def create_ar_payment():
     try:
         data = request.get_json()
