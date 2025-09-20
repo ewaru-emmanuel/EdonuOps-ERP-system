@@ -1,24 +1,39 @@
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, Boolean, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
+from app import db
 
-Base = declarative_base()
-
-class SecurityPolicy(Base):
+class SecurityPolicy(db.Model):
     """
     Security policies configuration
     """
     __tablename__ = 'security_policies'
     
     id = Column(Integer, primary_key=True)
-    policy_name = Column(String(100), nullable=False, unique=True)
-    policy_type = Column(String(50), nullable=False)  # PASSWORD, SESSION, LOGIN, etc.
+    name = Column(String(100), nullable=False, unique=True)
+    description = Column(Text, nullable=True)
     
-    # Policy configuration
-    is_enabled = Column(Boolean, default=True)
-    configuration = Column(JSON, nullable=False)  # Policy-specific settings
+    # Password policy settings
+    password_min_length = Column(Integer, default=8)
+    password_require_uppercase = Column(Boolean, default=True)
+    password_require_lowercase = Column(Boolean, default=True)
+    password_require_numbers = Column(Boolean, default=True)
+    password_require_special = Column(Boolean, default=False)
+    password_expiry_days = Column(Integer, default=90)
+    
+    # Login policy settings
+    max_login_attempts = Column(Integer, default=5)
+    lockout_duration_minutes = Column(Integer, default=30)
+    
+    # Session policy settings
+    session_timeout_minutes = Column(Integer, default=60)
+    
+    # 2FA settings
+    require_2fa = Column(Boolean, default=False)
+    
+    # Policy status
+    is_active = Column(Boolean, default=True)
     
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -31,16 +46,25 @@ class SecurityPolicy(Base):
     def to_dict(self):
         return {
             'id': self.id,
-            'policy_name': self.policy_name,
-            'policy_type': self.policy_type,
-            'is_enabled': self.is_enabled,
-            'configuration': self.configuration,
+            'name': self.name,
+            'description': self.description,
+            'password_min_length': self.password_min_length,
+            'password_require_uppercase': self.password_require_uppercase,
+            'password_require_lowercase': self.password_require_lowercase,
+            'password_require_numbers': self.password_require_numbers,
+            'password_require_special': self.password_require_special,
+            'password_expiry_days': self.password_expiry_days,
+            'max_login_attempts': self.max_login_attempts,
+            'lockout_duration_minutes': self.lockout_duration_minutes,
+            'session_timeout_minutes': self.session_timeout_minutes,
+            'require_2fa': self.require_2fa,
+            'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'created_by': self.created_by
         }
 
-class PasswordHistory(Base):
+class PasswordHistory(db.Model):
     """
     Track password history for password reuse prevention
     """
@@ -61,7 +85,7 @@ class PasswordHistory(Base):
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
-class UserSession(Base):
+class UserSession(db.Model):
     """
     Track active user sessions
     """
@@ -101,7 +125,7 @@ class UserSession(Base):
             'device_info': self.device_info
         }
 
-class AccountLockout(Base):
+class AccountLockout(db.Model):
     """
     Track account lockout events
     """
@@ -138,7 +162,7 @@ class AccountLockout(Base):
             'unlocked_at': self.unlocked_at.isoformat() if self.unlocked_at else None
         }
 
-class TwoFactorAuth(Base):
+class TwoFactorAuth(db.Model):
     """
     Two-factor authentication settings and tokens
     """
@@ -179,7 +203,7 @@ class TwoFactorAuth(Base):
             'last_used': self.last_used.isoformat() if self.last_used else None
         }
 
-class SecurityEvent(Base):
+class SecurityEvent(db.Model):
     """
     Track security-related events
     """

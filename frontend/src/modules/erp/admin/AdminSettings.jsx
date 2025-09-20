@@ -34,6 +34,12 @@ import PermissionTester from '../../../components/PermissionTester';
 import AuditDashboard from './AuditDashboard';
 import SecuritySettings from './SecuritySettings';
 
+// Constants
+const AVAILABLE_CURRENCIES = [
+  'USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY', 'INR', 'BRL', 
+  'KRW', 'SGD', 'HKD', 'MXN', 'NOK', 'SEK', 'DKK', 'PLN', 'CZK', 'HUF'
+];
+
 const SectionCard = ({ title, icon, children, onSave, onReset, saving }) => (
   <Card sx={{ mb: 3 }}>
     <CardContent>
@@ -59,29 +65,32 @@ const AdminSettings = () => {
   const [saving, setSaving] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
-  // Sections state
-  const [currency, setCurrency] = useState({ base_currency: 'USD', allowed_currencies: ['USD'], rate_source: 'manual', rounding: 2 });
-  const [tax, setTax] = useState({ default_rate: 0, tax_inclusive: false, jurisdiction: 'default' });
-  const [documents, setDocuments] = useState({ invoice_prefix: 'INV-', po_prefix: 'PO-', so_prefix: 'SO-', default_terms_days: 30 });
-  const [email, setEmail] = useState({ from_name: '', from_email: '', provider: 'smtp' });
-  const [security, setSecurity] = useState({ session_timeout_minutes: 60, password_policy: 'standard' });
-  const [localization, setLocalization] = useState({ timezone: 'UTC', locale: 'en-US', fiscal_year_start: '01-01' });
-  const [features, setFeatures] = useState({ enable_ai: true, enable_kb: true });
+  // Sections state - Initialize with empty/neutral defaults
+  const [currency, setCurrency] = useState({ base_currency: '', allowed_currencies: [], rate_source: '', rounding: 2 });
+  const [tax, setTax] = useState({ default_rate: 0, tax_inclusive: false, jurisdiction: '' });
+  const [documents, setDocuments] = useState({ invoice_prefix: '', po_prefix: '', so_prefix: '', default_terms_days: 0 });
+  const [email, setEmail] = useState({ from_name: '', from_email: '', provider: '' });
+  const [security, setSecurity] = useState({ session_timeout_minutes: 0, password_policy: '' });
+  const [localization, setLocalization] = useState({ timezone: '', locale: '', fiscal_year_start: '' });
+  const [features, setFeatures] = useState({ enable_ai: false, enable_kb: false });
   const [userPermissions, setUserPermissions] = useState({ 
-    defaultUserRole: 'admin', 
-    restrictionLevel: 'flexible', 
-    allowRoleOverride: true, 
+    defaultUserRole: '', 
+    restrictionLevel: '', 
+    allowRoleOverride: false, 
     requireApprovalForAdjustments: false,
-    enableAuditTrail: true
+    enableAuditTrail: false
   });
 
   const loadSection = useCallback(async (section, setter, transform) => {
     try {
       const res = await apiClient.getSettingsSection(section);
-      const data = res?.data || res || {};
-      setter(transform ? transform(data) : data);
+      const data = res?.data || res;
+      if (data && Object.keys(data).length > 0) {
+        setter(prevState => ({ ...prevState, ...(transform ? transform(data) : data) }));
+      }
+      // If no data, keep existing defaults
     } catch (e) {
-      // Keep defaults
+      // Keep defaults - don't overwrite state
     }
   }, []);
 
@@ -167,8 +176,8 @@ const AdminSettings = () => {
         >
           <Alert severity="info" sx={{ mb: 2 }}>
             <Typography variant="body2">
-              <strong>Enterprise Configuration:</strong> Configure how your company handles journal entry restrictions 
-              and user permissions. These settings apply to all users in your organization.
+              <strong>Enterprise Configuration:</strong> Configure how your organization handles user permissions 
+              and access control. These settings apply to all users in your system.
             </Typography>
           </Alert>
 
@@ -177,29 +186,37 @@ const AdminSettings = () => {
               <FormControl fullWidth margin="normal">
                 <InputLabel>Default User Role</InputLabel>
                 <Select
-                  value={userPermissions.defaultUserRole}
+                  value={userPermissions.defaultUserRole || ''}
                   onChange={(e) => setUserPermissions({ ...userPermissions, defaultUserRole: e.target.value })}
                   label="Default User Role"
+                  displayEmpty
                 >
-                  <MenuItem value="user">Regular User - Basic access</MenuItem>
-                  <MenuItem value="accountant">Accountant - Financial access</MenuItem>
-                  <MenuItem value="admin">Admin - Full system access</MenuItem>
-                  <MenuItem value="manager">Manager - Department oversight</MenuItem>
+                  <MenuItem value="">
+                    <em>Select Default Role</em>
+                  </MenuItem>
+                  <MenuItem value="user">Regular User</MenuItem>
+                  <MenuItem value="accountant">Accountant</MenuItem>
+                  <MenuItem value="admin">Administrator</MenuItem>
+                  <MenuItem value="manager">Manager</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
             
             <Grid item xs={12} md={6}>
               <FormControl fullWidth margin="normal">
-                <InputLabel>Smart Entry Restriction Level</InputLabel>
+                <InputLabel>Access Control Level</InputLabel>
                 <Select
-                  value={userPermissions.restrictionLevel}
+                  value={userPermissions.restrictionLevel || ''}
                   onChange={(e) => setUserPermissions({ ...userPermissions, restrictionLevel: e.target.value })}
-                  label="Smart Entry Restriction Level"
+                  label="Access Control Level"
+                  displayEmpty
                 >
-                  <MenuItem value="none">None - Full access for all</MenuItem>
-                  <MenuItem value="flexible">Flexible - Smart guidance with overrides</MenuItem>
-                  <MenuItem value="strict">Strict - Enforce accounting rules</MenuItem>
+                  <MenuItem value="">
+                    <em>Select Access Level</em>
+                  </MenuItem>
+                  <MenuItem value="none">Open - Full access for all users</MenuItem>
+                  <MenuItem value="flexible">Flexible - Role-based with overrides</MenuItem>
+                  <MenuItem value="strict">Strict - Enforce role restrictions</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -209,7 +226,7 @@ const AdminSettings = () => {
             <FormControlLabel 
               control={
                 <Switch 
-                  checked={userPermissions.allowRoleOverride} 
+                  checked={Boolean(userPermissions.allowRoleOverride)} 
                   onChange={(e) => setUserPermissions({ ...userPermissions, allowRoleOverride: e.target.checked })} 
                 />
               } 
@@ -221,7 +238,7 @@ const AdminSettings = () => {
             <FormControlLabel 
               control={
                 <Switch 
-                  checked={userPermissions.requireApprovalForAdjustments} 
+                  checked={Boolean(userPermissions.requireApprovalForAdjustments)} 
                   onChange={(e) => setUserPermissions({ ...userPermissions, requireApprovalForAdjustments: e.target.checked })} 
                 />
               } 
@@ -233,7 +250,7 @@ const AdminSettings = () => {
             <FormControlLabel 
               control={
                 <Switch 
-                  checked={userPermissions.enableAuditTrail} 
+                  checked={Boolean(userPermissions.enableAuditTrail)} 
                   onChange={(e) => setUserPermissions({ ...userPermissions, enableAuditTrail: e.target.checked })} 
                 />
               } 
@@ -271,10 +288,14 @@ const AdminSettings = () => {
                 <InputLabel>Base Currency</InputLabel>
                 <Select
                   label="Base Currency"
-                  value={currency.base_currency || 'USD'}
+                  value={currency.base_currency || ''}
                   onChange={(e) => setCurrency({ ...currency, base_currency: e.target.value })}
+                  displayEmpty
                 >
-                  {['USD','EUR','GBP','JPY','CAD','AUD','CHF','CNY'].map(c => (
+                  <MenuItem value="">
+                    <em>Select Currency</em>
+                  </MenuItem>
+                  {AVAILABLE_CURRENCIES.map(c => (
                     <MenuItem key={c} value={c}>{c}</MenuItem>
                   ))}
                 </Select>
@@ -285,9 +306,13 @@ const AdminSettings = () => {
                 <InputLabel>Rate Source</InputLabel>
                 <Select
                   label="Rate Source"
-                  value={currency.rate_source || 'manual'}
+                  value={currency.rate_source || ''}
                   onChange={(e) => setCurrency({ ...currency, rate_source: e.target.value })}
+                  displayEmpty
                 >
+                  <MenuItem value="">
+                    <em>Select Rate Source</em>
+                  </MenuItem>
                   <MenuItem value="manual">Manual</MenuItem>
                   <MenuItem value="provider">Provider</MenuItem>
                 </Select>
@@ -336,7 +361,7 @@ const AdminSettings = () => {
               <TextField
                 fullWidth
                 label="Jurisdiction"
-                value={tax.jurisdiction || 'default'}
+                value={tax.jurisdiction || ''}
                 onChange={(e) => setTax({ ...tax, jurisdiction: e.target.value })}
               />
             </Grid>
@@ -375,7 +400,10 @@ const AdminSettings = () => {
             <Grid item xs={12} md={4}>
               <FormControl fullWidth>
                 <InputLabel>Provider</InputLabel>
-                <Select label="Provider" value={email.provider || 'smtp'} onChange={(e) => setEmail({ ...email, provider: e.target.value })}>
+                <Select label="Provider" value={email.provider || ''} onChange={(e) => setEmail({ ...email, provider: e.target.value })} displayEmpty>
+                  <MenuItem value="">
+                    <em>Select Provider</em>
+                  </MenuItem>
                   <MenuItem value="smtp">SMTP</MenuItem>
                   <MenuItem value="sendgrid">SendGrid</MenuItem>
                   <MenuItem value="postmark">Postmark</MenuItem>
@@ -397,11 +425,14 @@ const AdminSettings = () => {
           saving={saving}
         >
           <Grid container spacing={2}>
-            <Grid item xs={12} md={6}><TextField fullWidth label="Session Timeout (minutes)" type="number" value={security.session_timeout_minutes ?? 60} onChange={(e) => setSecurity({ ...security, session_timeout_minutes: parseInt(e.target.value || '0', 10) })} /></Grid>
+            <Grid item xs={12} md={6}><TextField fullWidth label="Session Timeout (minutes)" type="number" value={security.session_timeout_minutes || ''} onChange={(e) => setSecurity({ ...security, session_timeout_minutes: parseInt(e.target.value || '0', 10) })} /></Grid>
             <Grid item xs={12} md={6}>
               <FormControl fullWidth>
                 <InputLabel>Password Policy</InputLabel>
-                <Select label="Password Policy" value={security.password_policy || 'standard'} onChange={(e) => setSecurity({ ...security, password_policy: e.target.value })}>
+                <Select label="Password Policy" value={security.password_policy || ''} onChange={(e) => setSecurity({ ...security, password_policy: e.target.value })} displayEmpty>
+                  <MenuItem value="">
+                    <em>Select Policy</em>
+                  </MenuItem>
                   <MenuItem value="standard">Standard</MenuItem>
                   <MenuItem value="strict">Strict</MenuItem>
                 </Select>
@@ -420,9 +451,9 @@ const AdminSettings = () => {
           saving={saving}
         >
           <Grid container spacing={2}>
-            <Grid item xs={12} md={4}><TextField fullWidth label="Timezone" value={localization.timezone || 'UTC'} onChange={(e) => setLocalization({ ...localization, timezone: e.target.value })} /></Grid>
-            <Grid item xs={12} md={4}><TextField fullWidth label="Locale" value={localization.locale || 'en-US'} onChange={(e) => setLocalization({ ...localization, locale: e.target.value })} /></Grid>
-            <Grid item xs={12} md={4}><TextField fullWidth label="Fiscal Year Start (MM-DD)" value={localization.fiscal_year_start || '01-01'} onChange={(e) => setLocalization({ ...localization, fiscal_year_start: e.target.value })} /></Grid>
+            <Grid item xs={12} md={4}><TextField fullWidth label="Timezone" value={localization.timezone || ''} onChange={(e) => setLocalization({ ...localization, timezone: e.target.value })} /></Grid>
+            <Grid item xs={12} md={4}><TextField fullWidth label="Locale" value={localization.locale || ''} onChange={(e) => setLocalization({ ...localization, locale: e.target.value })} /></Grid>
+            <Grid item xs={12} md={4}><TextField fullWidth label="Fiscal Year Start (MM-DD)" value={localization.fiscal_year_start || ''} onChange={(e) => setLocalization({ ...localization, fiscal_year_start: e.target.value })} /></Grid>
           </Grid>
         </SectionCard>
       )}
@@ -440,105 +471,6 @@ const AdminSettings = () => {
         </SectionCard>
       )}
 
-      {tab === 7 && (
-        <SectionCard
-          title="User Permissions & Smart Entry Settings"
-          icon={<SecurityIcon color="primary" />}
-          onSave={() => saveSection('userPermissions', userPermissions)}
-          onReset={loadAll}
-          saving={saving}
-        >
-          <Alert severity="info" sx={{ mb: 2 }}>
-            <Typography variant="body2">
-              🏢 <strong>Enterprise Configuration:</strong> Configure how your company handles journal entry restrictions 
-              and user permissions. These settings apply to all users in your organization.
-            </Typography>
-          </Alert>
-
-          <Grid container spacing={2}>
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth margin="normal">
-                <InputLabel>Default User Role</InputLabel>
-                <Select
-                  value={userPermissions.defaultUserRole}
-                  onChange={(e) => setUserPermissions({ ...userPermissions, defaultUserRole: e.target.value })}
-                  label="Default User Role"
-                >
-                  <MenuItem value="user">👤 Regular User</MenuItem>
-                  <MenuItem value="accountant">👨‍💼 Accountant</MenuItem>
-                  <MenuItem value="admin">👑 Admin</MenuItem>
-                  <MenuItem value="manager">🎯 Manager/Owner</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth margin="normal">
-                <InputLabel>Smart Entry Restriction Level</InputLabel>
-                <Select
-                  value={userPermissions.restrictionLevel}
-                  onChange={(e) => setUserPermissions({ ...userPermissions, restrictionLevel: e.target.value })}
-                  label="Smart Entry Restriction Level"
-                >
-                  <MenuItem value="none">🔓 None - Full access for all users</MenuItem>
-                  <MenuItem value="flexible">🔧 Flexible - Smart restrictions with role overrides</MenuItem>
-                  <MenuItem value="strict">🔒 Strict - Always enforce restrictions</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-          </Grid>
-
-          <Box sx={{ mt: 2 }}>
-            <FormControlLabel 
-              control={
-                <Switch 
-                  checked={userPermissions.allowRoleOverride} 
-                  onChange={(e) => setUserPermissions({ ...userPermissions, allowRoleOverride: e.target.checked })} 
-                />
-              } 
-              label="Allow users to temporarily override their role permissions" 
-            />
-          </Box>
-
-          <Box sx={{ mt: 1 }}>
-            <FormControlLabel 
-              control={
-                <Switch 
-                  checked={userPermissions.requireApprovalForAdjustments} 
-                  onChange={(e) => setUserPermissions({ ...userPermissions, requireApprovalForAdjustments: e.target.checked })} 
-                />
-              } 
-              label="Require approval for adjustment entries and reversals" 
-            />
-          </Box>
-
-          <Box sx={{ mt: 1 }}>
-            <FormControlLabel 
-              control={
-                <Switch 
-                  checked={userPermissions.enableAuditTrail} 
-                  onChange={(e) => setUserPermissions({ ...userPermissions, enableAuditTrail: e.target.checked })} 
-                />
-              } 
-              label="Enable detailed audit trail for permission overrides" 
-            />
-          </Box>
-
-          <Divider sx={{ my: 2 }} />
-
-          <Typography variant="body2" color="textSecondary">
-            <strong>Current Configuration:</strong>
-            <br />
-            • Default Role: <strong>{userPermissions.defaultUserRole}</strong>
-            <br />
-            • Restriction Level: <strong>{userPermissions.restrictionLevel}</strong>
-            <br />
-            • Role Override: <strong>{userPermissions.allowRoleOverride ? 'Enabled' : 'Disabled'}</strong>
-            <br />
-            • Approval Required: <strong>{userPermissions.requireApprovalForAdjustments ? 'Yes' : 'No'}</strong>
-          </Typography>
-        </SectionCard>
-      )}
 
       <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
         <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>{snackbar.message}</Alert>

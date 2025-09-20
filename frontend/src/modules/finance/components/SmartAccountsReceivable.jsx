@@ -69,8 +69,8 @@ const SmartAccountsReceivable = ({ isMobile, isTablet }) => {
   });
 
   // Real-time data hooks
-  const { data: accountsReceivable, loading: arLoading, error: arError, create, update, remove, refresh } = useRealTimeData('/api/sales/accounts-receivable');
-  const { data: customersResponse, loading: customersLoading, refresh: refreshCustomers } = useRealTimeData('/api/sales/customers');
+  const { data: accountsReceivable, loading: arLoading, error: arError, create, update, remove, refresh } = useRealTimeData('/api/finance/accounts-receivable');
+  const { data: customersResponse, loading: customersLoading, refresh: refreshCustomers } = useRealTimeData('/api/finance/customers');
   
   // Extract customers array from response
   const customers = customersResponse?.customers || [];
@@ -113,10 +113,6 @@ const SmartAccountsReceivable = ({ isMobile, isTablet }) => {
         description: formData.description
       };
 
-      // Debug: Log the data being sent
-      console.log('Submitting data:', submitData);
-      console.log('Customer ID type:', typeof submitData.customer_id);
-      console.log('Total amount type:', typeof submitData.total_amount);
 
       if (editDialogOpen && selectedInvoice) {
         await update(selectedInvoice.id, submitData);

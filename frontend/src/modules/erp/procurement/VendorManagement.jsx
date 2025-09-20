@@ -94,10 +94,6 @@ const VendorManagement = () => {
     // Real-time data hook for vendors
   const { data: vendors, loading: vendorsLoading, error: vendorsError, create, update, remove, refresh } = useRealTimeData('/api/procurement/vendors');
 
-  // Debug: Log vendor data
-  console.log('VendorManagement - Vendors data:', vendors);
-  console.log('VendorManagement - Loading:', vendorsLoading);
-  console.log('VendorManagement - Error:', vendorsError);
 
   const filteredVendors = useMemo(() => {
     const list = vendors || [];
@@ -254,17 +250,11 @@ const VendorManagement = () => {
 
     setSubmitting(true);
     try {
-      // Debug: Log the form data being submitted
-      console.log('VendorManagement - Submitting form data:', formData);
-      
       if (editingVendor) {
-        console.log('VendorManagement - Updating vendor:', editingVendor.id);
         await update(editingVendor.id, formData);
         showSnackbar('Vendor updated successfully!');
       } else {
-        console.log('VendorManagement - Creating new vendor');
         const result = await create(formData);
-        console.log('VendorManagement - Create result:', result);
         showSnackbar('Vendor created successfully!');
       }
       handleCloseDialog();

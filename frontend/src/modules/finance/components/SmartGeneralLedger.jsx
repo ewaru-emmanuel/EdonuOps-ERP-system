@@ -73,7 +73,7 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
           setUserRole(parsed.defaultUserRole || 'admin');
         }
       } catch (error) {
-        console.log('Using default company settings');
+        // Using default company settings - no action needed
       }
     };
     loadCompanySettings();
@@ -82,15 +82,9 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
   // Real-time data hooks
   const { data: generalLedger, loading: glLoading, error: glError, create, update, remove, refresh } = useRealTimeData('/api/finance/general-ledger');
 
-  // Debug: Log general ledger data
-  console.log('SmartGeneralLedger - General Ledger data:', generalLedger);
-  console.log('SmartGeneralLedger - Loading:', glLoading);
-  console.log('SmartGeneralLedger - Error:', glError);
   
   // Chart of Accounts context
   const { accounts: chartOfAccounts, loading: coaLoading } = useCoA();
-  
-  // Debug log for chart of accounts
 
   // Calculate real-time trial balance
   const trialBalance = useMemo(() => {

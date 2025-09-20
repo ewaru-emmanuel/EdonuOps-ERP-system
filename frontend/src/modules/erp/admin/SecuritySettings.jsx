@@ -114,7 +114,18 @@ const SecuritySettings = () => {
   
   useEffect(() => {
     if (eventsData) {
-      setSecurityEvents(eventsData);
+      // Handle both array format and object format with data field
+      if (Array.isArray(eventsData)) {
+        setSecurityEvents(eventsData);
+      } else if (eventsData.data && Array.isArray(eventsData.data)) {
+        setSecurityEvents(eventsData.data);
+      } else if (eventsData.success && eventsData.data && Array.isArray(eventsData.data)) {
+        setSecurityEvents(eventsData.data);
+      } else {
+        setSecurityEvents([]);
+      }
+    } else {
+      setSecurityEvents([]);
     }
   }, [eventsData]);
   
@@ -686,8 +697,8 @@ const SecuritySettings = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {securityEvents.map((event) => (
-                      <TableRow key={event.id}>
+                    {securityEvents.map((event, index) => (
+                      <TableRow key={event.id || `event-${index}`}>
                         <TableCell>
                           {new Date(event.created_at).toLocaleString()}
                         </TableCell>
