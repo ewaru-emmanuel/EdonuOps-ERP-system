@@ -1,23 +1,23 @@
 import React, { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Box,
-  Grid,
-  Card,
-  CardContent,
-  Typography,
-  Button,
-  Chip,
-  IconButton,
-  useTheme
+  Box, Typography, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions, Alert, Snackbar, LinearProgress, Tooltip, useMediaQuery, useTheme, TextField, FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 import {
   Add as AddIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Visibility as ViewIcon,
   ShoppingCart as ProcurementIcon,
   Business as VendorIcon,
   Description as POIcon,
-  TrendingUp as AnalyticsIcon
+  TrendingUp as AnalyticsIcon,
+  Assessment as AssessmentIcon,
+  Assignment as AssignmentIcon,
+  Support as SupportIcon,
+  BarChart as BarChartIcon
 } from '@mui/icons-material';
+// Removed API imports to prevent authentication calls
 
 import ProcurementDashboard from './ProcurementDashboard';
 import VendorManagement from './VendorManagement';
@@ -29,7 +29,9 @@ import ContractsManagement from './ContractsManagement';
 const ProcurementModule = () => {
   const [searchParams] = useSearchParams();
   const feature = searchParams.get('feature') || 'dashboard';
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const renderFeature = () => {
     switch (feature) {
@@ -50,36 +52,25 @@ const ProcurementModule = () => {
     }
   };
 
-  const quickStats = [
-    {
-      title: 'Total POs',
-      value: '24',
-      change: '+12%',
-      color: 'primary'
-    },
-    {
-      title: 'Pending Approval',
-      value: '8',
-      change: '-3',
-      color: 'warning'
-    },
-    {
-      title: 'Total Value',
-      value: '$45,230',
-      change: '+8.5%',
-      color: 'success'
-    },
-    {
-      title: 'Active Vendors',
-      value: '15',
-      change: '+2',
-      color: 'info'
-    }
-  ];
-
   return (
     <Box sx={{ width: '100%', height: '100%', p: 2 }}>
       {renderFeature()}
+      
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

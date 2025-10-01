@@ -8,7 +8,7 @@ import {
 } from '@mui/material';
 import {
   Add, Edit, Delete, Visibility, Download, Refresh, CheckCircle, Warning, Error, Info, AttachMoney, Schedule, BarChart, PieChart, ShowChart,
-  TrendingUp, TrendingDown, AccountBalance, Receipt, Payment, Business, Assessment, LocalTaxi, AccountBalanceWallet,
+  TrendingUp, TrendingDown, AccountBalance, Receipt, Payment, Business, Assessment, AccountBalanceWallet,
   Security, Lock, Notifications, Settings, FilterList, Search, Timeline, CurrencyExchange, Audit, Compliance,
   MoreVert, ExpandMore, ExpandLess, PlayArrow, Pause, Stop, Save, Cancel, AutoAwesome, Psychology, Lightbulb,
   CloudUpload, Description, ReceiptLong, PaymentOutlined, ScheduleSend, AutoFixHigh, SmartToy, QrCode, CameraAlt,
@@ -31,6 +31,7 @@ const SmartAuditTrail = ({ isMobile, isTablet }) => {
   const [filterUser, setFilterUser] = useState('all');
   const [filterAction, setFilterAction] = useState('all');
   const [filterModule, setFilterModule] = useState('all');
+  const [filterPaymentMethod, setFilterPaymentMethod] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('timestamp');
   const [sortOrder, setSortOrder] = useState('desc');
@@ -42,6 +43,7 @@ const SmartAuditTrail = ({ isMobile, isTablet }) => {
   const { data: auditTrail, loading: auditLoading, error: auditError } = useRealTimeData('/api/finance/audit-trail');
   const { data: userActivity, loading: userLoading, error: userError } = useRealTimeData('/api/finance/user-activity');
   const { data: complianceReports, loading: complianceLoading, error: complianceError } = useRealTimeData('/api/finance/compliance-audit');
+  const { data: paymentMethods, loading: paymentMethodsLoading } = useRealTimeData('/api/finance/payment-methods');
 
   // Calculate metrics
   const metrics = useMemo(() => {
@@ -81,10 +83,14 @@ const SmartAuditTrail = ({ isMobile, isTablet }) => {
       const matchesUser = filterUser === 'all' || record.user_id === filterUser;
       const matchesAction = filterAction === 'all' || record.action_type === filterAction;
       const matchesModule = filterModule === 'all' || record.module === filterModule;
+      const matchesPaymentMethod = filterPaymentMethod === 'all' || 
+        (record.changes && record.changes.includes(filterPaymentMethod)) ||
+        (record.description?.toLowerCase() || '').includes(filterPaymentMethod.toLowerCase());
       const matchesSearch = (record.description?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
                            (record.user_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-                           (record.ip_address || '').includes(searchTerm);
-      return matchesUser && matchesAction && matchesModule && matchesSearch;
+                           (record.ip_address || '').includes(searchTerm) ||
+                           (record.payment_method?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+      return matchesUser && matchesAction && matchesModule && matchesPaymentMethod && matchesSearch;
     });
 
     // Sort
@@ -108,7 +114,7 @@ const SmartAuditTrail = ({ isMobile, isTablet }) => {
     });
 
     return filtered;
-  }, [auditTrail, filterUser, filterAction, filterModule, searchTerm, sortBy, sortOrder]);
+  }, [auditTrail, filterUser, filterAction, filterModule, filterPaymentMethod, searchTerm, sortBy, sortOrder]);
 
   const handleSort = (property) => {
     const isAsc = sortBy === property && sortOrder === 'asc';

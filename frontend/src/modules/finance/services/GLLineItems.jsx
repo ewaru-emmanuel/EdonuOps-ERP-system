@@ -5,7 +5,7 @@ import {
   Alert, Divider, Paper
 } from '@mui/material';
 import { AddCircle, RemoveCircle, Link, LinkOff, Search } from '@mui/icons-material';
-import { useAuth } from '../../../hooks/useAuth';
+import { useAuth } from '../../../context/AuthContext';
 import apiClient from '../../../services/apiClient';
 import { useCoA } from '../context/CoAContext';
 import { debounce } from 'lodash';

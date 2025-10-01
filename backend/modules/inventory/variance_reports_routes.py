@@ -35,6 +35,28 @@ def get_inventory_gl_variance():
     GET /api/inventory/variance/inventory-gl-delta?date=2025-09-18
     """
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty variance (for development)
+        if not user_id:
+            print("Warning: No user context found for inventory GL variance, returning empty results")
+            return jsonify({
+                'as_of_date': date.today().isoformat(),
+                'inventory_total': 0,
+                'gl_total': 0,
+                'variance': 0,
+                'variance_percentage': 0,
+                'status': 'No data available'
+            }), 200
+        
         # Parse date parameter
         date_str = request.args.get('date')
         if date_str:
@@ -120,15 +142,40 @@ def get_shrinkage_analysis():
     GET /api/inventory/variance/shrinkage-analysis?days=30
     """
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty analysis (for development)
+        if not user_id:
+            print("Warning: No user context found for shrinkage analysis, returning empty results")
+            return jsonify({
+                'shrinkage_data': [],
+                'summary': {
+                    'total_shrinkage': 0,
+                    'affected_products': 0,
+                    'total_value': 0
+                }
+            }), 200
+        
         days = request.args.get('days', 30, type=int)
         end_date = date.today()
         start_date = end_date - timedelta(days=days)
         
-        # Get adjustment transactions (shrinkage indicators)
+        # Get adjustment transactions (shrinkage indicators) - FILTER BY USER
         adjustments = InventoryTransaction.query.filter(
-            InventoryTransaction.transaction_type == 'adjustment',
-            func.date(InventoryTransaction.transaction_date) >= start_date,
-            func.date(InventoryTransaction.transaction_date) <= end_date
+            and_(
+                InventoryTransaction.transaction_type == 'adjustment',
+                func.date(InventoryTransaction.transaction_date) >= start_date,
+                func.date(InventoryTransaction.transaction_date) <= end_date,
+                (InventoryTransaction.created_by == user_id) | (InventoryTransaction.created_by.is_(None))
+            )
         ).all()
         
         # Group by product and warehouse

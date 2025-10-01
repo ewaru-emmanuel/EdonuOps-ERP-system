@@ -1,21 +1,89 @@
 from flask import Blueprint, jsonify, request
 from app import db
 from modules.inventory.advanced_models import InventoryProduct, InventoryTransaction, StockLevel
+from modules.core.tenant_context import require_tenant, get_tenant_context
+from modules.core.rate_limiting import api_endpoint_limit
 from datetime import datetime, timedelta
 from sqlalchemy import func, desc
+import logging
 
+logger = logging.getLogger(__name__)
 analytics_bp = Blueprint('inventory_analytics', __name__, url_prefix='/api/inventory/analytics')
 
+def get_ai_insights(insight_type, data):
+    """Generate AI insights for inventory analytics"""
+    # Simplified AI insights - in production, this would use actual AI/ML models
+    insights = {
+        'inventory_trends': {
+            'summary': f"Analyzed {data['total_days']} days of inventory data with {data['total_transactions']} transactions",
+            'recommendations': [
+                "Consider optimizing reorder points based on usage patterns",
+                "Monitor seasonal trends for better demand forecasting"
+            ],
+            'risk_alerts': []
+        },
+        'inventory_stock_levels': {
+            'summary': f"Current inventory: {data['total_products']} products, {data['low_stock_items']} low stock items",
+            'recommendations': [
+                "Review reorder points for low stock items",
+                "Consider bulk purchasing for high-value items"
+            ],
+            'risk_alerts': ["Low stock items detected"] if data['low_stock_items'] > 0 else []
+        },
+        'inventory_movement': {
+            'summary': f"Movement analysis: {data['total_transactions']} transactions over {data['period_days']} days",
+            'recommendations': [
+                "Optimize warehouse layout based on movement patterns",
+                "Review fast-moving items for better positioning"
+            ],
+            'risk_alerts': []
+        }
+    }
+    return insights.get(insight_type, {'summary': 'No insights available', 'recommendations': [], 'risk_alerts': []})
+
 @analytics_bp.route('/kpis', methods=['GET'])
+@api_endpoint_limit()
+@require_tenant
 def get_inventory_kpis():
     """Get key performance indicators for inventory"""
     try:
-        total_products = InventoryProduct.query.count()
-        total_transactions = InventoryTransaction.query.count()
-        stock_levels = StockLevel.query.all()
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty KPIs (for development)
+        if not user_id:
+            print("Warning: No user context found for inventory KPIs, returning empty results")
+            return jsonify({
+                'total_products': 0,
+                'total_transactions': 0,
+                'total_stock_value': 0,
+                'low_stock_items': 0
+            }), 200
+        
+        # Filter by user - include records with no created_by for backward compatibility
+        total_products = InventoryProduct.query.filter(
+            (InventoryProduct.created_by == user_id) | (InventoryProduct.created_by.is_(None))
+        ).count()
+        
+        total_transactions = InventoryTransaction.query.filter(
+            (InventoryTransaction.created_by == user_id) | (InventoryTransaction.created_by.is_(None))
+        ).count()
+        
+        stock_levels = StockLevel.query.filter(
+            (StockLevel.created_by == user_id) | (StockLevel.created_by.is_(None))
+        ).all()
         total_stock_value = sum(level.quantity_on_hand * (level.unit_cost or 0) for level in stock_levels)
-        # Get products with their reorder points
-        products = InventoryProduct.query.all()
+        # Get products with their reorder points - FILTER BY USER
+        products = InventoryProduct.query.filter(
+            (InventoryProduct.created_by == user_id) | (InventoryProduct.created_by.is_(None))
+        ).all()
         product_reorder_points = {p.id: p.reorder_point for p in products}
         low_stock_items = sum(1 for level in stock_levels if level.quantity_on_hand <= (product_reorder_points.get(level.product_id, 0) or 0))
         
@@ -36,16 +104,45 @@ def get_inventory_kpis():
         return jsonify({'error': str(e)}), 500
 
 @analytics_bp.route('/trends', methods=['GET'])
+@api_endpoint_limit()
+@require_tenant
 def get_inventory_trends():
     """Get inventory trends and patterns"""
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty trends (for development)
+        if not user_id:
+            print("Warning: No user context found for inventory trends, returning empty results")
+            return jsonify({
+                'daily_data': {},
+                'summary': {
+                    'total_inbound': 0,
+                    'total_outbound': 0,
+                    'total_adjustments': 0,
+                    'total_transactions': 0
+                }
+            }), 200
+        
         days = request.args.get('days', 30, type=int)
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=days)
         
+        # Filter by user - include records with no created_by for backward compatibility
         transactions = InventoryTransaction.query.filter(
-            InventoryTransaction.transaction_date >= start_date,
-            InventoryTransaction.transaction_date <= end_date
+            and_(
+                InventoryTransaction.transaction_date >= start_date,
+                InventoryTransaction.transaction_date <= end_date,
+                (InventoryTransaction.created_by == user_id) | (InventoryTransaction.created_by.is_(None))
+            )
         ).order_by(InventoryTransaction.transaction_date).all()
         
         daily_data = {}
@@ -90,8 +187,33 @@ def get_inventory_trends():
 def get_stock_levels_report():
     """Get comprehensive stock levels report"""
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty report (for development)
+        if not user_id:
+            print("Warning: No user context found for stock levels report, returning empty results")
+            return jsonify({
+                'report_data': [],
+                'summary': {
+                    'total_products': 0,
+                    'low_stock_count': 0,
+                    'total_value': 0
+                }
+            }), 200
+        
+        # Filter by user - include records with no created_by for backward compatibility
         stock_levels = db.session.query(StockLevel, InventoryProduct).join(
             InventoryProduct, StockLevel.product_id == InventoryProduct.id
+        ).filter(
+            (StockLevel.created_by == user_id) | (StockLevel.created_by.is_(None))
         ).all()
         
         report_data = []
@@ -125,15 +247,41 @@ def get_stock_levels_report():
 def get_movement_report():
     """Get inventory movement report"""
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty report (for development)
+        if not user_id:
+            print("Warning: No user context found for movement report, returning empty results")
+            return jsonify({
+                'movement_data': [],
+                'summary': {
+                    'total_transactions': 0,
+                    'total_inbound': 0,
+                    'total_outbound': 0
+                }
+            }), 200
+        
         days = request.args.get('days', 30, type=int)
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=days)
         
+        # Filter by user - include records with no created_by for backward compatibility
         transactions = db.session.query(InventoryTransaction, InventoryProduct).join(
             InventoryProduct, InventoryTransaction.product_id == InventoryProduct.id
         ).filter(
-            InventoryTransaction.transaction_date >= start_date,
-            InventoryTransaction.transaction_date <= end_date
+            and_(
+                InventoryTransaction.transaction_date >= start_date,
+                InventoryTransaction.transaction_date <= end_date,
+                (InventoryTransaction.created_by == user_id) | (InventoryTransaction.created_by.is_(None))
+            )
         ).order_by(desc(InventoryTransaction.transaction_date)).all()
         
         movement_data = []

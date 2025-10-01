@@ -1,75 +1,37 @@
-import React, { useMemo, useEffect, useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
-import { Box, CircularProgress, Typography } from '@mui/material';
+import React from 'react';
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const ProtectedRoute = ({ children, requireAuth = true }) => {
   const { isAuthenticated, loading, initialized } = useAuth();
-  const location = useLocation();
-  const [timeoutReached, setTimeoutReached] = useState(false);
 
-  // Set a timeout to prevent infinite loading
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setTimeoutReached(true);
-    }, 5000); // 5 second timeout
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Memoize the authentication decision to prevent infinite loops
-  const authDecision = useMemo(() => {
-    if ((loading || !initialized) && !timeoutReached) {
-      return 'loading';
-    }
-    
-    // If timeout reached and still loading, assume not authenticated
-    if (timeoutReached && (loading || !initialized)) {
-      return requireAuth ? 'redirect-to-login' : 'render-children';
-    }
-    
-    if (requireAuth && !isAuthenticated) {
-      return 'redirect-to-login';
-    }
-    
-    if (isAuthenticated && (location.pathname === '/login' || location.pathname === '/register')) {
-      return 'redirect-to-dashboard';
-    }
-    
-    return 'render-children';
-  }, [loading, initialized, isAuthenticated, requireAuth, location.pathname, timeoutReached]);
-
-  // Handle each case
-  switch (authDecision) {
-    case 'loading':
-      return (
-        <Box 
-          sx={{ 
-            display: 'flex', 
-            flexDirection: 'column',
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            minHeight: '100vh',
-            gap: 2
-          }}
-        >
-          <CircularProgress />
-          <Typography variant="body2" color="text.secondary">
-            Checking authentication...
-          </Typography>
-        </Box>
-      );
-    
-    case 'redirect-to-login':
-      return <Navigate to="/login" state={{ from: location }} replace />;
-    
-    case 'redirect-to-dashboard':
-      return <Navigate to="/dashboard" replace />;
-    
-    case 'render-children':
-    default:
-      return children;
+  // Show loading screen while checking authentication
+  if (loading || !initialized) {
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        backgroundColor: 'white',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999
+      }}>
+        <div>Checking authentication...</div>
+      </div>
+    );
   }
+
+  // If authentication is required but user is not authenticated
+  if (requireAuth && !isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // If authentication is not required or user is authenticated
+  return children;
 };
 
 export default ProtectedRoute;

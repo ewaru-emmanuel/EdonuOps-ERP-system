@@ -16,17 +16,43 @@ class ApiClient {
 
   // Get auth token from localStorage
   getAuthToken() {
+    // Check for our authentication system
+    const user = localStorage.getItem('user');
+    if (user) {
+      try {
+        const userData = JSON.parse(user);
+        return userData.token || userData.id || 'authenticated';
+      } catch {
+        return 'authenticated';
+      }
+    }
     return localStorage.getItem('access_token');
   }
 
-  // Get headers with authentication
+  // Get headers with authentication and user context
   getHeaders(customHeaders = {}) {
     const token = this.getAuthToken();
+    const user = this.getUserContext();
+    
     return {
       ...this.defaultHeaders,
       ...(token && { 'Authorization': `Bearer ${token}` }),
+      ...(user && { 'X-User-ID': user.id || user.user_id || '1' }),
       ...customHeaders
     };
+  }
+
+  // Get user context - use just the user ID from localStorage
+  getUserContext() {
+    try {
+      const userId = localStorage.getItem('userId');
+      if (userId) {
+        return { id: userId, user_id: userId };
+      }
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   // Retry mechanism

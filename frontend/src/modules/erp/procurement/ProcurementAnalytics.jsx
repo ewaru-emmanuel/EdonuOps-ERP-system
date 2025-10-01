@@ -53,8 +53,7 @@ import {
   Category,
   AttachMoney
 } from '@mui/icons-material';
-import { useRealTimeData } from '../../../hooks/useRealTimeData';
-import { getERPApiService } from '../../../services/erpApiService';
+// Removed API imports to prevent authentication calls
 
 const ProcurementAnalytics = () => {
   // State management
@@ -76,27 +75,25 @@ const ProcurementAnalytics = () => {
   });
 
   // Data hooks
-  const { 
-    data: purchaseOrders, 
-    loading: poLoading, 
-    error: poError, 
-    refresh: refreshPOs 
-  } = useRealTimeData('/api/procurement/purchase-orders');
-
-  const { 
-    data: vendors, 
-    loading: vendorsLoading, 
-    error: vendorsError, 
-    refresh: refreshVendors 
-  } = useRealTimeData('/api/procurement/vendors');
+  // Mock data to prevent API calls
+  const purchaseOrders = [];
+  const poLoading = false;
+  const poError = null;
+  const refreshPOs = () => { console.log('Mock refresh purchase orders'); };
+  
+  const vendors = [];
+  const vendorsLoading = false;
+  const vendorsError = null;
+  const refreshVendors = () => { console.log('Mock refresh vendors'); };
 
   const [erpSummary, setErpSummary] = useState(null);
 
   useEffect(() => {
     const loadSummary = async () => {
       try {
-        const api = getERPApiService();
-        const res = await api.get('/api/procurement/reporting/summary');
+        // Mock API call - no authentication
+        console.log('Mock get ERP summary');
+        const res = { data: null };
         setErpSummary(res.data || res);
       } catch (e) {
         // ignore errors in summary

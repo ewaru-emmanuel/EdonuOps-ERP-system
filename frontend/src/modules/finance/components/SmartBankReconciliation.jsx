@@ -8,7 +8,7 @@ import {
 } from '@mui/material';
 import {
   Add, Edit, Delete, Visibility, Download, Refresh, CheckCircle, Warning, Error, Info, AttachMoney, Schedule, BarChart, PieChart, ShowChart,
-  TrendingUp, TrendingDown, AccountBalance, Receipt, Payment, Business, Assessment, LocalTaxi, AccountBalanceWallet,
+  TrendingUp, TrendingDown, AccountBalance, Receipt, Payment, Business, Assessment, AccountBalanceWallet,
   Security, Lock, Notifications, Settings, FilterList, Search, Timeline, CurrencyExchange, Audit, Compliance,
   MoreVert, ExpandMore, ExpandLess, PlayArrow, Pause, Stop, Save, Cancel, AutoAwesome, Psychology, Lightbulb,
   CloudUpload, Description, ReceiptLong, PaymentOutlined, ScheduleSend, AutoFixHigh, SmartToy, QrCode, CameraAlt,
@@ -19,6 +19,8 @@ import {
   Notifications as NotificationsIcon, Download as DownloadIcon, Upload as UploadIcon, CloudSync, AutoFixHigh as AutoFixIcon
 } from '@mui/icons-material';
 import { useRealTimeData } from '../../../hooks/useRealTimeData';
+import ReconciliationWizard from './ReconciliationWizard';
+import ReconciliationReportDialog from './ReconciliationReportDialog';
 
 const SmartBankReconciliation = ({ isMobile, isTablet }) => {
   const theme = useTheme();
@@ -28,8 +30,13 @@ const SmartBankReconciliation = ({ isMobile, isTablet }) => {
   const [detailViewOpen, setDetailViewOpen] = useState(false);
   const [matchingDialogOpen, setMatchingDialogOpen] = useState(false);
   const [discrepancyDialogOpen, setDiscrepancyDialogOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [selectedReportSession, setSelectedReportSession] = useState(null);
   const [filterBank, setFilterBank] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterPaymentMethod, setFilterPaymentMethod] = useState('all');
+  const [filterBankAccount, setFilterBankAccount] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('reconciliation_date');
   const [sortOrder, setSortOrder] = useState('desc');
@@ -37,45 +44,66 @@ const SmartBankReconciliation = ({ isMobile, isTablet }) => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   // Data hooks
-  const { data: reconciliations, loading: reconciliationLoading, error: reconciliationError } = useRealTimeData('/api/finance/bank-reconciliations');
-  const { data: bankStatements, loading: statementsLoading, error: statementsError } = useRealTimeData('/api/finance/bank-statements');
-  const { data: ledgerEntries, loading: ledgerLoading, error: ledgerError } = useRealTimeData('/api/finance/ledger-entries');
+  const { data: reconciliationSessions, loading: reconciliationLoading, error: reconciliationError, refresh: refreshSessions } = useRealTimeData('/api/finance/reconciliation-sessions');
+  const { data: bankTransactions, loading: transactionsLoading, error: transactionsError, refresh: refreshTransactions } = useRealTimeData('/api/finance/bank-transactions');
+  const { data: unreconciledGlEntries, loading: glLoading, error: glError, refresh: refreshGlEntries } = useRealTimeData('/api/finance/unreconciled-gl-entries');
+  const { data: paymentMethods, loading: paymentMethodsLoading } = useRealTimeData('/api/finance/payment-methods');
+  const { data: bankAccounts, loading: bankAccountsLoading } = useRealTimeData('/api/finance/bank-accounts');
 
   // Calculate metrics
   const metrics = useMemo(() => {
-    if (!reconciliations) return {};
+    if (!reconciliationSessions) return {};
     
-    const totalReconciliations = reconciliations.length;
-    const reconciledAmount = reconciliations.filter(rec => rec.status === 'reconciled').reduce((sum, rec) => sum + (rec.total_amount || 0), 0);
-    const pendingReconciliations = reconciliations.filter(rec => rec.status === 'pending').length;
-    const discrepancies = reconciliations.filter(rec => rec.status === 'discrepancy').length;
+    const totalSessions = reconciliationSessions.length;
+    const completedSessions = reconciliationSessions.filter(session => session.status === 'completed').length;
+    const pendingSessions = reconciliationSessions.filter(session => session.status === 'pending').length;
+    const inProgressSessions = reconciliationSessions.filter(session => session.status === 'in_progress').length;
     
-    const totalDiscrepancyAmount = reconciliations.filter(rec => rec.status === 'discrepancy').reduce((sum, rec) => sum + (rec.discrepancy_amount || 0), 0);
+    const totalDifference = reconciliationSessions.reduce((sum, session) => sum + (session.difference || 0), 0);
+    const totalOutstandingDeposits = reconciliationSessions.reduce((sum, session) => sum + (session.outstanding_deposits || 0), 0);
+    const totalOutstandingChecks = reconciliationSessions.reduce((sum, session) => sum + (session.outstanding_checks || 0), 0);
     
-    const lastReconciliation = reconciliations.sort((a, b) => new Date(b.reconciliation_date) - new Date(a.reconciliation_date))[0];
-    const daysSinceLastReconciliation = lastReconciliation ? Math.ceil((new Date() - new Date(lastReconciliation.reconciliation_date)) / (1000 * 60 * 60 * 24)) : 0;
+    const lastReconciliation = reconciliationSessions.sort((a, b) => new Date(b.statement_date) - new Date(a.statement_date))[0];
+    const daysSinceLastReconciliation = lastReconciliation ? Math.ceil((new Date() - new Date(lastReconciliation.statement_date)) / (1000 * 60 * 60 * 24)) : 0;
+
+    // Bank account analysis
+    const bankAccountStats = {};
+    reconciliationSessions.forEach(session => {
+      const account = session.bank_account_name || 'Unknown';
+      if (!bankAccountStats[account]) {
+        bankAccountStats[account] = { count: 0, totalDifference: 0 };
+      }
+      bankAccountStats[account].count++;
+      bankAccountStats[account].totalDifference += session.difference || 0;
+    });
 
     return {
-      totalReconciliations,
-      reconciledAmount,
-      pendingReconciliations,
-      discrepancies,
-      totalDiscrepancyAmount,
-      daysSinceLastReconciliation
+      totalSessions,
+      completedSessions,
+      pendingSessions,
+      inProgressSessions,
+      totalDifference,
+      totalOutstandingDeposits,
+      totalOutstandingChecks,
+      daysSinceLastReconciliation,
+      bankAccountStats
     };
-  }, [reconciliations]);
+  }, [reconciliationSessions]);
 
-  // Filter and sort reconciliations
+  // Filter and sort reconciliation sessions
   const filteredReconciliations = useMemo(() => {
-    if (!reconciliations) return [];
+    if (!reconciliationSessions) return [];
     
-    let filtered = reconciliations.filter(rec => {
-      const matchesBank = filterBank === 'all' || rec.bank_name === filterBank;
-      const matchesStatus = filterStatus === 'all' || rec.status === filterStatus;
-      const matchesSearch = rec.bank_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           rec.account_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           rec.reference_number?.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchesBank && matchesStatus && matchesSearch;
+    let filtered = reconciliationSessions.filter(session => {
+      const matchesBank = filterBank === 'all' || session.bank_account_name === filterBank;
+      const matchesStatus = filterStatus === 'all' || session.status === filterStatus;
+      const matchesPaymentMethod = filterPaymentMethod === 'all' || session.payment_method === filterPaymentMethod;
+      const matchesBankAccount = filterBankAccount === 'all' || session.bank_account_id === filterBankAccount;
+      const matchesSearch = (session.bank_account_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                           (session.statement_date?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                           (session.status?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                           (session.notes?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+      return matchesBank && matchesStatus && matchesPaymentMethod && matchesBankAccount && matchesSearch;
     });
 
     // Sort
@@ -83,12 +111,12 @@ const SmartBankReconciliation = ({ isMobile, isTablet }) => {
       let aValue = a[sortBy];
       let bValue = b[sortBy];
       
-      if (sortBy === 'reconciliation_date') {
+      if (sortBy === 'statement_date') {
         aValue = new Date(aValue);
         bValue = new Date(bValue);
       } else if (typeof aValue === 'string') {
-        aValue = aValue.toLowerCase();
-        bValue = bValue.toLowerCase();
+        aValue = (aValue || '').toLowerCase();
+        bValue = (bValue || '').toLowerCase();
       }
       
       if (sortOrder === 'asc') {
@@ -99,7 +127,7 @@ const SmartBankReconciliation = ({ isMobile, isTablet }) => {
     });
 
     return filtered;
-  }, [reconciliations, filterBank, filterStatus, searchTerm, sortBy, sortOrder]);
+  }, [reconciliationSessions, filterBank, filterStatus, filterPaymentMethod, filterBankAccount, searchTerm, sortBy, sortOrder]);
 
   const handleSort = (property) => {
     const isAsc = sortBy === property && sortOrder === 'asc';
@@ -128,66 +156,114 @@ const SmartBankReconciliation = ({ isMobile, isTablet }) => {
   };
 
   const renderReconciliationMetrics = () => (
-    <Grid container spacing={3} sx={{ mb: 3 }}>
+    <Grid container spacing={3} sx={{ mb: 4 }}>
       <Grid item xs={12} sm={6} md={3}>
-        <Card sx={{ bgcolor: 'primary.main', color: 'white' }}>
+        <Card sx={{ 
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          boxShadow: '0 8px 32px rgba(102, 126, 234, 0.3)',
+          borderRadius: 3,
+          '&:hover': {
+            transform: 'translateY(-4px)',
+            boxShadow: '0 12px 40px rgba(102, 126, 234, 0.4)'
+          },
+          transition: 'all 0.3s ease'
+        }}>
           <CardContent>
             <Box display="flex" alignItems="center" justifyContent="space-between">
               <Box>
-                <Typography variant="h4" component="div">
-                  {metrics.totalReconciliations || 0}
+                <Typography variant="h3" component="div" fontWeight="bold">
+                  {metrics.totalSessions || 0}
                 </Typography>
-                <Typography variant="body2">Total Reconciliations</Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  Total Sessions
+                </Typography>
               </Box>
-              <BankIcon sx={{ fontSize: 40, opacity: 0.8 }} />
+              <BankIcon sx={{ fontSize: 48, opacity: 0.8 }} />
             </Box>
           </CardContent>
         </Card>
       </Grid>
       
       <Grid item xs={12} sm={6} md={3}>
-        <Card sx={{ bgcolor: 'success.main', color: 'white' }}>
+        <Card sx={{ 
+          background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+          color: 'white',
+          boxShadow: '0 8px 32px rgba(17, 153, 142, 0.3)',
+          borderRadius: 3,
+          '&:hover': {
+            transform: 'translateY(-4px)',
+            boxShadow: '0 12px 40px rgba(17, 153, 142, 0.4)'
+          },
+          transition: 'all 0.3s ease'
+        }}>
           <CardContent>
             <Box display="flex" alignItems="center" justifyContent="space-between">
               <Box>
-                <Typography variant="h4" component="div">
-                  ${(metrics.reconciledAmount || 0).toLocaleString()}
+                <Typography variant="h3" component="div" fontWeight="bold">
+                  {metrics.completedSessions || 0}
                 </Typography>
-                <Typography variant="body2">Reconciled Amount</Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  Completed
+                </Typography>
               </Box>
-              <CheckIcon sx={{ fontSize: 40, opacity: 0.8 }} />
+              <CheckIcon sx={{ fontSize: 48, opacity: 0.8 }} />
             </Box>
           </CardContent>
         </Card>
       </Grid>
       
       <Grid item xs={12} sm={6} md={3}>
-        <Card sx={{ bgcolor: 'warning.main', color: 'white' }}>
+        <Card sx={{ 
+          background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+          color: 'white',
+          boxShadow: '0 8px 32px rgba(240, 147, 251, 0.3)',
+          borderRadius: 3,
+          '&:hover': {
+            transform: 'translateY(-4px)',
+            boxShadow: '0 12px 40px rgba(240, 147, 251, 0.4)'
+          },
+          transition: 'all 0.3s ease'
+        }}>
           <CardContent>
             <Box display="flex" alignItems="center" justifyContent="space-between">
               <Box>
-                <Typography variant="h4" component="div">
-                  {metrics.pendingReconciliations || 0}
+                <Typography variant="h3" component="div" fontWeight="bold">
+                  {metrics.pendingSessions || 0}
                 </Typography>
-                <Typography variant="body2">Pending</Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  Pending
+                </Typography>
               </Box>
-              <ScheduleIcon sx={{ fontSize: 40, opacity: 0.8 }} />
+              <ScheduleIcon sx={{ fontSize: 48, opacity: 0.8 }} />
             </Box>
           </CardContent>
         </Card>
       </Grid>
       
       <Grid item xs={12} sm={6} md={3}>
-        <Card sx={{ bgcolor: 'error.main', color: 'white' }}>
+        <Card sx={{ 
+          background: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+          color: 'white',
+          boxShadow: '0 8px 32px rgba(255, 154, 158, 0.3)',
+          borderRadius: 3,
+          '&:hover': {
+            transform: 'translateY(-4px)',
+            boxShadow: '0 12px 40px rgba(255, 154, 158, 0.4)'
+          },
+          transition: 'all 0.3s ease'
+        }}>
           <CardContent>
             <Box display="flex" alignItems="center" justifyContent="space-between">
               <Box>
-                <Typography variant="h4" component="div">
-                  ${(metrics.totalDiscrepancyAmount || 0).toLocaleString()}
+                <Typography variant="h3" component="div" fontWeight="bold">
+                  ${(metrics.totalDifference || 0).toLocaleString()}
                 </Typography>
-                <Typography variant="body2">Discrepancies</Typography>
+                <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                  Difference
+                </Typography>
               </Box>
-              <WarningIcon sx={{ fontSize: 40, opacity: 0.8 }} />
+              <WarningIcon sx={{ fontSize: 48, opacity: 0.8 }} />
             </Box>
           </CardContent>
         </Card>
@@ -198,9 +274,57 @@ const SmartBankReconciliation = ({ isMobile, isTablet }) => {
   const renderReconciliationTable = () => (
     <Card>
       <CardContent>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant="h6">Bank Reconciliations</Typography>
-          <Box display="flex" gap={1}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+          <Box>
+            <Typography variant="h5" fontWeight="bold" gutterBottom>
+              Bank Reconciliation
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Match your bank statements with accounting records
+            </Typography>
+          </Box>
+          <Box display="flex" gap={2} alignItems="center">
+            <Button 
+              variant="outlined" 
+              startIcon={<Sync />}
+              sx={{ 
+                borderRadius: 2,
+                textTransform: 'none',
+                fontWeight: 500,
+                px: 2,
+                py: 1,
+                borderColor: 'primary.main',
+                color: 'primary.main',
+                '&:hover': {
+                  borderColor: 'primary.dark',
+                  backgroundColor: 'primary.50'
+                }
+              }}
+            >
+              Sync Accounts
+            </Button>
+            <Button 
+              variant="contained" 
+              startIcon={<Add />}
+              onClick={() => setWizardOpen(true)}
+              sx={{ 
+                borderRadius: 2,
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 3,
+                py: 1.5,
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
+                  boxShadow: '0 6px 20px rgba(102, 126, 234, 0.6)',
+                  transform: 'translateY(-2px)'
+                },
+                transition: 'all 0.3s ease'
+              }}
+            >
+              Start New Reconciliation
+            </Button>
             <TextField
               size="small"
               placeholder="Search reconciliations..."
@@ -238,6 +362,38 @@ const SmartBankReconciliation = ({ isMobile, isTablet }) => {
                 <MenuItem value="in_progress">In Progress</MenuItem>
               </Select>
             </FormControl>
+            <FormControl size="small" sx={{ minWidth: 140 }}>
+              <InputLabel>Payment Method</InputLabel>
+              <Select
+                value={filterPaymentMethod}
+                onChange={(e) => setFilterPaymentMethod(e.target.value)}
+                label="Payment Method"
+                disabled={paymentMethodsLoading}
+              >
+                <MenuItem value="all">All Methods</MenuItem>
+                {paymentMethods && paymentMethods.map((method) => (
+                  <MenuItem key={method.id} value={method.name}>
+                    {method.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 140 }}>
+              <InputLabel>Bank Account</InputLabel>
+              <Select
+                value={filterBankAccount}
+                onChange={(e) => setFilterBankAccount(e.target.value)}
+                label="Bank Account"
+                disabled={bankAccountsLoading}
+              >
+                <MenuItem value="all">All Accounts</MenuItem>
+                {bankAccounts && bankAccounts.map((account) => (
+                  <MenuItem key={account.id} value={account.id}>
+                    {account.account_name} ({account.account_type})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Box>
         </Box>
 
@@ -263,6 +419,7 @@ const SmartBankReconciliation = ({ isMobile, isTablet }) => {
                       </TableSortLabel>
                     </TableCell>
                     <TableCell>Account Number</TableCell>
+                    <TableCell>Payment Method</TableCell>
                     <TableCell>
                       <TableSortLabel
                         active={sortBy === 'total_amount'}
@@ -288,12 +445,35 @@ const SmartBankReconciliation = ({ isMobile, isTablet }) => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredReconciliations
+                  {filteredReconciliations.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                        <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
+                          <AccountBalance sx={{ fontSize: 48, color: 'text.secondary' }} />
+                          <Typography variant="h6" color="text.secondary">
+                            No Bank Reconciliations Found
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" textAlign="center">
+                            Bank reconciliation records will appear here once they are created.<br />
+                            Start by importing bank statements or creating manual reconciliations.
+                          </Typography>
+                          <Button 
+                            variant="contained" 
+                            startIcon={<Add />}
+                            sx={{ mt: 2 }}
+                            onClick={() => {/* TODO: Add create reconciliation dialog */}}
+                          >
+                            Create First Reconciliation
+                          </Button>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredReconciliations
                     .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                    .map((reconciliation) => {
-                      const difference = (reconciliation.statement_balance || 0) - (reconciliation.ledger_balance || 0);
+                      .map((session) => {
                       return (
-                        <TableRow key={reconciliation.id} hover>
+                        <TableRow key={session.id} hover>
                           <TableCell>
                             <Box display="flex" alignItems="center" gap={1}>
                               <Avatar sx={{ bgcolor: 'primary.main', width: 32, height: 32 }}>
@@ -301,49 +481,57 @@ const SmartBankReconciliation = ({ isMobile, isTablet }) => {
                               </Avatar>
                               <Box>
                                 <Typography variant="body2" fontWeight="medium">
-                                  {reconciliation.bank_name}
+                                  {session.bank_account_name}
                                 </Typography>
                                 <Typography variant="caption" color="text.secondary">
-                                  {reconciliation.account_type}
+                                  {session.statement_date}
                                 </Typography>
                               </Box>
                             </Box>
                           </TableCell>
                           <TableCell>
                             <Typography variant="body2" fontFamily="monospace">
-                              {reconciliation.account_number}
+                              {session.id}
                             </Typography>
                           </TableCell>
                           <TableCell>
+                            <Chip 
+                              label={session.status || 'N/A'} 
+                              size="small" 
+                              variant="outlined"
+                              color={session.status === 'pending' ? 'warning' : session.status === 'completed' ? 'success' : 'default'}
+                            />
+                          </TableCell>
+                          <TableCell>
                             <Typography variant="body2" fontWeight="medium">
-                              ${(reconciliation.statement_balance || 0).toLocaleString()}
+                              ${(session.statement_balance || 0).toLocaleString()}
                             </Typography>
                           </TableCell>
                           <TableCell>
                             <Typography variant="body2">
-                              ${(reconciliation.ledger_balance || 0).toLocaleString()}
+                              ${(session.book_balance || 0).toLocaleString()}
                             </Typography>
                           </TableCell>
                           <TableCell>
                             <Typography 
                               variant="body2" 
                               fontWeight="medium"
-                              color={difference === 0 ? 'success.main' : 'error.main'}
+                              color={session.difference === 0 ? 'success.main' : 'error.main'}
                             >
-                              ${difference.toLocaleString()}
+                              ${(session.difference || 0).toLocaleString()}
                             </Typography>
                           </TableCell>
                           <TableCell>
                             <Typography variant="body2">
-                              {new Date(reconciliation.reconciliation_date).toLocaleDateString()}
+                              {session.statement_date}
                             </Typography>
                           </TableCell>
                           <TableCell>
                             <Chip 
-                              label={reconciliation.status} 
-                              color={getStatusColor(reconciliation.status)}
+                              label={session.status} 
+                              color={getStatusColor(session.status)}
                               size="small"
-                              icon={getStatusIcon(reconciliation.status)}
+                              icon={getStatusIcon(session.status)}
                             />
                           </TableCell>
                           <TableCell>
@@ -352,7 +540,7 @@ const SmartBankReconciliation = ({ isMobile, isTablet }) => {
                                 <IconButton 
                                   size="small"
                                   onClick={() => {
-                                    setSelectedReconciliation(reconciliation);
+                                    setSelectedReconciliation(session);
                                     setDetailViewOpen(true);
                                   }}
                                 >
@@ -375,8 +563,14 @@ const SmartBankReconciliation = ({ isMobile, isTablet }) => {
                                   <CompareIcon fontSize="small" />
                                 </IconButton>
                               </Tooltip>
-                              <Tooltip title="Download Report">
-                                <IconButton size="small">
+                              <Tooltip title="Generate Report">
+                                <IconButton 
+                                  size="small"
+                                  onClick={() => {
+                                    setSelectedReportSession(session);
+                                    setReportDialogOpen(true);
+                                  }}
+                                >
                                   <Download fontSize="small" />
                                 </IconButton>
                               </Tooltip>
@@ -384,7 +578,8 @@ const SmartBankReconciliation = ({ isMobile, isTablet }) => {
                           </TableCell>
                         </TableRow>
                       );
-                    })}
+                    })
+                  )}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -410,7 +605,7 @@ const SmartBankReconciliation = ({ isMobile, isTablet }) => {
     <Card>
       <CardContent>
         <Typography variant="h6" mb={2}>Recent Bank Statements</Typography>
-        {statementsLoading ? (
+        {transactionsLoading ? (
           <Box display="flex" flexDirection="column" gap={1}>
             {[...Array(3)].map((_, i) => (
               <Skeleton key={i} variant="rectangular" height={80} />
@@ -418,7 +613,7 @@ const SmartBankReconciliation = ({ isMobile, isTablet }) => {
           </Box>
         ) : (
           <List>
-            {bankStatements?.slice(0, 5).map((statement) => (
+            {bankTransactions?.slice(0, 5).map((statement) => (
               <ListItem key={statement.id} divider>
                 <ListItemIcon>
                   <BankIcon color="primary" />
@@ -517,6 +712,37 @@ const SmartBankReconciliation = ({ isMobile, isTablet }) => {
     </Card>
   );
 
+  const renderPaymentMethodAnalysis = () => (
+    <Card>
+      <CardContent>
+        <Typography variant="h6" mb={2}>Payment Method Analysis</Typography>
+        <Box display="flex" flexDirection="column" gap={1}>
+          {metrics.paymentMethodStats && Object.keys(metrics.paymentMethodStats).length > 0 ? (
+            Object.entries(metrics.paymentMethodStats).map(([method, stats]) => (
+              <Box key={method} display="flex" justifyContent="space-between" alignItems="center" p={1} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                <Box>
+                  <Typography variant="body2" fontWeight="medium">
+                    {method}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {stats.count} transactions
+                  </Typography>
+                </Box>
+                <Typography variant="body2" fontWeight="medium">
+                  ${stats.totalAmount.toLocaleString()}
+                </Typography>
+              </Box>
+            ))
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              No payment method data available
+            </Typography>
+          )}
+        </Box>
+      </CardContent>
+    </Card>
+  );
+
   const renderAutoMatching = () => (
     <Card>
       <CardContent>
@@ -550,9 +776,21 @@ const SmartBankReconciliation = ({ isMobile, isTablet }) => {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        Bank Reconciliation
-      </Typography>
+      {/* Professional Header */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" fontWeight="bold" gutterBottom sx={{ 
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          backgroundClip: 'text',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent'
+        }}>
+          Bank Reconciliation Center
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 600 }}>
+          Streamline your bank reconciliation process with automated matching, 
+          real-time synchronization, and comprehensive reporting.
+        </Typography>
+      </Box>
       
       {renderReconciliationMetrics()}
       
@@ -564,6 +802,7 @@ const SmartBankReconciliation = ({ isMobile, isTablet }) => {
           <Box display="flex" flexDirection="column" gap={3}>
             {renderBankStatements()}
             {renderDiscrepancyAnalysis()}
+            {renderPaymentMethodAnalysis()}
             {renderAutoMatching()}
           </Box>
         </Grid>
@@ -657,6 +896,23 @@ const SmartBankReconciliation = ({ isMobile, isTablet }) => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+      
+      <ReconciliationWizard 
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        onComplete={() => {
+          setSnackbar({ open: true, message: 'Reconciliation completed successfully!', severity: 'success' });
+          // Refresh data
+          refreshSessions?.();
+          refreshTransactions?.();
+        }}
+      />
+      
+      <ReconciliationReportDialog 
+        open={reportDialogOpen}
+        onClose={() => setReportDialogOpen(false)}
+        reconciliationSession={selectedReportSession}
+      />
     </Box>
   );
 };

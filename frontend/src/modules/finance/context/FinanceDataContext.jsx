@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { useAuth } from '../../../hooks/useAuth';
-import apiClient from '../../../services/apiClient';
+import { useAuth } from '../../../context/AuthContext';
+// Removed apiClient to prevent authentication calls
 
 const FinanceDataContext = createContext();
 
@@ -49,40 +49,32 @@ export const FinanceDataProvider = ({ children }) => {
     setErrors(prev => ({ ...prev, [endpoint]: null }));
     
     try {
+      // Real API call with user context
+      const response = await fetch(`/api/finance/${endpoint}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'X-User-ID': JSON.parse(localStorage.getItem('user') || '{}').id || null
+        }
+      });
       
-      // First check if backend is reachable
-      try {
-        await apiClient.healthCheck();
-      } catch (healthError) {
-        throw new Error('Backend server not reachable. Please ensure backend is running.');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
-      const response = await apiClient.get(`/finance/${endpoint}`);
-      
-      setData(prev => ({ ...prev, [endpoint]: response }));
+      const data = await response.json();
+      setData(prev => ({ ...prev, [endpoint]: data }));
       setLastUpdated(prev => ({ ...prev, [endpoint]: new Date() }));
       
     } catch (error) {
       console.error(`❌ Failed to fetch ${endpoint}:`, error);
-      
-      let errorMessage = 'Network error';
-      if (error.message.includes('fetch')) {
-        errorMessage = 'Backend server not reachable. Please ensure backend is running.';
-      } else if (error.message.includes('401')) {
-        errorMessage = 'Authentication failed. Please log in again.';
-      } else if (error.message.includes('404')) {
-        errorMessage = 'Resource not found. Please check the endpoint.';
-      } else if (error.message.includes('500')) {
-        errorMessage = 'Server error. Please try again later.';
-      } else {
-        errorMessage = error.message;
-      }
-      
-      setErrors(prev => ({ ...prev, [endpoint]: errorMessage }));
+      setErrors(prev => ({ ...prev, [endpoint]: error.message }));
+      setData(prev => ({ ...prev, [endpoint]: [] }));
     } finally {
       setLoading(prev => ({ ...prev, [endpoint]: false }));
     }
-  }, [apiClient, isAuthenticated]);
+  }, [isAuthenticated]);
 
   // Specific data fetchers
   const fetchGLEntries = useCallback(() => fetchData('gl_entries'), [fetchData]);
@@ -92,17 +84,56 @@ export const FinanceDataProvider = ({ children }) => {
 
   // Data manipulation functions - will be handled by backend API
   const addJournalEntry = useCallback(async (formData) => {
-    // Will be implemented with backend API call
-  }, []);
+    try {
+      const response = await fetch('/api/finance/journal-entries', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'X-User-ID': JSON.parse(localStorage.getItem('user') || '{}').id || null
+        },
+        body: JSON.stringify(formData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      // Refresh data after successful creation
+      fetchGLEntries();
+      return result;
+    } catch (error) {
+      console.error('❌ Failed to create journal entry:', error);
+      throw error;
+    }
+  }, [fetchGLEntries]);
 
-  const updateJournalEntry = useCallback((id, formData) => {
-    setData(prev => ({
-      ...prev,
-      gl_entries: prev.gl_entries.map(entry => 
-        entry.id === id ? { ...entry, ...formData, updated_at: new Date().toISOString() } : entry
-      )
-    }));
-  }, []);
+  const updateJournalEntry = useCallback(async (id, formData) => {
+    try {
+      const response = await fetch(`/api/finance/journal-entries/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'X-User-ID': JSON.parse(localStorage.getItem('user') || '{}').id || null
+        },
+        body: JSON.stringify(formData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      // Refresh data after successful update
+      fetchGLEntries();
+      return result;
+    } catch (error) {
+      console.error('❌ Failed to update journal entry:', error);
+      throw error;
+    }
+  }, [fetchGLEntries]);
 
   const addInvoice = useCallback(async (formData) => {
     // Will be implemented with backend API call

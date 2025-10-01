@@ -1,208 +1,209 @@
+# backend/modules/core/audit_models.py
+
+from app import db
 from datetime import datetime
-from typing import Dict, List, Optional
-from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, Boolean, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+import uuid
 
-Base = declarative_base()
-
-class AuditLog(Base):
-    """
-    Comprehensive audit trail for all system activities
-    """
+class AuditLog(db.Model):
+    """Global audit logging for all tenant activities"""
     __tablename__ = 'audit_logs'
     
-    id = Column(Integer, primary_key=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = db.Column(db.String(36), db.ForeignKey('tenants.id'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    action = db.Column(db.String(100), nullable=False)  # CREATE, UPDATE, DELETE, LOGIN, etc.
+    resource = db.Column(db.String(100), nullable=False)  # user, tenant, finance, inventory, etc.
+    resource_id = db.Column(db.String(100), nullable=True)  # ID of the affected resource
+    details = db.Column(db.Text, nullable=True)  # JSON string with additional details
+    ip_address = db.Column(db.String(45), nullable=True)  # IPv4 or IPv6
+    user_agent = db.Column(db.Text, nullable=True)
+    module = db.Column(db.String(50), nullable=True)  # finance, inventory, crm, etc.
+    severity = db.Column(db.String(20), default='INFO')  # INFO, WARNING, ERROR, CRITICAL
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     
-    # User information  
-    user_id = Column(Integer, nullable=True)  # Removed ForeignKey to avoid circular import issues
-    username = Column(String(100), nullable=True)  # Redundant for performance
-    user_role = Column(String(50), nullable=True)  # Redundant for performance
-    
-    # Action details
-    action = Column(String(100), nullable=False)  # CREATE, UPDATE, DELETE, LOGIN, LOGOUT, etc.
-    entity_type = Column(String(100), nullable=False)  # journal_entry, user, customer, etc.
-    entity_id = Column(String(100), nullable=True)  # ID of the affected entity
-    
-    # Request details
-    ip_address = Column(String(45), nullable=True)  # IPv4 or IPv6
-    user_agent = Column(Text, nullable=True)
-    request_method = Column(String(10), nullable=True)  # GET, POST, PUT, DELETE
-    request_url = Column(String(500), nullable=True)
-    
-    # Change tracking
-    old_values = Column(JSON, nullable=True)  # Previous values
-    new_values = Column(JSON, nullable=True)  # New values
-    changes_summary = Column(Text, nullable=True)  # Human-readable summary
-    
-    # Module and context
-    module = Column(String(50), nullable=False)  # finance, inventory, sales, etc.
-    source = Column(String(100), nullable=True)  # api, ui, batch_job, etc.
-    
-    # Result and status
-    success = Column(Boolean, default=True)
-    error_message = Column(Text, nullable=True)
-    
-    # Additional metadata
-    session_id = Column(String(100), nullable=True)
-    correlation_id = Column(String(100), nullable=True)  # For tracking related actions
-    
-    # Relationships removed to avoid circular import issues
-    # user = relationship("User", backref="audit_logs", lazy='select')
+    # Indexes for performance
+    __table_args__ = (
+        db.Index('idx_audit_tenant_timestamp', 'tenant_id', 'timestamp'),
+        db.Index('idx_audit_user_timestamp', 'user_id', 'timestamp'),
+        db.Index('idx_audit_action_timestamp', 'action', 'timestamp'),
+        db.Index('idx_audit_resource', 'resource', 'resource_id'),
+    )
     
     def to_dict(self):
         return {
             'id': self.id,
-            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'tenant_id': self.tenant_id,
             'user_id': self.user_id,
-            'username': self.username,
-            'user_role': self.user_role,
             'action': self.action,
-            'entity_type': self.entity_type,
-            'entity_id': self.entity_id,
+            'resource': self.resource,
+            'resource_id': self.resource_id,
+            'details': self.details,
             'ip_address': self.ip_address,
             'user_agent': self.user_agent,
-            'request_method': self.request_method,
-            'request_url': self.request_url,
-            'old_values': self.old_values,
-            'new_values': self.new_values,
-            'changes_summary': self.changes_summary,
             'module': self.module,
-            'source': self.source,
-            'success': self.success,
-            'error_message': self.error_message,
-            'session_id': self.session_id,
-            'correlation_id': self.correlation_id
+            'severity': self.severity,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None
         }
 
-class LoginHistory(Base):
-    """
-    Detailed login/logout tracking
-    """
+class TenantUsageStats(db.Model):
+    """Track usage statistics per tenant"""
+    __tablename__ = 'tenant_usage_stats'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.String(36), db.ForeignKey('tenants.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    active_users = db.Column(db.Integer, default=0)
+    api_calls = db.Column(db.Integer, default=0)
+    storage_used_mb = db.Column(db.Float, default=0.0)
+    modules_used = db.Column(db.Text, nullable=True)  # JSON array of modules used
+    errors_count = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Unique constraint on tenant_id + date
+    __table_args__ = (
+        db.UniqueConstraint('tenant_id', 'date', name='unique_tenant_date'),
+        db.Index('idx_usage_tenant_date', 'tenant_id', 'date'),
+    )
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'tenant_id': self.tenant_id,
+            'date': self.date.isoformat() if self.date else None,
+            'active_users': self.active_users,
+            'api_calls': self.api_calls,
+            'storage_used_mb': self.storage_used_mb,
+            'modules_used': self.modules_used,
+            'errors_count': self.errors_count,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+class PlatformMetrics(db.Model):
+    """Platform-wide metrics for admin dashboard"""
+    __tablename__ = 'platform_metrics'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False, unique=True)
+    total_tenants = db.Column(db.Integer, default=0)
+    active_tenants = db.Column(db.Integer, default=0)
+    total_users = db.Column(db.Integer, default=0)
+    total_api_calls = db.Column(db.Integer, default=0)
+    total_storage_gb = db.Column(db.Float, default=0.0)
+    error_rate = db.Column(db.Float, default=0.0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'date': self.date.isoformat() if self.date else None,
+            'total_tenants': self.total_tenants,
+            'active_tenants': self.active_tenants,
+            'total_users': self.total_users,
+            'total_api_calls': self.total_api_calls,
+            'total_storage_gb': self.total_storage_gb,
+            'error_rate': self.error_rate,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+class LoginHistory(db.Model):
+    """Track user login history for security"""
     __tablename__ = 'login_history'
     
-    id = Column(Integer, primary_key=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    login_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    ip_address = db.Column(db.String(45), nullable=True)
+    user_agent = db.Column(db.Text, nullable=True)
+    success = db.Column(db.Boolean, default=True)
+    failure_reason = db.Column(db.String(100), nullable=True)
+    tenant_id = db.Column(db.String(36), db.ForeignKey('tenants.id'), nullable=True)
     
-    # User information
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    username = Column(String(100), nullable=False)
-    
-    # Login details
-    action = Column(String(20), nullable=False)  # LOGIN, LOGOUT, FAILED_LOGIN
-    ip_address = Column(String(45), nullable=True)
-    user_agent = Column(Text, nullable=True)
-    session_id = Column(String(100), nullable=True)
-    
-    # Success/failure details
-    success = Column(Boolean, default=True)
-    failure_reason = Column(String(200), nullable=True)  # Wrong password, account locked, etc.
-    
-    # Security details
-    is_suspicious = Column(Boolean, default=False)
-    country = Column(String(100), nullable=True)
-    city = Column(String(100), nullable=True)
-    
-    # Relationships removed to avoid circular import issues
-    # user = relationship("User", backref="login_history", lazy='select')
+    # Indexes for performance
+    __table_args__ = (
+        db.Index('idx_login_user_time', 'user_id', 'login_time'),
+        db.Index('idx_login_ip', 'ip_address'),
+        db.Index('idx_login_tenant', 'tenant_id'),
+    )
     
     def to_dict(self):
         return {
             'id': self.id,
-            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
             'user_id': self.user_id,
-            'username': self.username,
-            'action': self.action,
+            'login_time': self.login_time.isoformat() if self.login_time else None,
             'ip_address': self.ip_address,
             'user_agent': self.user_agent,
-            'session_id': self.session_id,
             'success': self.success,
             'failure_reason': self.failure_reason,
-            'is_suspicious': self.is_suspicious,
-            'country': self.country,
-            'city': self.city
+            'tenant_id': self.tenant_id
         }
 
-class PermissionChange(Base):
-    """
-    Track permission and role changes
-    """
+class PermissionChange(db.Model):
+    """Track permission changes for audit"""
     __tablename__ = 'permission_changes'
     
-    id = Column(Integer, primary_key=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    changed_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    permission = db.Column(db.String(100), nullable=False)
+    old_value = db.Column(db.Boolean, nullable=True)
+    new_value = db.Column(db.Boolean, nullable=False)
+    changed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    reason = db.Column(db.String(200), nullable=True)
+    tenant_id = db.Column(db.String(36), db.ForeignKey('tenants.id'), nullable=True)
     
-    # User information
-    admin_user_id = Column(Integer, ForeignKey('users.id'), nullable=False)  # Who made the change
-    target_user_id = Column(Integer, ForeignKey('users.id'), nullable=False)  # Who was affected
-    
-    # Change details
-    change_type = Column(String(50), nullable=False)  # ROLE_ASSIGNED, ROLE_REMOVED, PERMISSION_GRANTED, etc.
-    old_role = Column(String(50), nullable=True)
-    new_role = Column(String(50), nullable=True)
-    permissions_added = Column(JSON, nullable=True)
-    permissions_removed = Column(JSON, nullable=True)
-    
-    # Context
-    reason = Column(Text, nullable=True)
-    ip_address = Column(String(45), nullable=True)
-    
-    # Relationships removed to avoid circular import issues
-    # admin_user = relationship("User", foreign_keys=[admin_user_id], backref="admin_changes", lazy='select')
-    # target_user = relationship("User", foreign_keys=[target_user_id], backref="user_changes", lazy='select')
+    # Indexes for performance
+    __table_args__ = (
+        db.Index('idx_permission_user', 'user_id'),
+        db.Index('idx_permission_changed_by', 'changed_by'),
+        db.Index('idx_permission_tenant', 'tenant_id'),
+    )
     
     def to_dict(self):
         return {
             'id': self.id,
-            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
-            'admin_user_id': self.admin_user_id,
-            'target_user_id': self.target_user_id,
-            'change_type': self.change_type,
-            'old_role': self.old_role,
-            'new_role': self.new_role,
-            'permissions_added': self.permissions_added,
-            'permissions_removed': self.permissions_removed,
+            'user_id': self.user_id,
+            'changed_by': self.changed_by,
+            'permission': self.permission,
+            'old_value': self.old_value,
+            'new_value': self.new_value,
+            'changed_at': self.changed_at.isoformat() if self.changed_at else None,
             'reason': self.reason,
-            'ip_address': self.ip_address
+            'tenant_id': self.tenant_id
         }
 
-class SystemEvent(Base):
-    """
-    Track system-level events and configuration changes
-    """
+class SystemEvent(db.Model):
+    """Track system events for monitoring"""
     __tablename__ = 'system_events'
     
-    id = Column(Integer, primary_key=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    id = db.Column(db.Integer, primary_key=True)
+    event_type = db.Column(db.String(50), nullable=False)
+    event_name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    severity = db.Column(db.String(20), default='INFO')
+    source = db.Column(db.String(50), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    tenant_id = db.Column(db.String(36), db.ForeignKey('tenants.id'), nullable=True)
+    event_metadata = db.Column(db.Text, nullable=True)  # JSON string
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     
-    # Event details
-    event_type = Column(String(100), nullable=False)  # CONFIG_CHANGE, BACKUP_CREATED, etc.
-    event_category = Column(String(50), nullable=False)  # SYSTEM, SECURITY, CONFIG, etc.
-    severity = Column(String(20), nullable=False, default='INFO')  # INFO, WARNING, ERROR, CRITICAL
-    
-    # User context (if applicable)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
-    username = Column(String(100), nullable=True)
-    
-    # Event data
-    description = Column(Text, nullable=False)
-    details = Column(JSON, nullable=True)
-    ip_address = Column(String(45), nullable=True)
-    
-    # Relationships removed to avoid circular import issues
-    # user = relationship("User", backref="system_events", lazy='select')
+    # Indexes for performance
+    __table_args__ = (
+        db.Index('idx_system_event_type', 'event_type'),
+        db.Index('idx_system_event_severity', 'severity'),
+        db.Index('idx_system_event_tenant', 'tenant_id'),
+        db.Index('idx_system_event_created', 'created_at'),
+    )
     
     def to_dict(self):
         return {
             'id': self.id,
-            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
             'event_type': self.event_type,
-            'event_category': self.event_category,
-            'severity': self.severity,
-            'user_id': self.user_id,
-            'username': self.username,
+            'event_name': self.event_name,
             'description': self.description,
-            'details': self.details,
-            'ip_address': self.ip_address
+            'severity': self.severity,
+            'source': self.source,
+            'user_id': self.user_id,
+            'tenant_id': self.tenant_id,
+            'event_metadata': self.event_metadata,
+            'created_at': self.created_at.isoformat() if self.created_at else None
         }

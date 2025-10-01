@@ -1,250 +1,424 @@
 import React, { useState } from 'react';
 import {
-  Box, Typography, Card, CardContent, TextField, Button, Alert,
-  List, ListItem, ListItemIcon, ListItemText, Chip, LinearProgress
+  Box,
+  Typography,
+  Card,
+  CardContent,
+  TextField,
+  Button,
+  Alert,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Chip,
+  Grid,
+  Paper
 } from '@mui/material';
 import {
-  CheckCircle, Cancel, Security, Visibility, VisibilityOff, Refresh
+  CheckCircle as CheckIcon,
+  Cancel as CancelIcon,
+  Security as SecurityIcon,
+  Lock as LockIcon
 } from '@mui/icons-material';
-import apiClient from '../services/apiClient';
 
-const PasswordPolicyTester = ({ onPasswordValidated, initialPassword = '' }) => {
-  const [password, setPassword] = useState(initialPassword);
-  const [username, setUsername] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [validationResult, setValidationResult] = useState(null);
-  const [loading, setLoading] = useState(false);
+const PasswordPolicyTester = () => {
+  const [password, setPassword] = useState('');
+  const [policyResults, setPolicyResults] = useState([]);
+  const [strength, setStrength] = useState(0);
 
-  const testPassword = async () => {
-    if (!password) {
-      setValidationResult({
-        is_valid: false,
-        errors: ['Password is required']
-      });
+  const passwordPolicies = [
+    {
+      name: 'Minimum Length',
+      description: 'Password must be at least 8 characters long',
+      test: (pwd) => pwd.length >= 8,
+      weight: 1
+    },
+    {
+      name: 'Uppercase Letter',
+      description: 'Password must contain at least one uppercase letter',
+      test: (pwd) => /[A-Z]/.test(pwd),
+      weight: 1
+    },
+    {
+      name: 'Lowercase Letter',
+      description: 'Password must contain at least one lowercase letter',
+      test: (pwd) => /[a-z]/.test(pwd),
+      weight: 1
+    },
+    {
+      name: 'Number',
+      description: 'Password must contain at least one number',
+      test: (pwd) => /\d/.test(pwd),
+      weight: 1
+    },
+    {
+      name: 'Special Character',
+      description: 'Password must contain at least one special character',
+      test: (pwd) => /[!@#$%^&*(),.?":{}|<>]/.test(pwd),
+      weight: 1
+    },
+    {
+      name: 'No Common Passwords',
+      description: 'Password must not be a common password',
+      test: (pwd) => {
+        const commonPasswords = [
+          'password', '123456', 'password123', 'admin', 'qwerty',
+          'letmein', 'welcome', 'monkey', 'dragon', 'master',
+          '123456789', 'abc123', 'password1', 'admin123'
+        ];
+        return !commonPasswords.includes(pwd.toLowerCase());
+      },
+      weight: 2
+    },
+    {
+      name: 'No Sequential Characters',
+      description: 'Password must not contain sequential characters',
+      test: (pwd) => {
+        const sequential = ['123', 'abc', 'qwe', 'asd', 'zxc'];
+        return !sequential.some(seq => pwd.toLowerCase().includes(seq));
+      },
+      weight: 1
+    },
+    {
+      name: 'No Repeated Characters',
+      description: 'Password must not contain repeated characters',
+      test: (pwd) => !/(.)\1{2,}/.test(pwd),
+      weight: 1
+    }
+  ];
+
+  const testPassword = (pwd) => {
+    if (!pwd) {
+      setPolicyResults([]);
+      setStrength(0);
       return;
     }
 
-    setLoading(true);
-    try {
-      const response = await apiClient.post('/security/validate-password', {
-        password: password,
-        username: username || undefined
-      });
+    const results = passwordPolicies.map(policy => ({
+      ...policy,
+      passed: policy.test(pwd),
+      score: policy.test(pwd) ? policy.weight : 0
+    }));
 
-      setValidationResult(response);
-      
-      // Call callback if provided
-      if (onPasswordValidated) {
-        onPasswordValidated(response.is_valid, response.errors);
-      }
-    } catch (error) {
-      console.error('Password validation error:', error);
-      setValidationResult({
-        is_valid: false,
-        errors: ['Failed to validate password']
-      });
-    } finally {
-      setLoading(false);
-    }
+    setPolicyResults(results);
+    
+    const totalScore = results.reduce((sum, result) => sum + result.score, 0);
+    const maxScore = passwordPolicies.reduce((sum, policy) => sum + policy.weight, 0);
+    const strengthPercentage = Math.round((totalScore / maxScore) * 100);
+    setStrength(strengthPercentage);
   };
 
-  const generateStrongPassword = () => {
-    const length = 12;
-    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-    let password = '';
-    
-    // Ensure at least one of each required character type
-    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
-    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const numbers = '0123456789';
-    const special = '!@#$%^&*';
-    
-    password += lowercase[Math.floor(Math.random() * lowercase.length)];
-    password += uppercase[Math.floor(Math.random() * uppercase.length)];
-    password += numbers[Math.floor(Math.random() * numbers.length)];
-    password += special[Math.floor(Math.random() * special.length)];
-    
-    // Fill the rest randomly
-    for (let i = 4; i < length; i++) {
-      password += charset[Math.floor(Math.random() * charset.length)];
-    }
-    
-    // Shuffle the password
-    setPassword(password.split('').sort(() => Math.random() - 0.5).join(''));
+  const handlePasswordChange = (event) => {
+    const newPassword = event.target.value;
+    setPassword(newPassword);
+    testPassword(newPassword);
   };
 
-  const getValidationIcon = (isValid) => {
-    return isValid ? <CheckCircle color="success" /> : <Cancel color="error" />;
+  const getStrengthColor = (strength) => {
+    if (strength >= 80) return 'success';
+    if (strength >= 60) return 'warning';
+    return 'error';
   };
 
-  const getValidationColor = (isValid) => {
-    return isValid ? 'success' : 'error';
+  const getStrengthLabel = (strength) => {
+    if (strength >= 80) return 'Strong';
+    if (strength >= 60) return 'Medium';
+    if (strength >= 40) return 'Weak';
+    return 'Very Weak';
+  };
+
+  const getPolicyIcon = (passed) => {
+    return passed ? <CheckIcon color="success" /> : <CancelIcon color="error" />;
+  };
+
+  const getPolicyColor = (passed) => {
+    return passed ? 'success' : 'error';
   };
 
   return (
-    <Card>
-      <CardContent>
-        <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Security color="primary" />
-          Password Policy Tester
-        </Typography>
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" gutterBottom>
+        Password Policy Tester
+      </Typography>
+      
+      <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+        Test password strength and compliance with security policies.
+      </Typography>
 
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {/* Username field (optional) */}
-          <TextField
-            fullWidth
-            label="Username (optional)"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            size="small"
-            helperText="Enter username to check if password contains it"
-          />
-
-          {/* Password field */}
-          <TextField
-            fullWidth
-            label="Password to Test"
-            type={showPassword ? 'text' : 'password'}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            size="small"
-            InputProps={{
-              endAdornment: (
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Button
-                    size="small"
-                    onClick={() => setShowPassword(!showPassword)}
-                    sx={{ minWidth: 'auto', p: 0.5 }}
-                  >
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </Button>
-                  <Button
-                    size="small"
-                    onClick={generateStrongPassword}
-                    sx={{ minWidth: 'auto', p: 0.5 }}
-                    title="Generate strong password"
-                  >
-                    <Refresh />
-                  </Button>
+      <Grid container spacing={3}>
+        {/* Password Input */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                <LockIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                Password Input
+              </Typography>
+              
+              <TextField
+                fullWidth
+                label="Enter Password"
+                type="password"
+                value={password}
+                onChange={handlePasswordChange}
+                placeholder="Enter a password to test"
+                sx={{ mb: 2 }}
+              />
+              
+              {password && (
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Password Strength
+                  </Typography>
+                  
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                    <Box sx={{ flexGrow: 1 }}>
+                      <Box
+                        sx={{
+                          width: '100%',
+                          height: 8,
+                          backgroundColor: 'grey.300',
+                          borderRadius: 1,
+                          overflow: 'hidden'
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            width: `${strength}%`,
+                            height: '100%',
+                            backgroundColor: getStrengthColor(strength) === 'success' ? 'success.main' :
+                                           getStrengthColor(strength) === 'warning' ? 'warning.main' : 'error.main',
+                            transition: 'width 0.3s ease'
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                    
+                    <Chip
+                      label={`${strength}% - ${getStrengthLabel(strength)}`}
+                      color={getStrengthColor(strength)}
+                      size="small"
+                    />
+                  </Box>
+                  
+                  {strength >= 80 && (
+                    <Alert severity="success" sx={{ mb: 2 }}>
+                      <SecurityIcon sx={{ mr: 1 }} />
+                      Password meets security requirements!
+                    </Alert>
+                  )}
+                  
+                  {strength < 80 && password && (
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                      Password needs improvement to meet security standards.
+                    </Alert>
+                  )}
                 </Box>
-              )
-            }}
-            helperText="Enter a password to test against security policy"
-          />
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
 
-          {/* Test button */}
-          <Button
-            variant="contained"
-            onClick={testPassword}
-            disabled={loading || !password}
-            startIcon={<Security />}
-          >
-            {loading ? 'Testing...' : 'Test Password'}
-          </Button>
-
-          {loading && <LinearProgress />}
-
-          {/* Validation result */}
-          {validationResult && (
-            <Alert 
-              severity={getValidationColor(validationResult.is_valid)}
-              icon={getValidationIcon(validationResult.is_valid)}
-            >
-              <Typography variant="subtitle2" gutterBottom>
-                Password Validation Result
+        {/* Policy Results */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                <SecurityIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                Policy Compliance
               </Typography>
-              <Typography variant="body2">
-                {validationResult.is_valid 
-                  ? 'Password meets all security requirements!' 
-                  : 'Password does not meet security requirements.'
-                }
-              </Typography>
-            </Alert>
-          )}
-
-          {/* Error details */}
-          {validationResult && validationResult.errors && validationResult.errors.length > 0 && (
-            <Card variant="outlined">
-              <CardContent>
-                <Typography variant="subtitle2" gutterBottom color="error">
-                  Issues Found:
+              
+              {policyResults.length === 0 ? (
+                <Typography color="text.secondary">
+                  Enter a password to see policy compliance results.
                 </Typography>
+              ) : (
                 <List dense>
-                  {validationResult.errors.map((error, index) => (
+                  {policyResults.map((policy, index) => (
                     <ListItem key={index}>
                       <ListItemIcon>
-                        <Cancel color="error" fontSize="small" />
+                        {getPolicyIcon(policy.passed)}
                       </ListItemIcon>
-                      <ListItemText 
-                        primary={error}
-                        primaryTypographyProps={{ variant: 'body2' }}
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="body2">
+                              {policy.name}
+                            </Typography>
+                            <Chip
+                              label={policy.passed ? 'PASS' : 'FAIL'}
+                              color={getPolicyColor(policy.passed)}
+                              size="small"
+                            />
+                          </Box>
+                        }
+                        secondary={policy.description}
                       />
                     </ListItem>
                   ))}
                 </List>
-              </CardContent>
-            </Card>
-          )}
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
 
-          {/* Password strength indicator */}
-          {password && (
-            <Box>
-              <Typography variant="subtitle2" gutterBottom>
-                Password Strength Analysis:
+        {/* Security Recommendations */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Security Recommendations
               </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                <Chip
-                  label={`Length: ${password.length}`}
-                  size="small"
-                  color={password.length >= 8 ? 'success' : 'error'}
-                  variant={password.length >= 8 ? 'filled' : 'outlined'}
-                />
-                <Chip
-                  label="Uppercase"
-                  size="small"
-                  color={/[A-Z]/.test(password) ? 'success' : 'error'}
-                  variant={/[A-Z]/.test(password) ? 'filled' : 'outlined'}
-                />
-                <Chip
-                  label="Lowercase"
-                  size="small"
-                  color={/[a-z]/.test(password) ? 'success' : 'error'}
-                  variant={/[a-z]/.test(password) ? 'filled' : 'outlined'}
-                />
-                <Chip
-                  label="Numbers"
-                  size="small"
-                  color={/[0-9]/.test(password) ? 'success' : 'error'}
-                  variant={/[0-9]/.test(password) ? 'filled' : 'outlined'}
-                />
-                <Chip
-                  label="Special"
-                  size="small"
-                  color={/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password) ? 'success' : 'error'}
-                  variant={/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password) ? 'filled' : 'outlined'}
-                />
-              </Box>
-            </Box>
-          )}
+              
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 2, backgroundColor: 'success.50' }}>
+                    <Typography variant="subtitle2" color="success.main" gutterBottom>
+                      ✅ Best Practices
+                    </Typography>
+                    <List dense>
+                      <ListItem sx={{ py: 0 }}>
+                        <ListItemText 
+                          primary="Use a mix of uppercase and lowercase letters"
+                          primaryTypographyProps={{ variant: 'body2' }}
+                        />
+                      </ListItem>
+                      <ListItem sx={{ py: 0 }}>
+                        <ListItemText 
+                          primary="Include numbers and special characters"
+                          primaryTypographyProps={{ variant: 'body2' }}
+                        />
+                      </ListItem>
+                      <ListItem sx={{ py: 0 }}>
+                        <ListItemText 
+                          primary="Make it at least 12 characters long"
+                          primaryTypographyProps={{ variant: 'body2' }}
+                        />
+                      </ListItem>
+                      <ListItem sx={{ py: 0 }}>
+                        <ListItemText 
+                          primary="Use a unique password for each account"
+                          primaryTypographyProps={{ variant: 'body2' }}
+                        />
+                      </ListItem>
+                    </List>
+                  </Paper>
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 2, backgroundColor: 'error.50' }}>
+                    <Typography variant="subtitle2" color="error.main" gutterBottom>
+                      ❌ Avoid These
+                    </Typography>
+                    <List dense>
+                      <ListItem sx={{ py: 0 }}>
+                        <ListItemText 
+                          primary="Don't use personal information"
+                          primaryTypographyProps={{ variant: 'body2' }}
+                        />
+                      </ListItem>
+                      <ListItem sx={{ py: 0 }}>
+                        <ListItemText 
+                          primary="Avoid common words and patterns"
+                          primaryTypographyProps={{ variant: 'body2' }}
+                        />
+                      </ListItem>
+                      <ListItem sx={{ py: 0 }}>
+                        <ListItemText 
+                          primary="Don't reuse passwords across accounts"
+                          primaryTypographyProps={{ variant: 'body2' }}
+                        />
+                      </ListItem>
+                      <ListItem sx={{ py: 0 }}>
+                        <ListItemText 
+                          primary="Avoid keyboard patterns (qwerty, 123456)"
+                          primaryTypographyProps={{ variant: 'body2' }}
+                        />
+                      </ListItem>
+                    </List>
+                  </Paper>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
 
-          {/* Tips */}
-          <Alert severity="info">
-            <Typography variant="subtitle2" gutterBottom>
-              Password Tips:
-            </Typography>
-            <Typography variant="body2" component="div">
-              • Use at least 8 characters<br/>
-              • Include uppercase and lowercase letters<br/>
-              • Include numbers and special characters<br/>
-              • Avoid common words and patterns<br/>
-              • Don't include your username
-            </Typography>
-          </Alert>
-        </Box>
-      </CardContent>
-    </Card>
+        {/* Test Examples */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Test Examples
+              </Typography>
+              
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    onClick={() => setPassword('password123')}
+                    sx={{ mb: 1 }}
+                  >
+                    Weak Password
+                  </Button>
+                  <Typography variant="caption" color="text.secondary">
+                    Common password with numbers
+                  </Typography>
+                </Grid>
+                
+                <Grid item xs={12} sm={6} md={3}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    onClick={() => setPassword('MyPass123!')}
+                    sx={{ mb: 1 }}
+                  >
+                    Medium Password
+                  </Button>
+                  <Typography variant="caption" color="text.secondary">
+                    Mixed case with special chars
+                  </Typography>
+                </Grid>
+                
+                <Grid item xs={12} sm={6} md={3}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    onClick={() => setPassword('SecureP@ssw0rd2023!')}
+                    sx={{ mb: 1 }}
+                  >
+                    Strong Password
+                  </Button>
+                  <Typography variant="caption" color="text.secondary">
+                    Complex with all requirements
+                  </Typography>
+                </Grid>
+                
+                <Grid item xs={12} sm={6} md={3}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    onClick={() => setPassword('')}
+                    sx={{ mb: 1 }}
+                  >
+                    Clear
+                  </Button>
+                  <Typography variant="caption" color="text.secondary">
+                    Clear password field
+                  </Typography>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Box>
   );
 };
 
 export default PasswordPolicyTester;
+
+
+
 

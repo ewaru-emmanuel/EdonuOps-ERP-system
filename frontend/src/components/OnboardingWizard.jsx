@@ -12,12 +12,15 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useVisitorSession } from '../hooks/useVisitorSession';
+import { useAuth } from '../context/AuthContext';
 import apiClient from '../services/apiClient';
+import databaseFirstPersistence from '../services/databaseFirstPersistence';
 
 const OnboardingWizard = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
+  const { isAuthenticated, user } = useAuth();
   const { visitorId, setVisitorData } = useVisitorSession();
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -37,7 +40,7 @@ const OnboardingWizard = () => {
     challenges: []
   });
 
-  const [selectedModules, setSelectedModules] = useState(['financials', 'inventory']);
+  const [selectedModules, setSelectedModules] = useState(['financials', 'inventory', 'crm', 'procurement']);
   const [selectedCoATemplate, setSelectedCoATemplate] = useState('retail');
   
   // Team Setup state
@@ -192,51 +195,118 @@ const OnboardingWizard = () => {
   const handleActivation = async () => {
     setLoading(true);
     try {
-      // Save user preferences to visitor-specific storage
-      const userPreferences = {
+      console.log('🚀 Starting onboarding activation with database-first storage...');
+      
+      // Ensure user is authenticated
+      if (!isAuthenticated || !user) {
+        throw new Error('User must be authenticated to complete onboarding');
+      }
+      
+      const userId = user.id;
+      console.log(`👤 Saving onboarding data for user ${userId} to database...`);
+      
+      // Prepare comprehensive onboarding data
+      const onboardingData = {
+        // Business Profile
+        businessProfile: {
+          companyName: businessProfile.companyName,
+          industry: businessProfile.industry,
+          employeeCount: businessProfile.employeeCount,
+          annualRevenue: businessProfile.annualRevenue,
+          challenges: businessProfile.challenges,
+          createdAt: new Date().toISOString()
+        },
+        
+        // Module Selection
         selectedModules: selectedModules.includes('financials') && !selectedModules.includes('procurement')
           ? [...selectedModules, 'procurement']
           : selectedModules,
-        businessProfile: businessProfile,
+        
+        // Chart of Accounts Template
         coaTemplate: selectedCoATemplate,
-        activatedAt: new Date().toISOString(),
-        visitorId: visitorId,
-        deviceInfo: {
-          userAgent: navigator.userAgent,
-          screenResolution: `${window.screen.width}x${window.screen.height}`,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        
+        // Organization Setup
+        organizationSetup: {
+          organizationType: organizationSetup.organizationType,
+          departments: organizationSetup.departments,
+          userPermissions: organizationSetup.userPermissions,
+          teamMembers: organizationSetup.teamMembers
+        },
+        
+        // Metadata
+        onboardingMetadata: {
+          activatedAt: new Date().toISOString(),
+          visitorId: visitorId,
+          deviceInfo: {
+            userAgent: navigator.userAgent,
+            screenResolution: `${window.screen.width}x${window.screen.height}`,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+          },
+          version: '1.0'
         }
       };
       
-      // Store in visitor-specific storage
-      setVisitorData('user_preferences', userPreferences);
-      try { 
-        localStorage.setItem('edonuops_business_profile', JSON.stringify(businessProfile)); 
-        localStorage.setItem('edonuops_coa_template', selectedCoATemplate);
-      } catch {}
+      console.log('💾 Saving onboarding data to database...');
       
-      // Send preferences to backend (uses configured API base URL)
+      // Save ALL onboarding data to database with user isolation
+      await databaseFirstPersistence.saveUserData(userId, 'onboarding_complete', onboardingData);
+      await databaseFirstPersistence.saveUserData(userId, 'business_profile', onboardingData.businessProfile);
+      await databaseFirstPersistence.saveUserData(userId, 'selected_modules', onboardingData.selectedModules);
+      await databaseFirstPersistence.saveUserData(userId, 'coa_template', onboardingData.coaTemplate);
+      await databaseFirstPersistence.saveUserData(userId, 'organization_setup', onboardingData.organizationSetup);
+      await databaseFirstPersistence.saveUserData(userId, 'onboarding_metadata', onboardingData.onboardingMetadata);
+      
+      console.log('✅ Onboarding data saved to database with user isolation');
+      
+      // Activate selected modules in backend
+      console.log('🔧 Activating selected modules in backend...');
       try {
-        await apiClient.post(`/api/visitors/${visitorId}/preferences`, userPreferences);
+        for (const moduleId of onboardingData.selectedModules) {
+          await apiClient.post('/api/dashboard/modules/activate', {
+            module_id: moduleId,
+            permissions: {
+              can_view: true,
+              can_edit: true,
+              can_delete: false
+            }
+          });
+          console.log(`✅ Module ${moduleId} activated for user ${userId}`);
+        }
       } catch (error) {
-        console.error('Could not sync preferences to backend:', error);
+        console.warn('⚠️ Could not activate modules in backend:', error);
+      }
+      
+      // Save to localStorage for compatibility (caching only)
+      console.log('💾 Updating localStorage cache for compatibility...');
+      try {
+        localStorage.setItem('edonuops_business_profile', JSON.stringify(onboardingData.businessProfile));
+        localStorage.setItem('edonuops_coa_template', onboardingData.coaTemplate);
+        localStorage.setItem('edonuops_user_preferences', JSON.stringify({
+          selected_modules: onboardingData.selectedModules,
+          businessProfile: onboardingData.businessProfile,
+          coaTemplate: onboardingData.coaTemplate
+        }));
+        localStorage.setItem('edonuops_organization_setup', JSON.stringify(onboardingData.organizationSetup));
+        localStorage.setItem('adminSettings_userPermissions', JSON.stringify(onboardingData.organizationSetup.userPermissions));
+      } catch (error) {
+        console.warn('⚠️ Could not update localStorage cache:', error);
       }
       
       // Simulate account activation
+      console.log('⏳ Finalizing activation...');
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Save organization setup to AdminSettings format
-      localStorage.setItem('adminSettings_userPermissions', JSON.stringify(organizationSetup.userPermissions));
-      localStorage.setItem('edonuops_organization_setup', JSON.stringify(organizationSetup));
+      console.log('🎉 Onboarding completed successfully!');
       
       // Show success message
-      alert('🎉 Welcome to EdonuOps! Your personalized dashboard has been configured with your selected modules and team settings.');
+      alert('🎉 Welcome to EdonuOps! Your personalized dashboard has been configured with your selected modules and team settings. All data has been saved to your secure database.');
       
       // Navigate to the dashboard
       navigate('/dashboard');
+      
     } catch (error) {
-      console.error('Activation failed:', error);
-      alert('Activation failed. Please try again.');
+      console.error('❌ Onboarding activation failed:', error);
+      alert(`Activation failed: ${error.message}. Please try again.`);
     } finally {
       setLoading(false);
     }

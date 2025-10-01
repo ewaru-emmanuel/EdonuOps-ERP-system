@@ -1,38 +1,95 @@
 # Dashboard routes for EdonuOps ERP
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from app import db
 from modules.finance.models import JournalEntry, JournalLine, Account
-from modules.crm.models import Contact, Lead, Opportunity
-from modules.inventory.models import Product
 from datetime import datetime, timedelta
 import sqlalchemy as sa
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
+@dashboard_bp.route('/debug', methods=['GET'])
+def debug_dashboard():
+    """Debug endpoint to test database queries"""
+    try:
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify({'error': 'User authentication required'}), 401
+        
+        # Test direct SQL query
+        result = db.session.execute(
+            sa.text("SELECT COUNT(*) FROM contacts WHERE type = 'customer' AND user_id = :user_id"),
+            {'user_id': int(user_id)}
+        ).scalar()
+        
+        return jsonify({
+            'user_id': user_id,
+            'user_id_type': type(user_id),
+            'int_user_id': int(user_id),
+            'customer_count': result
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @dashboard_bp.route('/summary', methods=['GET'])
 def get_dashboard_summary():
-    """Get dashboard summary data with real calculations"""
+    """Get dashboard summary data with real calculations filtered by user"""
     try:
-        # Calculate total revenue from journal entries (sum of credit amounts for revenue accounts)
+        # Get user ID from request headers
+        user_id = request.headers.get('X-User-ID')
+        print(f"[DASHBOARD] Received request with X-User-ID header: {user_id}")
+        
+        if not user_id:
+            return jsonify({
+                'status': 'error',
+                'message': 'User authentication required'
+            }), 401
+        
+        # Calculate total revenue from journal entries (sum of credit amounts for revenue accounts) - FILTERED BY USER
         revenue_query = db.session.query(
             sa.func.sum(JournalLine.credit_amount).label('total_revenue')
         ).join(JournalEntry).join(Account).filter(
-            Account.type == 'revenue'
+            Account.type == 'revenue',
+            JournalEntry.user_id == int(user_id)
         ).scalar()
         total_revenue = float(revenue_query) if revenue_query else 0.0
 
-        # Get counts from database
-        total_customers = Contact.query.filter_by(type='customer').count()
-        total_leads = Lead.query.count()
-        total_opportunities = Opportunity.query.count()
-        total_products = Product.query.count()
-        total_employees = Employee.query.count()
+        # Get counts from database - FILTERED BY USER (using direct SQL queries)
+        print(f"DEBUG: user_id = {user_id}, type = {type(user_id)}")
+        total_customers = db.session.execute(
+            sa.text("SELECT COUNT(*) FROM contacts WHERE type = 'customer' AND user_id = :user_id"),
+            {'user_id': int(user_id)}
+        ).scalar()
+        print(f"DEBUG: total_customers = {total_customers}")
+        
+        total_leads = db.session.execute(
+            sa.text("SELECT COUNT(*) FROM leads WHERE user_id = :user_id"),
+            {'user_id': int(user_id)}
+        ).scalar()
+        
+        total_opportunities = db.session.execute(
+            sa.text("SELECT COUNT(*) FROM opportunities WHERE user_id = :user_id"),
+            {'user_id': int(user_id)}
+        ).scalar()
+        
+        total_products = db.session.execute(
+            sa.text("SELECT COUNT(*) FROM products WHERE user_id = :user_id"),
+            {'user_id': int(user_id)}
+        ).scalar()
+        
+        total_employees = db.session.execute(
+            sa.text("SELECT COUNT(*) FROM employees WHERE user_id = :user_id"),
+            {'user_id': int(user_id)}
+        ).scalar()
 
         # Get recent activities (last 7 days)
         recent_activities = []
         
-        # Recent contacts
-        recent_contacts = Contact.query.order_by(Contact.created_at.desc()).limit(3).all()
+        # Recent contacts - FILTERED BY USER (using direct SQL queries)
+        recent_contacts = db.session.execute(
+            sa.text("SELECT first_name, last_name, type, created_at FROM contacts WHERE user_id = :user_id ORDER BY created_at DESC LIMIT 3"),
+            {'user_id': int(user_id)}
+        ).fetchall()
+        
         for contact in recent_contacts:
             recent_activities.append({
                 'type': 'customer',
@@ -40,8 +97,12 @@ def get_dashboard_summary():
                 'time': contact.created_at.strftime('%Y-%m-%d %H:%M') if contact.created_at else 'Unknown'
             })
 
-        # Recent products
-        recent_products = Product.query.order_by(Product.created_at.desc()).limit(3).all()
+        # Recent products - FILTERED BY USER (using direct SQL queries)
+        recent_products = db.session.execute(
+            sa.text("SELECT name, created_at FROM products WHERE user_id = :user_id ORDER BY created_at DESC LIMIT 3"),
+            {'user_id': int(user_id)}
+        ).fetchall()
+        
         for product in recent_products:
             recent_activities.append({
                 'type': 'product',
@@ -49,8 +110,12 @@ def get_dashboard_summary():
                 'time': product.created_at.strftime('%Y-%m-%d %H:%M') if product.created_at else 'Unknown'
             })
 
-        # Recent journal entries
-        recent_entries = JournalEntry.query.order_by(JournalEntry.created_at.desc()).limit(3).all()
+        # Recent journal entries - FILTERED BY USER (using direct SQL queries)
+        recent_entries = db.session.execute(
+            sa.text("SELECT reference, created_at FROM journal_entries WHERE user_id = :user_id ORDER BY created_at DESC LIMIT 3"),
+            {'user_id': int(user_id)}
+        ).fetchall()
+        
         for entry in recent_entries:
             recent_activities.append({
                 'type': 'finance',

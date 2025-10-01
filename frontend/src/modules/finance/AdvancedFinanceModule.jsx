@@ -18,7 +18,7 @@ import {
   AccountBalanceWallet as WalletIcon,
   Business as BusinessIcon,
   Assessment as AssessmentIcon,
-  LocalTaxi as TaxIcon,
+  Receipt as TaxIcon,
   Download as DownloadIcon,
   Refresh as RefreshIcon,
   Warning as WarningIcon,
@@ -1273,7 +1273,10 @@ const AdvancedFinanceModule = () => {
         onClose={() => setSnackbar({ ...snackbar, open: false })}
       >
         <Alert
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
+
+
+
+onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
           sx={{ width: '100%' }}
         >

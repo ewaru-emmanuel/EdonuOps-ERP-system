@@ -9,6 +9,7 @@ class Category(db.Model):
     description = db.Column(db.Text)
     parent_id = db.Column(db.Integer, db.ForeignKey('product_categories.id'))
     is_active = db.Column(db.Boolean, default=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Self-referential relationship
@@ -31,6 +32,7 @@ class Product(db.Model):
     max_stock = db.Column(db.Float, default=0.0)
     is_active = db.Column(db.Boolean, default=True)
     status = db.Column(db.String(20), default='active')  # active, inactive, discontinued
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -86,4 +88,5 @@ class Warehouse(db.Model):
     location = db.Column(db.String(200))  # Added location field
     capacity = db.Column(db.Integer)  # Added capacity field
     is_active = db.Column(db.Boolean, default=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

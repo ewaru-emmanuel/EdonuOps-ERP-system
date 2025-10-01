@@ -91,7 +91,7 @@ const ProgressiveCoA = ({ accounts, onAccountSelect, onModeChange }) => {
 
   // Group accounts by category
   const groupedAccounts = filteredAccounts.reduce((groups, account) => {
-    const category = account.category;
+    const category = account.account_type ? account.account_type.toLowerCase() : 'unknown';
     if (!groups[category]) {
       groups[category] = [];
     }
@@ -198,7 +198,12 @@ const ProgressiveCoA = ({ accounts, onAccountSelect, onModeChange }) => {
   );
 
   const renderAccountSection = (category, accounts) => {
-    const config = accountTypeConfig[category];
+    const config = accountTypeConfig[category] || {
+      label: category.charAt(0).toUpperCase() + category.slice(1),
+      color: 'default',
+      icon: '📊',
+      description: `${category} accounts`
+    };
     const isExpanded = expandedSections[category];
     
     return (

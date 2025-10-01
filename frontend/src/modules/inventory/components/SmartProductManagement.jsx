@@ -16,11 +16,13 @@ import {
   Straighten, Memory, Storage, Speed, Security
 } from '@mui/icons-material';
 import { useRealTimeData } from '../../../hooks/useRealTimeData';
+import { useCurrency } from '../../../components/GlobalCurrencySettings';
 import apiClient from '../../../services/apiClient';
 
 const SmartProductManagement = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const { formatCurrency } = useCurrency();
   const [activeTab, setActiveTab] = useState(0);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -568,7 +570,7 @@ const SmartProductManagement = () => {
                     <TableCell>
                       <Box>
                         <Typography variant="body2" fontWeight="bold">
-                          ${product.current_cost || 0}
+                          {formatCurrency(product.current_cost || 0)}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                           {product.cost_method || 'Standard'}
@@ -888,9 +890,9 @@ const SmartProductManagement = () => {
               <Grid item xs={12} md={6}>
                 <Typography variant="subtitle1" fontWeight="bold" gutterBottom>Cost Information</Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  <Typography><strong>Current Cost:</strong> ${selectedProduct.current_cost || 0}</Typography>
+                  <Typography><strong>Current Cost:</strong> {formatCurrency(selectedProduct.current_cost || 0)}</Typography>
                   <Typography><strong>Cost Method:</strong> {selectedProduct.cost_method || 'Standard'}</Typography>
-                  <Typography><strong>Standard Cost:</strong> ${selectedProduct.standard_cost || 0}</Typography>
+                  <Typography><strong>Standard Cost:</strong> {formatCurrency(selectedProduct.standard_cost || 0)}</Typography>
                 </Box>
               </Grid>
               
@@ -928,7 +930,7 @@ const SmartProductManagement = () => {
                             <TableCell>{variant.variant_sku || 'No SKU'}</TableCell>
                             <TableCell>{variant.variant_name || 'Unnamed Variant'}</TableCell>
                             <TableCell>{variant.stock || 0}</TableCell>
-                            <TableCell>${variant.cost || 0}</TableCell>
+                            <TableCell>{formatCurrency(variant.cost || 0)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

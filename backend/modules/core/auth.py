@@ -13,61 +13,122 @@ auth_bp = Blueprint("auth", __name__)
 
 @auth_bp.route("/register", methods=["POST"])
 def register():
-    data = request.get_json()
-    username = data.get("username")
-    email = data.get("email")
-    password = data.get("password")
-    role_name = data.get("role", "user")
+    try:
+        data = request.get_json()
+        username = data.get("username")
+        email = data.get("email")
+        password = data.get("password")
+        role_name = data.get("role", "user")
 
-    if not username or not email or not password:
-        return jsonify({"message": "Username, email, and password are required"}), 400
+        # Enhanced validation
+        errors = {}
+        
+        if not username or len(username.strip()) < 3:
+            errors["username"] = "Username must be at least 3 characters"
+        
+        if not email or "@" not in email:
+            errors["email"] = "Valid email address is required"
+        
+        if not password or len(password) < 8:
+            errors["password"] = "Password must be at least 8 characters"
+        
+        if errors:
+            return jsonify({
+                "message": "Validation failed",
+                "errors": errors
+            }), 400
 
-    if User.query.filter_by(email=email).first():
-        return jsonify({"message": "Email already exists"}), 409
+        # Check if user already exists
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            return jsonify({
+                "message": "An account with this email already exists",
+                "errors": {"email": "Email already registered"}
+            }), 409
 
-    # Validate password against security policy
-    is_valid, errors = security_service.validate_password(password, username)
-    if not is_valid:
-        return jsonify({
-            "message": "Password does not meet security requirements",
-            "errors": errors
-        }), 400
+        # Check username uniqueness
+        existing_username = User.query.filter_by(username=username).first()
+        if existing_username:
+            return jsonify({
+                "message": "Username already taken",
+                "errors": {"username": "Username already exists"}
+            }), 409
 
-    hashed_password = generate_password_hash(password)
+        # Enhanced password validation
+        password_errors = []
+        if len(password) < 8:
+            password_errors.append("At least 8 characters")
+        if not any(c.isupper() for c in password):
+            password_errors.append("At least one uppercase letter")
+        if not any(c.islower() for c in password):
+            password_errors.append("At least one lowercase letter")
+        if not any(c.isdigit() for c in password):
+            password_errors.append("At least one number")
+        if not any(c in "!@#$%^&*(),.?\":{}|<>" for c in password):
+            password_errors.append("At least one special character")
+        
+        if password_errors:
+            return jsonify({
+                "message": "Password does not meet requirements",
+                "errors": {"password": password_errors}
+            }), 400
 
-    role = Role.query.filter_by(role_name=role_name).first()
-    if not role:
-        # Create default roles if they don't exist
-        user_role = Role.query.filter_by(role_name="user").first()
-        if not user_role:
-            user_role = Role(role_name="user")
-            db.session.add(user_role)
-        admin_role = Role.query.filter_by(role_name="admin").first()
-        if not admin_role:
-            admin_role = Role(role_name="admin")
-            db.session.add(admin_role)
-        db.session.commit()
+        hashed_password = generate_password_hash(password)
+
+        # Get or create role
         role = Role.query.filter_by(role_name=role_name).first()
+        if not role:
+            # Create default roles if they don't exist
+            user_role = Role.query.filter_by(role_name="user").first()
+            if not user_role:
+                user_role = Role(role_name="user")
+                db.session.add(user_role)
+            admin_role = Role.query.filter_by(role_name="admin").first()
+            if not admin_role:
+                admin_role = Role(role_name="admin")
+                db.session.add(admin_role)
+            db.session.commit()
+            role = Role.query.filter_by(role_name=role_name).first()
 
-    new_user = User(username=username, email=email, password_hash=hashed_password, role_id=role.id)
-    db.session.add(new_user)
-    db.session.commit()
+        # Create new user
+        new_user = User(username=username, email=email, password_hash=hashed_password, role_id=role.id)
+        db.session.add(new_user)
+        db.session.commit()
 
-    # Save password to history
-    security_service.save_password_to_history(new_user.id, hashed_password)
+        # Save password to history
+        try:
+            security_service.save_password_to_history(new_user.id, hashed_password)
+        except:
+            pass  # Continue if password history fails
 
-    # Log user registration
-    audit_logger.log_action(
-        action='CREATE',
-        entity_type='user',
-        entity_id=str(new_user.id),
-        new_values={'username': username, 'email': email, 'role': role_name},
-        module='auth',
-        source='api',
-        success=True
-    )
+        # Log user registration
+        try:
+            audit_logger.log_action(
+                action='CREATE',
+                entity_type='user',
+                entity_id=str(new_user.id),
+                new_values={'username': username, 'email': email, 'role': role_name},
+                module='auth',
+                source='api',
+                success=True
+            )
+        except:
+            pass  # Continue if audit logging fails
 
-    return jsonify({"message": "User registered successfully"}), 201
+        return jsonify({
+            "message": "User registered successfully",
+            "user_id": new_user.id,
+            "username": username,
+            "email": email
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Registration error: {str(e)}")
+        return jsonify({
+            "message": "Registration failed",
+            "error": str(e)
+        }), 500
 
 @auth_bp.route("/login", methods=["POST"])
 def login():
@@ -94,20 +155,57 @@ def login():
     # Check database for other users
     user = User.query.filter_by(email=email).first()
 
-    if user and check_password_hash(user.password_hash, password):
-        access_token = create_access_token(identity=user.id)
-        return jsonify({
-            "access_token": access_token,
-            "user": {
-                "email": user.email,
-                "username": user.username,
-                "role": user.role.role_name if user.role else "user"
-            },
-            "message": "Login successful"
-        }), 200
-    else:
-        print(f"🔐 Invalid credentials for {email}")
-        return jsonify({"message": "Invalid credentials"}), 401
+    if not user:
+        print(f"🔐 Email not found: {email}")
+        # Log failed login attempt
+        audit_logger.log_action(
+            action='LOGIN_FAILED',
+            entity_type='user',
+            entity_id=None,
+            old_values={'email': email, 'reason': 'email_not_found'},
+            module='auth',
+            source='api',
+            success=False
+        )
+        return jsonify({"message": "Email address not found"}), 401
+    
+    if not check_password_hash(user.password_hash, password):
+        print(f"🔐 Invalid password for {email}")
+        # Log failed login attempt
+        audit_logger.log_action(
+            action='LOGIN_FAILED',
+            entity_type='user',
+            entity_id=str(user.id),
+            old_values={'email': email, 'reason': 'invalid_password'},
+            module='auth',
+            source='api',
+            success=False
+        )
+        return jsonify({"message": "Incorrect password"}), 401
+    
+    # Successful login
+    access_token = create_access_token(identity=user.id)
+    
+    # Log successful login
+    audit_logger.log_action(
+        action='LOGIN_SUCCESS',
+        entity_type='user',
+        entity_id=str(user.id),
+        new_values={'email': email},
+        module='auth',
+        source='api',
+        success=True
+    )
+    
+    return jsonify({
+        "access_token": access_token,
+        "user": {
+            "email": user.email,
+            "username": user.username,
+            "role": user.role.role_name if user.role else "user"
+        },
+        "message": "Login successful"
+    }), 200
 
 @auth_bp.route("/protected", methods=["GET"])
 @jwt_required()

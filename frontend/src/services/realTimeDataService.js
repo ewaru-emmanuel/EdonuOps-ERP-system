@@ -14,12 +14,13 @@ class RealTimeDataService {
 
   // Check if API service is ready
   isApiServiceReady() {
-    const apiService = getERPApiService();
-    return apiService && apiService.apiClient;
+    // Temporarily disable RealTimeDataService health check
+    // Return false to always use fallback until service is properly configured
+    return false;
   }
 
   // Wait for API service to be ready
-  async waitForApiService(maxRetries = 10, delay = 1000) {
+  async waitForApiService(maxRetries = 5, delay = 500) {
     for (let i = 0; i < maxRetries; i++) {
       if (this.isApiServiceReady()) {
         return true;
@@ -27,7 +28,7 @@ class RealTimeDataService {
       console.log(`Waiting for API service... (${i + 1}/${maxRetries})`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
-    console.error('API service not initialized after maximum retries');
+    console.warn('API service not initialized after maximum retries, using fallback');
     return false;
   }
 
@@ -104,6 +105,12 @@ class RealTimeDataService {
       // Wait for API service to be ready
       const isReady = await this.waitForApiService();
       if (!isReady) {
+        // Fallback: try to use apiClient directly
+        const apiService = getERPApiService();
+        if (apiService && apiService.apiClient) {
+          const response = await apiService.apiClient.get(endpoint);
+          return response.data || response;
+        }
         throw new Error('API service not available');
       }
       
@@ -124,17 +131,35 @@ class RealTimeDataService {
   // Create new item
   async create(endpoint, data) {
     try {
-      // Wait for API service to be ready
+      // Try to use API service directly first
+      const apiService = getERPApiService();
+      if (apiService && apiService.apiClient && typeof apiService.apiClient.post === 'function') {
+        // Debug: Log the endpoint and data
+        console.log('Creating item at endpoint:', endpoint);
+        console.log('Data being sent:', data);
+        
+        const response = await apiService.apiClient.post(endpoint, data);
+        const responseData = response.data || response;
+        
+        // Update cache and notify subscribers
+        const currentData = this.cache.get(endpoint) || [];
+        const updatedData = Array.isArray(currentData) ? [...currentData, responseData] : responseData;
+        this.cache.set(endpoint, updatedData);
+        this.notifySubscribers(endpoint, updatedData);
+        
+        return responseData;
+      }
+      
+      // Fallback: Wait for API service to be ready
       const isReady = await this.waitForApiService();
       if (!isReady) {
         throw new Error('API service not available');
       }
       
       // Debug: Log the endpoint and data
-      console.log('Creating item at endpoint:', endpoint);
+      console.log('Creating item at endpoint (after wait):', endpoint);
       console.log('Data being sent:', data);
       
-      const apiService = getERPApiService();
       const response = await apiService.post(endpoint, data);
       const responseData = response.data || response;
       

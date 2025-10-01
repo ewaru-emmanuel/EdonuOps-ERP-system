@@ -33,6 +33,7 @@ import UserManagement from './UserManagement';
 import PermissionTester from '../../../components/PermissionTester';
 import AuditDashboard from './AuditDashboard';
 import SecuritySettings from './SecuritySettings';
+import BankAccountManagement from './BankAccountManagement';
 
 // Constants
 const AVAILABLE_CURRENCIES = [
@@ -140,6 +141,7 @@ const AdminSettings = () => {
         <Tab label="Audit Dashboard" />
         <Tab label="Security Settings" />
         <Tab label="Permission Testing" />
+        <Tab label="Bank Accounts" />
         <Tab label="User Permissions" />
         <Tab label="Currency & FX" />
         <Tab label="Tax" />
@@ -167,6 +169,10 @@ const AdminSettings = () => {
       )}
 
       {tab === 4 && (
+        <BankAccountManagement />
+      )}
+
+      {tab === 5 && (
         <SectionCard
           title="User Permissions & Smart Entry Settings"
           icon={<SecurityIcon color="primary" />}
@@ -274,7 +280,7 @@ const AdminSettings = () => {
         </SectionCard>
       )}
 
-      {tab === 5 && (
+      {tab === 6 && (
         <SectionCard
           title="Currency & FX"
           icon={<CurrencyExchangeIcon color="primary" />}
@@ -333,7 +339,7 @@ const AdminSettings = () => {
         </SectionCard>
       )}
 
-      {tab === 6 && (
+      {tab === 7 && (
         <SectionCard
           title="Tax Settings"
           icon={<ReceiptLongIcon color="primary" />}
@@ -369,7 +375,7 @@ const AdminSettings = () => {
         </SectionCard>
       )}
 
-      {tab === 7 && (
+      {tab === 8 && (
         <SectionCard
           title="Document Settings"
           icon={<ReceiptLongIcon color="primary" />}
@@ -386,7 +392,7 @@ const AdminSettings = () => {
         </SectionCard>
       )}
 
-      {tab === 8 && (
+      {tab === 9 && (
         <SectionCard
           title="Email Settings"
           icon={<EmailIcon color="primary" />}
@@ -416,7 +422,7 @@ const AdminSettings = () => {
         </SectionCard>
       )}
 
-      {tab === 9 && (
+      {tab === 10 && (
         <SectionCard
           title="Security Settings"
           icon={<SecurityIcon color="primary" />}
@@ -442,7 +448,7 @@ const AdminSettings = () => {
         </SectionCard>
       )}
 
-      {tab === 10 && (
+      {tab === 11 && (
         <SectionCard
           title="Localization"
           icon={<PublicIcon color="primary" />}
@@ -458,7 +464,7 @@ const AdminSettings = () => {
         </SectionCard>
       )}
 
-      {tab === 11 && (
+      {tab === 12 && (
         <SectionCard
           title="Features"
           icon={<SettingsIcon color="primary" />}

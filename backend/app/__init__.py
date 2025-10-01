@@ -28,6 +28,7 @@ def create_app(config_name='development'):
     # Initialize extensions
     db.init_app(app)
     jwt.init_app(app)
+    
     # Import environment configuration
     from config.environments import EnvironmentConfig
     
@@ -63,8 +64,10 @@ def create_app(config_name='development'):
         app,
         resources={r"/api/.*": {"origins": cors_origins}},
         supports_credentials=True,
-        methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        allow_headers=['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-ID']
+        methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+        allow_headers=['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-ID', 'X-Tenant-ID', 'X-User-ID'],
+        expose_headers=['Content-Type', 'Authorization', 'X-Request-ID'],
+        max_age=3600
     )
     
     # Setup logging
@@ -73,6 +76,7 @@ def create_app(config_name='development'):
     # Import models to ensure they are registered with SQLAlchemy
     try:
         from modules.core.models import User, Role, Organization
+        from modules.core.user_preferences_models import UserPreferences
         from modules.finance.models import Account, JournalEntry, JournalLine
         # Import advanced finance models
         from modules.finance.advanced_models import (
@@ -82,6 +86,8 @@ def create_app(config_name='development'):
             DepreciationSchedule, InvoiceLineItem, FinancialPeriod, JournalHeader, MaintenanceRecord,
             TaxFilingHistory, ComplianceReport, UserActivity, BankStatement, KPI, CompanySettings
         )
+        # Import payment models
+        from modules.finance.payment_models import PaymentMethod, BankAccount, PaymentTransaction
         from modules.inventory.models import Category, Product, Warehouse, BasicInventoryTransaction
         # Import advanced inventory models
         from modules.inventory.advanced_models import (
@@ -142,6 +148,16 @@ def create_app(config_name='development'):
             "status": "healthy",
             "timestamp": datetime.utcnow().isoformat(),
             "version": "1.0.0"
+        })
+    
+    # Add API status endpoint for RealTimeDataService
+    @app.route('/api/status')
+    def api_status():
+        return jsonify({
+            "status": "ok",
+            "service": "EdonuOps API",
+            "timestamp": datetime.utcnow().isoformat(),
+            "version": "1.0.0"
         }), 200
     
     # Initialize daily cycle module after app is fully configured
@@ -172,7 +188,7 @@ def initialize_enterprise_services(app):
     """Initialize enterprise services"""
     from services.cache_service import cache_service
     from modules.core.tenancy import tenant_manager, tenant_middleware
-    from modules.security.enterprise_security import security_middleware
+    # from modules.security.enterprise_security import security_middleware  # Disabled for simple auth
     from modules.workflow.workflow_engine import workflow_engine
     from modules.integration.integration_framework import integration_manager
     
@@ -197,7 +213,7 @@ def initialize_enterprise_services(app):
 def setup_middleware(app):
     """Setup application middleware"""
     from modules.core.tenancy import tenant_middleware
-    from modules.security.enterprise_security import security_middleware
+    # from modules.security.enterprise_security import security_middleware  # Disabled for simple auth
     
     # Tenant middleware
     @app.before_request
@@ -208,8 +224,8 @@ def setup_middleware(app):
         # Apply tenant middleware
         tenant_middleware()()
         
-        # Apply security middleware
-        security_middleware.authenticate_request(request)
+        # Apply security middleware - DISABLED for simple auth
+        # security_middleware.authenticate_request(request)
         
         # Add request ID for tracking
         if not hasattr(g, 'request_id'):
@@ -271,6 +287,54 @@ def register_blueprints(app):
     except ImportError as e:
         print(f"Warning: Could not import security blueprint: {e}")
     
+    # Register tenant management blueprint
+    try:
+        from modules.core.tenant_management_routes import tenant_management_bp
+        app.register_blueprint(tenant_management_bp)
+        print("✓ Tenant Management API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import tenant management blueprint: {e}")
+
+    # Register tenant creation blueprint
+    try:
+        from modules.core.tenant_creation_routes import tenant_creation_bp
+        app.register_blueprint(tenant_creation_bp)
+        print("✓ Tenant Creation API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import tenant creation blueprint: {e}")
+    
+    # Register user preferences blueprint
+    try:
+        from modules.core.user_preferences_routes import user_preferences_bp
+        app.register_blueprint(user_preferences_bp)
+        print("✓ User Preferences API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import user preferences blueprint: {e}")
+    
+        # Register tenant analytics blueprint
+        try:
+            from modules.finance.tenant_analytics_routes import tenant_analytics_bp
+            app.register_blueprint(tenant_analytics_bp)
+            print("✓ Tenant Analytics API loaded")
+        except ImportError as e:
+            print(f"Warning: Could not import tenant analytics blueprint: {e}")
+        
+        # Register subscription management blueprint
+        try:
+            from modules.finance.subscription_management_routes import subscription_bp
+            app.register_blueprint(subscription_bp)
+            print("✓ Subscription Management API loaded")
+        except ImportError as e:
+            print(f"Warning: Could not import subscription management blueprint: {e}")
+        
+        # Register rate limiting blueprint
+        try:
+            from modules.core.rate_limiting_routes import rate_limiting_bp
+            app.register_blueprint(rate_limiting_bp)
+            print("✓ Rate Limiting API loaded")
+        except ImportError as e:
+            print(f"Warning: Could not import rate limiting blueprint: {e}")
+    
     try:
         from modules.core.routes import core_bp
         app.register_blueprint(core_bp, url_prefix='/api/core')
@@ -285,10 +349,53 @@ def register_blueprints(app):
         print(f"Warning: Could not import visitor blueprint: {e}")
     
     try:
+        from modules.finance.routes import finance_bp
+        app.register_blueprint(finance_bp, url_prefix='/api/finance')
+        print("✓ Finance API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import finance blueprint: {e}")
+    
+    try:
         from modules.finance.advanced_routes import advanced_finance_bp
         app.register_blueprint(advanced_finance_bp, url_prefix='/api/finance')
     except ImportError as e:
         print(f"Warning: Could not import advanced finance blueprint: {e}")
+    
+    try:
+        from modules.finance.payment_routes import payment_bp
+        app.register_blueprint(payment_bp)
+        print("Payment Management API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import payment blueprint: {e}")
+    
+    try:
+        from modules.finance.advanced_payment_routes import advanced_payment_bp
+        app.register_blueprint(advanced_payment_bp)
+        print("Advanced Payment Features API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import advanced payment blueprint: {e}")
+    
+    # Bank Reconciliation API
+    try:
+        from modules.finance.bank_reconciliation_routes import bank_reconciliation_bp
+        app.register_blueprint(bank_reconciliation_bp)
+        print("Bank Reconciliation API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import bank reconciliation blueprint: {e}")
+
+    try:
+        from modules.finance.bank_feed_routes import bank_feed_bp
+        app.register_blueprint(bank_feed_bp)
+        print("Bank Feed API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import bank feed blueprint: {e}")
+
+    try:
+        from modules.finance.analytics_routes import analytics_bp
+        app.register_blueprint(analytics_bp)
+        print("Analytics API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import analytics blueprint: {e}")
     
     try:
         from modules.finance.double_entry_routes import double_entry_bp
@@ -460,7 +567,13 @@ def register_blueprints(app):
     except ImportError as e:
         print(f"Warning: Could not import inventory analytics routes: {e}")
     
-
+    # Register warehouse routes
+    try:
+        from modules.inventory.warehouse_routes import warehouse_bp
+        app.register_blueprint(warehouse_bp, url_prefix='/api/inventory/warehouse')
+        print("Warehouse API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import warehouse routes: {e}")
     
     try:
         from modules.inventory.core_routes import core_inventory_bp
@@ -501,6 +614,20 @@ def register_blueprints(app):
         print(f"Warning: Could not import modules.dashboard blueprint: {e}")
     
     try:
+        from modules.dashboard.module_activation_routes import module_activation_bp
+        app.register_blueprint(module_activation_bp)
+        print("✓ Module Activation API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import module activation blueprint: {e}")
+    
+    try:
+        from modules.core.user_data_routes import user_data_bp
+        app.register_blueprint(user_data_bp)
+        print("✓ User Data API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import user data blueprint: {e}")
+    
+    try:
         from routes.automation_routes import automation_bp
         app.register_blueprint(automation_bp, url_prefix='/api/automation')
     except ImportError as e:
@@ -517,6 +644,16 @@ def register_blueprints(app):
     #     app.register_blueprint(enterprise_auth_bp, url_prefix='/api/enterprise')
     # except ImportError as e:
     #     print(f"Warning: Could not import enterprise auth blueprint: {e}")
+    
+    # Register tenant-aware finance blueprint (moved to end to avoid circular imports)
+    try:
+        from modules.finance.tenant_aware_routes import tenant_finance_bp
+        app.register_blueprint(tenant_finance_bp)
+        print("✓ Tenant-Aware Finance API loaded")
+    except Exception as e:
+        print(f"❌ ERROR: Could not register tenant-aware finance blueprint: {e}")
+        import traceback
+        traceback.print_exc()
 
 def _initialize_modules(app):
     """Initialize all modules with enterprise features"""

@@ -42,10 +42,10 @@ export const useAuth = () => {
 
 const AuthProvider = ({ children }) => {
   const [user] = useState({
-    id: 1,
-    name: 'John Doe',
-    email: 'admin@edonuops.com',
-    role: 'Administrator',
+    id: null,
+    name: 'Guest User',
+    email: '',
+    role: 'Guest',
     avatar: null
   });
 

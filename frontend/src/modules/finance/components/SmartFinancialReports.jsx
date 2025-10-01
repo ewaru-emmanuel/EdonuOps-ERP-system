@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useFinanceData } from '../hooks/useFinanceData';
 import {
   Box, Typography, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions, Alert, Snackbar, LinearProgress, Tooltip, useMediaQuery, useTheme,
   TextField, FormControl, InputLabel, Select, MenuItem, Autocomplete, SpeedDial, SpeedDialAction, SpeedDialIcon,
@@ -8,7 +9,7 @@ import {
 } from '@mui/material';
 import {
   Add, Edit, Delete, Visibility, Download, Refresh, CheckCircle, Warning, Error, Info, AttachMoney, Schedule, BarChart, PieChart, ShowChart,
-  TrendingUp, TrendingDown, AccountBalance, Receipt, Payment, Business, Assessment, LocalTaxi, AccountBalanceWallet,
+  TrendingUp, TrendingDown, AccountBalance, Receipt, Payment, Business, Assessment, AccountBalanceWallet,
   Security, Lock, Notifications, Settings, FilterList, Search, Timeline, CurrencyExchange, Audit, Compliance,
   MoreVert, ExpandMore, ExpandLess, PlayArrow, Pause, Stop, Save, Cancel, AutoAwesome, Psychology, Lightbulb,
   CloudUpload, Description, ReceiptLong, PaymentOutlined, ScheduleSend, AutoFixHigh, SmartToy, QrCode, CameraAlt,
@@ -18,7 +19,7 @@ import {
   PictureAsPdf, TableChart, BarChart as BarChartIcon, PieChart as PieChartIcon, ShowChart as ShowChartIcon3,
   GetApp, Share, Print, Visibility as VisibilityIcon, Edit as EditIcon, Download as DownloadIcon
 } from '@mui/icons-material';
-import { useRealTimeData } from '../../../hooks/useRealTimeData';
+// Removed useRealTimeData to prevent authentication calls
 
 const SmartFinancialReports = ({ isMobile, isTablet }) => {
   const theme = useTheme();
@@ -35,20 +36,106 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [customDateRange, setCustomDateRange] = useState({ start: null, end: null });
 
-  // Data hooks
-  const { data: profitLossData, loading: plLoading, error: plError } = useRealTimeData('/api/finance/profit-loss');
-  const { data: balanceSheetData, loading: bsLoading, error: bsError } = useRealTimeData('/api/finance/balance-sheet');
-  const { data: cashFlowData, loading: cfLoading, error: cfError } = useRealTimeData('/api/finance/cash-flow');
-  const { data: kpiData, loading: kpiLoading, error: kpiError } = useRealTimeData('/api/finance/kpis');
-  const { data: generalLedgerData, loading: glLoading, error: glError } = useRealTimeData('/api/finance/general-ledger');
+  // Data hooks - fetch real data from database
+  const { data: generalLedgerData = [], loading: glLoading, error: glError } = useFinanceData('journal-entries');
+  const { data: accounts = [], loading: accountsLoading } = useFinanceData('accounts');
   
-  // Vendor and customer data for AR/AP integration
-  const { data: vendorData, loading: vendorLoading, error: vendorError } = useRealTimeData('/api/procurement/vendors');
-  const { data: customersResponse, loading: customerLoading, error: customerError } = useRealTimeData('/api/sales/customers');
-  const { data: accountsReceivableData, loading: arLoading, error: arError } = useRealTimeData('/api/sales/accounts-receivable');
+  // Placeholder for not-yet-implemented endpoints
+  const profitLossData = [];
+  const plLoading = false;
+  const plError = null;
+  
+  const balanceSheetData = [];
+  const bsLoading = false;
+  const bsError = null;
+  
+  const cashFlowData = [];
+  const cfLoading = false;
+  const cfError = null;
+  
+  const kpiData = [];
+  const kpiLoading = false;
+  const kpiError = null;
+  
+  // Fetch AR and AP data
+  const { data: accountsReceivableData = [] } = useFinanceData('accounts-receivable');
+  const { data: accountsPayableData = [] } = useFinanceData('accounts-payable');
+  
+  // Placeholder for not-yet-implemented endpoints
+  const vendorData = [];
+  const vendorLoading = false;
+  const vendorError = null;
+  
+  const customersResponse = [];
+  const customerLoading = false;
+  const customerError = null;
+  
+  const arLoading = false;
+  const arError = null;
+  const apLoading = false;
+  
+  const paymentMethods = [];
+  const paymentMethodsLoading = false;
+  
+  const bankAccounts = [];
+  const bankAccountsLoading = false;
   
   // Extract customers array from response
   const customerData = customersResponse?.customers || [];
+  
+  // Calculate payment method statistics from AR and AP data (moved from render function)
+  const paymentMethodStats = useMemo(() => {
+    const stats = {};
+    
+    // Analyze AR invoices by payment method
+    if (accountsReceivableData) {
+      accountsReceivableData.forEach(invoice => {
+        const method = invoice.payment_method || 'Unknown';
+        if (!stats[method]) {
+          stats[method] = { 
+            count: 0, 
+            totalAmount: 0, 
+            avgAmount: 0,
+            invoices: [],
+            processingFees: 0
+          };
+        }
+        stats[method].count++;
+        stats[method].totalAmount += invoice.total_amount || 0;
+        stats[method].processingFees += invoice.processing_fee || 0;
+        stats[method].invoices.push(invoice);
+      });
+    }
+    
+    // Analyze AP invoices by payment method
+    if (accountsPayableData) {
+      accountsPayableData.forEach(invoice => {
+        const method = invoice.payment_method || 'Unknown';
+        if (!stats[method]) {
+          stats[method] = { 
+            count: 0, 
+            totalAmount: 0, 
+            avgAmount: 0,
+            invoices: [],
+            processingFees: 0
+          };
+        }
+        stats[method].count++;
+        stats[method].totalAmount += invoice.total_amount || 0;
+        stats[method].processingFees += invoice.processing_fee || 0;
+        stats[method].invoices.push(invoice);
+      });
+    }
+    
+    // Calculate averages
+    Object.keys(stats).forEach(method => {
+      stats[method].avgAmount = stats[method].count > 0 
+        ? stats[method].totalAmount / stats[method].count 
+        : 0;
+    });
+    
+    return stats;
+  }, [accountsReceivableData, accountsPayableData]);
   
   // Debug: Log financial reports data
   
@@ -1663,6 +1750,168 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
     </Card>
   );
 
+  const renderPaymentMethodAnalysis = () => {
+    const totalTransactions = Object.values(paymentMethodStats).reduce((sum, stat) => sum + stat.count, 0);
+    const totalAmount = Object.values(paymentMethodStats).reduce((sum, stat) => sum + stat.totalAmount, 0);
+    const totalProcessingFees = Object.values(paymentMethodStats).reduce((sum, stat) => sum + stat.processingFees, 0);
+
+    return (
+      <Card>
+        <CardContent>
+          <Typography variant="h6" mb={2}>Payment Method Analysis</Typography>
+          
+          {/* Summary Metrics */}
+          <Grid container spacing={2} mb={3}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Box textAlign="center" p={2} sx={{ bgcolor: 'primary.light', borderRadius: 2 }}>
+                <Typography variant="h4" color="primary.contrastText">
+                  {totalTransactions}
+                </Typography>
+                <Typography variant="body2" color="primary.contrastText">
+                  Total Transactions
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Box textAlign="center" p={2} sx={{ bgcolor: 'success.light', borderRadius: 2 }}>
+                <Typography variant="h4" color="success.contrastText">
+                  ${totalAmount.toLocaleString()}
+                </Typography>
+                <Typography variant="body2" color="success.contrastText">
+                  Total Amount
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Box textAlign="center" p={2} sx={{ bgcolor: 'warning.light', borderRadius: 2 }}>
+                <Typography variant="h4" color="warning.contrastText">
+                  ${totalProcessingFees.toLocaleString()}
+                </Typography>
+                <Typography variant="body2" color="warning.contrastText">
+                  Processing Fees
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Box textAlign="center" p={2} sx={{ bgcolor: 'info.light', borderRadius: 2 }}>
+                <Typography variant="h4" color="info.contrastText">
+                  {Object.keys(paymentMethodStats).length}
+                </Typography>
+                <Typography variant="body2" color="info.contrastText">
+                  Payment Methods
+                </Typography>
+              </Box>
+            </Grid>
+          </Grid>
+
+          {/* Payment Method Breakdown */}
+          <Typography variant="subtitle1" mb={2}>Payment Method Breakdown</Typography>
+          <TableContainer component={Paper} variant="outlined">
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Payment Method</TableCell>
+                  <TableCell align="right">Transactions</TableCell>
+                  <TableCell align="right">Total Amount</TableCell>
+                  <TableCell align="right">Average Amount</TableCell>
+                  <TableCell align="right">Processing Fees</TableCell>
+                  <TableCell align="right">% of Total</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {Object.entries(paymentMethodStats)
+                  .sort(([,a], [,b]) => b.totalAmount - a.totalAmount)
+                  .map(([method, stats]) => (
+                    <TableRow key={method}>
+                      <TableCell>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Payment fontSize="small" />
+                          <Typography variant="body2" fontWeight="medium">
+                            {method}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Chip label={stats.count} size="small" variant="outlined" />
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2" fontWeight="medium">
+                          ${stats.totalAmount.toLocaleString()}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2">
+                          ${stats.avgAmount.toLocaleString()}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2" color="warning.main">
+                          ${stats.processingFees.toLocaleString()}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2">
+                          {totalAmount > 0 ? ((stats.totalAmount / totalAmount) * 100).toFixed(1) : 0}%
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          {/* Bank Account Analysis */}
+          <Typography variant="subtitle1" mt={3} mb={2}>Bank Account Analysis</Typography>
+          <Grid container spacing={2}>
+            {bankAccounts && bankAccounts.length > 0 ? (
+              bankAccounts.map((account) => (
+                <Grid item xs={12} sm={6} md={4} key={account.id}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Box display="flex" alignItems="center" gap={1} mb={1}>
+                        <AccountBalanceWallet fontSize="small" />
+                        <Typography variant="subtitle2" fontWeight="medium">
+                          {account.account_name}
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2" color="text.secondary" mb={1}>
+                        {account.bank_name} • {account.account_type}
+                      </Typography>
+                      <Box display="flex" justifyContent="space-between" alignItems="center">
+                        <Typography variant="body2">Balance:</Typography>
+                        <Typography variant="body2" fontWeight="medium">
+                          ${(account.current_balance || 0).toLocaleString()}
+                        </Typography>
+                      </Box>
+                      <Box display="flex" justifyContent="space-between" alignItems="center" mt={1}>
+                        <Typography variant="body2">Currency:</Typography>
+                        <Chip label={account.currency} size="small" />
+                      </Box>
+                      <Box display="flex" gap={1} mt={1}>
+                        {account.allow_deposits && (
+                          <Chip label="Deposits" size="small" color="success" variant="outlined" />
+                        )}
+                        {account.allow_withdrawals && (
+                          <Chip label="Withdrawals" size="small" color="warning" variant="outlined" />
+                        )}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))
+            ) : (
+              <Grid item xs={12}>
+                <Alert severity="info">
+                  No bank accounts configured. Set up bank accounts in Admin Settings to see detailed analysis.
+                </Alert>
+              </Grid>
+            )}
+          </Grid>
+        </CardContent>
+      </Card>
+    );
+  };
+
   const renderReportActions = () => (
     <Card>
       <CardContent>
@@ -1734,6 +1983,9 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
         </Grid>
         <Grid item xs={12}>
           {renderCashFlowStatement()}
+        </Grid>
+        <Grid item xs={12}>
+          {renderPaymentMethodAnalysis()}
         </Grid>
         <Grid item xs={12}>
           {renderDailySummaryTable()}

@@ -4,39 +4,78 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, List, ListItem, ListItemText, ListItemIcon, Divider, SpeedDial, SpeedDialAction, SpeedDialIcon
 } from '@mui/material';
 import {
-  TrendingUp, TrendingDown, AccountBalance, Receipt, Payment, Business, Assessment, LocalTaxi, AccountBalanceWallet,
+  TrendingUp, TrendingDown, AccountBalance, Receipt, Payment, Business, Assessment, AccountBalanceWallet,
   Download, Refresh, CheckCircle, Warning, Error, Info, AttachMoney, Schedule, BarChart, PieChart, ShowChart,
   Security, Lock, Notifications, Settings, FilterList, Search, Timeline, CurrencyExchange, Audit, Compliance,
   Add, Edit, Visibility, Delete, MoreVert, ExpandMore, ExpandLess, PlayArrow, Pause, Stop
 } from '@mui/icons-material';
-import { useRealTimeData } from '../../../hooks/useRealTimeData';
+import { useFinanceData } from '../hooks/useFinanceData';
 
 const SmartDashboard = ({ isMobile, isTablet }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('current');
   const [refreshKey, setRefreshKey] = useState(0);
   const [insightsOpen, setInsightsOpen] = useState(false);
 
-  // Real-time data hooks
-  const { data: generalLedger, loading: glLoading } = useRealTimeData('/api/finance/general-ledger');
-  const { data: accountsPayable, loading: apLoading } = useRealTimeData('/api/finance/accounts-payable');
-  const { data: accountsReceivable, loading: arLoading } = useRealTimeData('/api/finance/accounts-receivable');
-  const { data: fixedAssets, loading: assetsLoading } = useRealTimeData('/api/finance/fixed-assets');
-  const { data: budgets, loading: budgetsLoading } = useRealTimeData('/api/finance/budgets');
+  // Real-time data hooks - using real API calls
+  const { data: generalLedger, loading: glLoading } = useFinanceData('journal-entries');
+  const { data: accounts, loading: accountsLoading } = useFinanceData('accounts');
+  
+  // Placeholder data for endpoints not yet implemented
+  const accountsPayable = [];
+  const accountsReceivable = [];
+  const fixedAssets = [];
+  const budgets = [];
+  const paymentMethods = [];
+  
+  // Calculate bank accounts from accounts table (type = 'asset' and code starts with '10')
+  const bankAccounts = accounts?.filter(acc => 
+    acc.type === 'asset' && (acc.code?.startsWith('10') || acc.name?.toLowerCase().includes('bank') || acc.name?.toLowerCase().includes('cash'))
+  ) || [];
+  
+  // Placeholder loading states
+  const apLoading = false;
+  const arLoading = false;
+  const assetsLoading = false;
+  const budgetsLoading = false;
+  const bankAccountsLoading = accountsLoading;
+  const paymentMethodsLoading = false;
 
-  // Calculate real-time metrics
+  // Calculate real-time metrics from accounts table
   const metrics = useMemo(() => {
-    const totalAssets = fixedAssets?.reduce((sum, asset) => sum + (asset.current_value || 0), 0) || 0;
-    const totalLiabilities = accountsPayable?.reduce((sum, ap) => sum + (ap.outstanding_amount || 0), 0) || 0;
-    const totalEquity = totalAssets - totalLiabilities;
+    // Calculate from Chart of Accounts balances
+    const totalAssets = accounts?.filter(acc => acc.type === 'asset')
+      .reduce((sum, acc) => sum + (acc.balance || 0), 0) || 0;
     
-    const totalRevenue = generalLedger?.filter(entry => entry.account_type === 'Revenue')
-      .reduce((sum, entry) => sum + (entry.credit_amount || 0), 0) || 0;
-    const totalExpenses = generalLedger?.filter(entry => entry.account_type === 'Expense')
-      .reduce((sum, entry) => sum + (entry.debit_amount || 0), 0) || 0;
+    const totalLiabilities = accounts?.filter(acc => acc.type === 'liability')
+      .reduce((sum, acc) => sum + (acc.balance || 0), 0) || 0;
+    
+    const totalEquity = accounts?.filter(acc => acc.type === 'equity')
+      .reduce((sum, acc) => sum + (acc.balance || 0), 0) || 0;
+    
+    const totalRevenue = accounts?.filter(acc => acc.type === 'revenue')
+      .reduce((sum, acc) => sum + (acc.balance || 0), 0) || 0;
+    
+    const totalExpenses = accounts?.filter(acc => acc.type === 'expense')
+      .reduce((sum, acc) => sum + (acc.balance || 0), 0) || 0;
+    
     const netIncome = totalRevenue - totalExpenses;
 
-    const totalAccountsReceivable = accountsReceivable?.reduce((sum, ar) => sum + (ar.outstanding_amount || 0), 0) || 0;
-    const totalAccountsPayable = accountsPayable?.reduce((sum, ap) => sum + (ap.outstanding_amount || 0), 0) || 0;
+    // Accounts Receivable (from accounts table)
+    const totalAccountsReceivable = accounts?.find(acc => acc.code === '1100')?.balance || 0;
+    
+    // Accounts Payable (from accounts table)
+    const totalAccountsPayable = accounts?.filter(acc => acc.type === 'liability' && acc.name?.toLowerCase().includes('payable'))
+      .reduce((sum, acc) => sum + (acc.balance || 0), 0) || 0;
+
+    // Bank account balances - sum of all cash and bank accounts
+    const totalBankBalance = bankAccounts?.reduce((sum, account) => sum + (account.balance || 0), 0) || 0;
+    const activeBankAccounts = bankAccounts?.length || 0;
+    const depositAccounts = bankAccounts?.length || 0;
+    const withdrawalAccounts = bankAccounts?.length || 0;
+
+    // Payment method analysis
+    const paymentMethodCount = paymentMethods?.filter(method => method.is_active !== false).length || 0;
+    const activePaymentMethods = paymentMethods?.filter(method => method.is_active !== false) || [];
 
     // Calculate trends from historical data (will be enhanced with real historical data)
     const previousRevenue = 0; // Will be calculated from historical GL data
@@ -44,7 +83,7 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
     const revenueGrowth = 0; // Will be calculated when historical data is available
     const expenseGrowth = 0; // Will be calculated when historical data is available
 
-    return {
+    const result = {
       totalAssets,
       totalLiabilities,
       totalEquity,
@@ -57,9 +96,31 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
       expenseGrowth,
       cashFlow: totalAccountsReceivable - totalAccountsPayable,
       overdueInvoices: accountsReceivable?.filter(ar => ar.status === 'overdue').length || 0,
-      pendingApprovals: accountsPayable?.filter(ap => ap.approval_status === 'pending').length || 0
+      pendingApprovals: accountsPayable?.filter(ap => ap.approval_status === 'pending').length || 0,
+      // Bank account metrics
+      totalBankBalance,
+      activeBankAccounts,
+      depositAccounts,
+      withdrawalAccounts,
+      // Payment method metrics
+      paymentMethodCount,
+      activePaymentMethods
     };
-  }, [generalLedger, accountsPayable, accountsReceivable, fixedAssets]);
+    
+    console.log('💰 Finance Dashboard Metrics (from database):', {
+      accountCount: accounts?.length || 0,
+      bankAccountCount: bankAccounts?.length || 0,
+      totalAssets,
+      totalLiabilities,
+      totalEquity,
+      totalRevenue,
+      totalExpenses,
+      netIncome,
+      totalBankBalance
+    });
+    
+    return result;
+  }, [generalLedger, accountsPayable, accountsReceivable, fixedAssets, bankAccounts, paymentMethods, accounts]);
 
   // AI Insights - will populate based on your real business data
   const aiInsights = useMemo(() => {
@@ -96,7 +157,7 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
             Financial Intelligence Dashboard
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Real-time insights powered by AI • Last updated: {new Date().toLocaleTimeString()}
+            Real-time financial metrics and analytics
           </Typography>
         </Box>
         <Box display="flex" gap={1}>
@@ -245,6 +306,137 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
                 </Avatar>
               </Box>
               {apLoading && <LinearProgress sx={{ mt: 2 }} />}
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Bank Account & Payment Method Cards */}
+      <Grid container spacing={3} mb={3}>
+        {/* Total Bank Balance */}
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ 
+            background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+            color: 'white',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                    Bank Balance
+                  </Typography>
+                  <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 'bold' }}>
+                    ${metrics.totalBankBalance.toLocaleString()}
+                  </Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                    {metrics.activeBankAccounts} active accounts
+                  </Typography>
+                </Box>
+                <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 56, height: 56 }}>
+                  <AccountBalanceWallet sx={{ fontSize: 28 }} />
+                </Avatar>
+              </Box>
+              {bankAccountsLoading && (
+                <LinearProgress sx={{ mt: 2, bgcolor: 'rgba(255,255,255,0.2)', '& .MuiLinearProgress-bar': { bgcolor: 'white' } }} />
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Deposit Accounts */}
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ 
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                    Deposit Accounts
+                  </Typography>
+                  <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 'bold' }}>
+                    {metrics.depositAccounts}
+                  </Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                    Can receive payments
+                  </Typography>
+                </Box>
+                <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 56, height: 56 }}>
+                  <Receipt sx={{ fontSize: 28 }} />
+                </Avatar>
+              </Box>
+              {bankAccountsLoading && (
+                <LinearProgress sx={{ mt: 2, bgcolor: 'rgba(255,255,255,0.2)', '& .MuiLinearProgress-bar': { bgcolor: 'white' } }} />
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Payment Methods */}
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ 
+            background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+            color: 'white',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                    Payment Methods
+                  </Typography>
+                  <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 'bold' }}>
+                    {metrics.paymentMethodCount}
+                  </Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                    Available options
+                  </Typography>
+                </Box>
+                <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 56, height: 56 }}>
+                  <Payment sx={{ fontSize: 28 }} />
+                </Avatar>
+              </Box>
+              {paymentMethodsLoading && (
+                <LinearProgress sx={{ mt: 2, bgcolor: 'rgba(255,255,255,0.2)', '& .MuiLinearProgress-bar': { bgcolor: 'white' } }} />
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Withdrawal Accounts */}
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ 
+            background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+            color: 'white',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                    Withdrawal Accounts
+                  </Typography>
+                  <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 'bold' }}>
+                    {metrics.withdrawalAccounts}
+                  </Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                    Can make payments
+                  </Typography>
+                </Box>
+                <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 56, height: 56 }}>
+                  <AttachMoney sx={{ fontSize: 28 }} />
+                </Avatar>
+              </Box>
+              {bankAccountsLoading && (
+                <LinearProgress sx={{ mt: 2, bgcolor: 'rgba(255,255,255,0.2)', '& .MuiLinearProgress-bar': { bgcolor: 'white' } }} />
+              )}
             </CardContent>
           </Card>
         </Grid>

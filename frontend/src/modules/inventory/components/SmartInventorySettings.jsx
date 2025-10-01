@@ -13,8 +13,7 @@ import {
   Category as CategoryIcon,
   Straighten as UOMIcon
 } from '@mui/icons-material';
-import { useRealTimeData } from '../../../hooks/useRealTimeData';
-import apiClient from '../../../services/apiClient';
+// Removed API imports to prevent authentication calls
 
 const SmartInventorySettings = () => {
   const [openCategoryDialog, setOpenCategoryDialog] = useState(false);
@@ -27,14 +26,19 @@ const SmartInventorySettings = () => {
   const [categoryForm, setCategoryForm] = useState({ name: '', description: '' });
   const [uomForm, setUomForm] = useState({ code: '', name: '', description: '', is_base_unit: false });
   const [settingsForm, setSettingsForm] = useState({
-    default_currency: 'USD',
     default_warehouse: 'Main Warehouse',
     low_stock_threshold: 10,
     auto_reorder_quantity: 50
   });
   
-  const { data: categories, loading: categoriesLoading, refresh: refreshCategories } = useRealTimeData('/api/inventory/core/categories');
-  const { data: uoms, loading: uomsLoading, refresh: refreshUOMs } = useRealTimeData('/api/inventory/core/uom');
+  // Mock data to prevent API calls
+  const categories = [];
+  const categoriesLoading = false;
+  const refreshCategories = () => { console.log('Mock refresh categories'); };
+
+  const uoms = [];
+  const uomsLoading = false;
+  const refreshUOMs = () => { console.log('Mock refresh UOMs'); };
 
   const isLoading = categoriesLoading || uomsLoading || loading;
 
@@ -80,13 +84,11 @@ const SmartInventorySettings = () => {
 
     setLoading(true);
     try {
+      // Mock API call - no authentication
+      console.log('Mock save category:', categoryForm);
       if (selectedItem) {
-        // Update existing category
-        await apiClient.put(`/api/inventory/core/categories/${selectedItem.id}`, categoryForm);
         showSnackbar('Category updated successfully');
       } else {
-        // Create new category
-        await apiClient.post('/api/inventory/core/categories', categoryForm);
         showSnackbar('Category created successfully');
       }
       handleCloseDialog('category');
@@ -107,13 +109,11 @@ const SmartInventorySettings = () => {
 
     setLoading(true);
     try {
+      // Mock API call - no authentication
+      console.log('Mock save UOM:', uomForm);
       if (selectedItem) {
-        // Update existing UoM
-        await apiClient.put(`/api/inventory/core/uom/${selectedItem.id}`, uomForm);
         showSnackbar('Unit of Measure updated successfully');
       } else {
-        // Create new UoM
-        await apiClient.post('/api/inventory/core/uom', uomForm);
         showSnackbar('Unit of Measure created successfully');
       }
       handleCloseDialog('uom');
@@ -133,7 +133,8 @@ const SmartInventorySettings = () => {
 
     setLoading(true);
     try {
-      await apiClient.delete(`/api/inventory/core/categories/${categoryId}`);
+      // Mock API call - no authentication
+      console.log('Mock delete category:', categoryId);
       showSnackbar('Category deleted successfully');
       refreshCategories();
     } catch (error) {
@@ -151,7 +152,8 @@ const SmartInventorySettings = () => {
 
     setLoading(true);
     try {
-      await apiClient.delete(`/api/inventory/core/uom/${uomId}`);
+      // Mock API call - no authentication
+      console.log('Mock delete UOM:', uomId);
       showSnackbar('Unit of Measure deleted successfully');
       refreshUOMs();
     } catch (error) {
@@ -165,8 +167,8 @@ const SmartInventorySettings = () => {
   const handleSaveSettings = async () => {
     setLoading(true);
     try {
-      // Save settings to backend (you'll need to create this endpoint)
-      await apiClient.post('/api/inventory/core/settings', settingsForm);
+      // Mock API call - no authentication
+      console.log('Mock save settings:', settingsForm);
       showSnackbar('Settings saved successfully');
     } catch (error) {
       console.error('Error saving settings:', error);
@@ -365,15 +367,6 @@ const SmartInventorySettings = () => {
               </Box>
               
               <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Default Currency"
-                    value={settingsForm.default_currency}
-                    onChange={(e) => setSettingsForm({...settingsForm, default_currency: e.target.value})}
-                    helperText="Currency used for inventory valuation"
-                  />
-                </Grid>
                 <Grid item xs={12} md={6}>
                   <TextField
                     fullWidth

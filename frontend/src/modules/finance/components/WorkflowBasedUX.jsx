@@ -84,7 +84,7 @@ const WorkflowBasedUX = ({ onWorkflowComplete, accounts = [] }) => {
       icon: <PaymentIcon />,
       color: 'info',
       steps: [
-        { label: 'Payment Details', fields: ['customer', 'amount', 'payment_method'] },
+        { label: 'Payment Details', fields: ['customer', 'amount', 'payment_method', 'bank_account'] },
         { label: 'Apply to Invoices', fields: ['invoices', 'amounts'] },
         { label: 'Review & Post', fields: ['review', 'confirm'] }
       ],
@@ -98,7 +98,7 @@ const WorkflowBasedUX = ({ onWorkflowComplete, accounts = [] }) => {
       color: 'warning',
       steps: [
         { label: 'Expense Details', fields: ['vendor', 'amount', 'category', 'date'] },
-        { label: 'Payment Method', fields: ['payment_method', 'reference'] },
+        { label: 'Payment Method', fields: ['payment_method', 'bank_account', 'reference'] },
         { label: 'Review & Post', fields: ['review', 'confirm'] }
       ],
       accounts: ['6000', '2000'] // Operating Expenses, Accounts Payable
@@ -111,7 +111,7 @@ const WorkflowBasedUX = ({ onWorkflowComplete, accounts = [] }) => {
       color: 'error',
       steps: [
         { label: 'Select Invoice', fields: ['vendor', 'invoice', 'amount'] },
-        { label: 'Payment Method', fields: ['payment_method', 'reference'] },
+        { label: 'Payment Method', fields: ['payment_method', 'bank_account', 'reference'] },
         { label: 'Review & Post', fields: ['review', 'confirm'] }
       ],
       accounts: ['2000', '1020'] // Accounts Payable, Cash

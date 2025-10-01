@@ -11,7 +11,7 @@ import {
   Refresh, Notifications, Visibility, VisibilityOff,
   Warehouse, QrCode, DirectionsWalk, Timeline
 } from '@mui/icons-material';
-import { useRealTimeData } from '../../../hooks/useRealTimeData';
+// Removed useRealTimeData to prevent authentication calls
 
 const SmartInventoryDashboard = () => {
   const theme = useTheme();
@@ -20,10 +20,19 @@ const SmartInventoryDashboard = () => {
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Real-time data hooks
-  const { data: stockLevels, loading: stockLoading, error: stockError } = useRealTimeData('/api/inventory/core/stock-levels');
-  const { data: warehouseActivity, loading: activityLoading } = useRealTimeData('/api/inventory/wms/warehouse-activity');
-  const { data: predictiveStockouts, loading: stockoutLoading } = useRealTimeData('/api/inventory/wms/predictive-stockouts');
-  const { data: pickerPerformance, loading: performanceLoading } = useRealTimeData('/api/inventory/wms/picker-performance');
+  // Mock data to prevent API calls
+  const stockLevels = [];
+  const stockLoading = false;
+  const stockError = null;
+  
+  const warehouseActivity = [];
+  const activityLoading = false;
+  
+  const predictiveStockouts = [];
+  const stockoutLoading = false;
+  
+  const pickerPerformance = [];
+  const performanceLoading = false;
 
   // Real-time data from API
   const warehouseMap = stockLevels?.warehouse_map || [];

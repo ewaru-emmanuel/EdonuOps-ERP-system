@@ -12,7 +12,7 @@ import {
   Email, Lock, Person
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../context/AuthContext';
 import DashboardMockup from './DashboardMockup';
 
 const LandingPage = () => {

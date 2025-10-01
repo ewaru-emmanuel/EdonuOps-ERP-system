@@ -44,7 +44,7 @@ const CRMSettings = () => {
   
   // Settings state
   const [generalSettings, setGeneralSettings] = useState({
-    companyName: 'EdonuOps',
+    companyName: 'My Company',
     timezone: 'UTC',
     currency: 'USD',
     dateFormat: 'MM/DD/YYYY',

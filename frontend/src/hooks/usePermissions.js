@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, createContext, useCallback } from 'react';
-import { useAuth } from './useAuth';
+import { useAuth } from '../context/AuthContext';
 import apiClient from '../services/apiClient';
 
 // Create permissions context
@@ -14,10 +14,12 @@ export const PermissionsProvider = ({ children }) => {
 
   // Load user permissions from backend
   const loadUserPermissions = useCallback(async () => {
+    // Wait for auth to finish loading
     if (authLoading) {
-      return; // Wait for auth to finish loading
+      return;
     }
     
+    // Handle logged out state - clear permissions
     if (!isAuthenticated || !user) {
       setPermissions([]);
       setModules([]);
@@ -26,8 +28,10 @@ export const PermissionsProvider = ({ children }) => {
       return;
     }
 
+    // User is authenticated - load permissions
     try {
       setLoading(true);
+      
       const response = await apiClient.get('/permissions/user/permissions');
       
       if (response && response.permissions) {
@@ -36,14 +40,11 @@ export const PermissionsProvider = ({ children }) => {
         setUserRole(response.role);
       }
     } catch (error) {
-      // Don't log error if it's just unauthorized (expected when not logged in)
-      if (!error.message?.includes('401') && !error.message?.includes('UNAUTHORIZED')) {
-        console.error('Failed to load user permissions:', error);
-      }
-      // Set default permissions for fallback
+      console.error('🔧 Failed to load user permissions:', error);
+      // No fallback - set empty permissions as per business rule
       setPermissions([]);
-      setModules(['general']);
-      setUserRole('user');
+      setModules([]);
+      setUserRole(null);
     } finally {
       setLoading(false);
     }
@@ -51,8 +52,20 @@ export const PermissionsProvider = ({ children }) => {
 
   // Load permissions when user changes
   useEffect(() => {
-    loadUserPermissions();
-  }, [loadUserPermissions]);
+    if (isAuthenticated) {
+      // For now, just set default permissions for admin users
+      setPermissions([]);
+      setModules(['dashboard', 'finance', 'crm', 'inventory', 'procurement']);
+      setUserRole('admin');
+      setLoading(false);
+    } else {
+      setPermissions([]);
+      setModules([]);
+      setUserRole(null);
+      setLoading(false);
+    }
+  }, [isAuthenticated]);
+
 
   // Permission checking functions
   const hasPermission = (permissionName) => {

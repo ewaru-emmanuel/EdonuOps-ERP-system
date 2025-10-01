@@ -27,6 +27,8 @@ class Account(db.Model):
     currency = db.Column(db.String(3), default='USD')
     parent_id = db.Column(db.Integer, db.ForeignKey('accounts.id'))
     is_active = db.Column(db.Boolean, default=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -45,6 +47,7 @@ class JournalEntry(db.Model):
     total_debit = db.Column(db.Float, default=0.0)
     total_credit = db.Column(db.Float, default=0.0)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

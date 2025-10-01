@@ -89,6 +89,7 @@ class ProductCategory(db.Model):
     parent_id = db.Column(db.Integer, db.ForeignKey('inventory_product_categories.id'))
     is_active = db.Column(db.Boolean, default=True)
     abc_class = db.Column(db.String(1))  # A, B, C for ABC analysis
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     children = db.relationship('ProductCategory', backref=db.backref('parent', remote_side=[id]))
@@ -133,6 +134,7 @@ class InventoryProduct(db.Model):
     # Status
     is_active = db.Column(db.Boolean, default=True)
     status = db.Column(db.String(20), default='active')
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -210,6 +212,7 @@ class AdvancedWarehouse(db.Model):
     # Warehouse Type
     warehouse_type = db.Column(db.String(20), default='storage')  # storage, cross_dock, production
     is_active = db.Column(db.Boolean, default=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     capacity_uom = db.relationship('UnitOfMeasure', backref='advanced_warehouses')
@@ -339,6 +342,7 @@ class StockLevel(db.Model):
     
     # Last Updated
     last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -395,7 +399,7 @@ class InventoryTransaction(db.Model):
     notes = db.Column(db.Text)
     
     # User tracking
-    created_by = db.Column(db.String(100))
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships

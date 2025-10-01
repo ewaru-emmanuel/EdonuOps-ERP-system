@@ -31,7 +31,7 @@ import {
   CheckCircle,
   Error
 } from '@mui/icons-material';
-import { useAuth } from '../../../hooks/useAuth';
+import { useAuth } from '../../../context/AuthContext';
 import { useCoA } from '../context/CoAContext';
 
 const JournalEntryForm = ({ open, onClose, entry = null, onSave }) => {

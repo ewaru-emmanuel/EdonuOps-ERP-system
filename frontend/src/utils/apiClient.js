@@ -1,4 +1,7 @@
-const BASE_URL = 'http://localhost:5000';
+// In development, use full URL to backend; in production, use relative URLs
+const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
+const BASE_URL = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_API_URL || 
+                (isDevelopment ? 'http://localhost:5000' : '');
 
 const getHeaders = () => {
   const token = localStorage.getItem('access_token');

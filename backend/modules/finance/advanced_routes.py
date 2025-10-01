@@ -13,6 +13,7 @@ from .advanced_models import (
 )
 from .ai_analytics_service import AIAnalyticsService
 from .workflow_service import WorkflowService
+from .payment_journal_service import create_ar_payment_journal, create_ap_payment_journal, create_fx_journal
 
 # Create Blueprint
 advanced_finance_bp = Blueprint('advanced_finance', __name__)
@@ -34,82 +35,42 @@ def create_audit_trail(table_name, record_id, action, old_values=None, new_value
     except Exception as e:
         print(f"Audit trail creation failed: {e}")
 
-# Chart of Accounts Routes
-@advanced_finance_bp.route('/chart-of-accounts', methods=['GET'])
-@require_permission('finance.accounts.read')
-def get_chart_of_accounts():
-    try:
-        accounts = ChartOfAccounts.query.filter_by(is_active=True).all()
-        return jsonify([{
-            'id': account.id,
-            'account_code': account.account_code,
-            'account_name': account.account_name,
-            'account_type': account.account_type,
-            'account_category': account.account_category,
-            'parent_account_id': account.parent_account_id,
-            'description': account.description,
-            'is_active': account.is_active,
-            'created_at': account.created_at.isoformat() if account.created_at else None
-        } for account in accounts]), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# Chart of Accounts Routes - REMOVED (using tenant-aware routes instead)
+# The tenant-aware routes in tenant_aware_routes.py provide better functionality
+# with real-time balance calculation and multi-tenancy support
 
-@advanced_finance_bp.route('/chart-of-accounts', methods=['POST'])
-@require_permission('finance.accounts.create')
-def create_chart_of_account():
-    try:
-        data = request.get_json()
-        
-        # Validate required fields
-        required_fields = ['account_code', 'account_name', 'account_type']
-        for field in required_fields:
-            if field not in data or not data[field]:
-                return jsonify({'error': f'{field} is required'}), 400
-        
-        # Check if account code already exists
-        existing_account = ChartOfAccounts.query.filter_by(account_code=data['account_code']).first()
-        if existing_account:
-            return jsonify({'error': 'Account code already exists'}), 400
-        
-        account = ChartOfAccounts(
-            account_code=data['account_code'],
-            account_name=data['account_name'],
-            account_type=data['account_type'],
-            account_category=data.get('account_category'),
-            parent_account_id=data.get('parent_account_id'),
-            description=data.get('description'),
-            is_active=data.get('is_active', True)
-        )
-        
-        db.session.add(account)
-        db.session.commit()
-        
-        # Create audit trail
-        create_audit_trail('chart_of_accounts', account.id, 'create', new_values=data)
-        
-        return jsonify({
-            'id': account.id,
-            'account_code': account.account_code,
-            'account_name': account.account_name,
-            'message': 'Chart of account created successfully'
-        }), 201
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+# Chart of Accounts POST route - REMOVED (using tenant-aware routes instead)
 
 # General Ledger Routes
 @advanced_finance_bp.route('/general-ledger', methods=['GET'])
 @require_permission('finance.journal.read')
 def get_general_ledger():
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty array (for development)
+        if not user_id:
+            print("Warning: No user context found for general ledger, returning empty results")
+            return jsonify([]), 200
+        
         # Get query parameters
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
         account_id = request.args.get('account_id')
         status = request.args.get('status')
         
-        query = GeneralLedgerEntry.query
+        # Filter by user - include records with no created_by for backward compatibility
+        query = GeneralLedgerEntry.query.filter(
+            (GeneralLedgerEntry.user_id == int(user_id)) | (GeneralLedgerEntry.user_id.is_(None))
+        )
         
         if start_date:
             query = query.filter(GeneralLedgerEntry.entry_date >= start_date)
@@ -144,16 +105,34 @@ def get_general_ledger():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/general-ledger', methods=['POST'])
-@require_permission('finance.journal.create')
 def create_general_ledger_entry():
     try:
         data = request.get_json()
         
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, use a default for development
+        if not user_id:
+            user_id = 1  # Default user for development
+            print("Warning: No user context found for general ledger creation, using default user ID")
+        
         # Validate required fields
-        required_fields = ['entry_date', 'reference', 'account_id']
+        required_fields = ['entry_date', 'account_id']
         for field in required_fields:
             if field not in data or not data[field]:
                 return jsonify({'error': f'{field} is required'}), 400
+        
+        # Auto-generate reference if empty
+        if not data.get('reference'):
+            data['reference'] = f"GL-{datetime.now().strftime('%Y%m%d%H%M%S')}"
         
         # Validate double-entry bookkeeping
         debit_amount = float(data.get('debit_amount', 0) or 0)
@@ -176,8 +155,14 @@ def create_general_ledger_entry():
             status=data.get('status', 'posted'),
             journal_type=data.get('journal_type', 'manual'),
             fiscal_period=data.get('fiscal_period'),
-            created_by=data.get('created_by'),
-            approved_by=data.get('approved_by')
+            created_by=user_id,  # Associate with current user
+            approved_by=data.get('approved_by'),
+            # Payment method integration fields
+            payment_method_id=data.get('payment_method_id'),
+            bank_account_id=data.get('bank_account_id'),
+            payment_reference=data.get('payment_reference'),
+            source_module=data.get('source_module', 'manual_entry'),
+            source_transaction_id=data.get('source_transaction_id')
         )
         
         db.session.add(entry)
@@ -273,13 +258,31 @@ def delete_general_ledger_entry(entry_id):
 @advanced_finance_bp.route('/accounts-payable', methods=['GET'])
 def get_accounts_payable():
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty array (for development)
+        if not user_id:
+            print("Warning: No user context found for accounts payable, returning empty results")
+            return jsonify([]), 200
+        
         # Get query parameters
         status = request.args.get('status')
         vendor_id = request.args.get('vendor_id')
         due_date_from = request.args.get('due_date_from')
         due_date_to = request.args.get('due_date_to')
         
-        query = AccountsPayable.query
+        # Filter by user - include records with no user_id for backward compatibility
+        query = AccountsPayable.query.filter(
+            (AccountsPayable.user_id == int(user_id)) | (AccountsPayable.user_id.is_(None))
+        )
         
         if status:
             query = query.filter(AccountsPayable.status == status)
@@ -320,6 +323,21 @@ def create_accounts_payable():
     try:
         data = request.get_json()
         
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, use a default for development
+        if not user_id:
+            user_id = 1  # Default user for development
+            print("Warning: No user context found for accounts payable creation, using default user ID")
+        
         # Validate required fields
         required_fields = ['invoice_number', 'vendor_id', 'invoice_date', 'due_date', 'total_amount']
         for field in required_fields:
@@ -345,7 +363,8 @@ def create_accounts_payable():
             exchange_rate=data.get('exchange_rate', 1.0),
             status=data.get('status', 'pending'),
             payment_terms=data.get('payment_terms'),
-            approval_status=data.get('approval_status', 'pending')
+            approval_status=data.get('approval_status', 'pending'),
+            created_by=user_id  # Associate with current user
         )
         
         db.session.add(invoice)
@@ -368,7 +387,27 @@ def create_accounts_payable():
 @advanced_finance_bp.route('/accounts-payable/<int:invoice_id>', methods=['PUT'])
 def update_accounts_payable(invoice_id):
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, use a default for development
+        if not user_id:
+            user_id = 1  # Default user for development
+            print("Warning: No user context found for accounts payable update, using default user ID")
+        
+        # Get invoice and check ownership
         invoice = AccountsPayable.query.get_or_404(invoice_id)
+        
+        # Ensure user can only update their own invoices (or invoices with no created_by for backward compatibility)
+        if invoice.created_by is not None and invoice.created_by != user_id:
+            return jsonify({"error": "Access denied: You can only update your own invoices"}), 403
+        
         data = request.get_json()
         
         # Validate required fields
@@ -412,7 +451,27 @@ def update_accounts_payable(invoice_id):
 @advanced_finance_bp.route('/accounts-payable/<int:invoice_id>', methods=['DELETE'])
 def delete_accounts_payable(invoice_id):
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, use a default for development
+        if not user_id:
+            user_id = 1  # Default user for development
+            print("Warning: No user context found for accounts payable deletion, using default user ID")
+        
+        # Get invoice and check ownership
         invoice = AccountsPayable.query.get_or_404(invoice_id)
+        
+        # Ensure user can only delete their own invoices (or invoices with no created_by for backward compatibility)
+        if invoice.created_by is not None and invoice.created_by != user_id:
+            return jsonify({"error": "Access denied: You can only delete your own invoices"}), 403
+        
         db.session.delete(invoice)
         db.session.commit()
         
@@ -431,13 +490,31 @@ def delete_accounts_payable(invoice_id):
 @advanced_finance_bp.route('/accounts-receivable', methods=['GET'])
 def get_accounts_receivable():
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty array (for development)
+        if not user_id:
+            print("Warning: No user context found for accounts receivable, returning empty results")
+            return jsonify([]), 200
+        
         # Get query parameters
         status = request.args.get('status')
         customer_id = request.args.get('customer_id')
         due_date_from = request.args.get('due_date_from')
         due_date_to = request.args.get('due_date_to')
         
-        query = AccountsReceivable.query
+        # Filter by user - include records with no user_id for backward compatibility
+        query = AccountsReceivable.query.filter(
+            (AccountsReceivable.user_id == int(user_id)) | (AccountsReceivable.user_id.is_(None))
+        )
         
         if status:
             query = query.filter(AccountsReceivable.status == status)
@@ -479,6 +556,21 @@ def create_accounts_receivable():
     try:
         data = request.get_json()
         
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, use a default for development
+        if not user_id:
+            user_id = 1  # Default user for development
+            print("Warning: No user context found for accounts receivable creation, using default user ID")
+        
         # Validate required fields
         required_fields = ['invoice_number', 'customer_id', 'invoice_date', 'due_date', 'total_amount']
         for field in required_fields:
@@ -505,7 +597,8 @@ def create_accounts_receivable():
             status=data.get('status', 'pending'),
             payment_terms=data.get('payment_terms'),
             credit_limit=data.get('credit_limit'),
-            dunning_level=data.get('dunning_level', 0)
+            dunning_level=data.get('dunning_level', 0),
+            created_by=user_id  # Associate with current user
         )
         
         db.session.add(invoice)
@@ -528,7 +621,27 @@ def create_accounts_receivable():
 @advanced_finance_bp.route('/accounts-receivable/<int:invoice_id>', methods=['PUT'])
 def update_accounts_receivable(invoice_id):
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, use a default for development
+        if not user_id:
+            user_id = 1  # Default user for development
+            print("Warning: No user context found for accounts receivable update, using default user ID")
+        
+        # Get invoice and check ownership
         invoice = AccountsReceivable.query.get_or_404(invoice_id)
+        
+        # Ensure user can only update their own invoices (or invoices with no user_id for backward compatibility)
+        if invoice.user_id is not None and invoice.user_id != int(user_id):
+            return jsonify({"error": "Access denied: You can only update your own invoices"}), 403
+        
         data = request.get_json()
         
         # Validate required fields
@@ -573,7 +686,27 @@ def update_accounts_receivable(invoice_id):
 @advanced_finance_bp.route('/accounts-receivable/<int:invoice_id>', methods=['DELETE'])
 def delete_accounts_receivable(invoice_id):
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, use a default for development
+        if not user_id:
+            user_id = 1  # Default user for development
+            print("Warning: No user context found for accounts receivable deletion, using default user ID")
+        
+        # Get invoice and check ownership
         invoice = AccountsReceivable.query.get_or_404(invoice_id)
+        
+        # Ensure user can only delete their own invoices (or invoices with no created_by for backward compatibility)
+        if invoice.created_by is not None and invoice.created_by != user_id:
+            return jsonify({"error": "Access denied: You can only delete your own invoices"}), 403
+        
         db.session.delete(invoice)
         db.session.commit()
         
@@ -592,12 +725,30 @@ def delete_accounts_receivable(invoice_id):
 @advanced_finance_bp.route('/fixed-assets', methods=['GET'])
 def get_fixed_assets():
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty array (for development)
+        if not user_id:
+            print("Warning: No user context found for fixed assets, returning empty results")
+            return jsonify([]), 200
+        
         # Get query parameters
         status = request.args.get('status')
         category = request.args.get('category')
         department = request.args.get('department')
         
-        query = FixedAsset.query
+        # Filter by user - include records with no user_id for backward compatibility
+        query = FixedAsset.query.filter(
+            (FixedAsset.user_id == int(user_id)) | (FixedAsset.user_id.is_(None))
+        )
         
         if status:
             query = query.filter(FixedAsset.status == status)
@@ -640,6 +791,21 @@ def create_fixed_asset():
     try:
         data = request.get_json()
         
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, use a default for development
+        if not user_id:
+            user_id = 1  # Default user for development
+            print("Warning: No user context found for fixed asset creation, using default user ID")
+        
         # Validate required fields
         required_fields = ['asset_id', 'asset_name', 'category', 'purchase_date', 'purchase_value']
         for field in required_fields:
@@ -667,7 +833,8 @@ def create_fixed_asset():
             location=data.get('location'),
             department=data.get('department'),
             assigned_to=data.get('assigned_to'),
-            status=data.get('status', 'active')
+            status=data.get('status', 'active'),
+            created_by=user_id  # Associate with current user
         )
         
         db.session.add(asset)
@@ -756,6 +923,21 @@ def delete_fixed_asset(asset_id):
 @advanced_finance_bp.route('/maintenance-records', methods=['GET'])
 def get_maintenance_records():
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty array (for development)
+        if not user_id:
+            print("Warning: No user context found for maintenance records, returning empty results")
+            return jsonify([]), 200
+        
         # Get query parameters
         asset_id = request.args.get('asset_id')
         maintenance_type = request.args.get('maintenance_type')
@@ -763,7 +945,10 @@ def get_maintenance_records():
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
         
-        query = MaintenanceRecord.query
+        # Filter by user - include records with no created_by for backward compatibility
+        query = MaintenanceRecord.query.filter(
+            (MaintenanceRecord.user_id == int(user_id)) | (MaintenanceRecord.user_id.is_(None))
+        )
         
         if asset_id:
             query = query.filter(MaintenanceRecord.asset_id == asset_id)
@@ -803,6 +988,20 @@ def get_maintenance_records():
 @advanced_finance_bp.route('/maintenance-records', methods=['POST'])
 def create_maintenance_record():
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, use a default for development
+        if not user_id:
+            user_id = 1  # Default user for development
+        
         data = request.get_json()
         
         # Validate required fields
@@ -811,10 +1010,15 @@ def create_maintenance_record():
             if field not in data or not data[field]:
                 return jsonify({'error': f'{field} is required'}), 400
         
-        # Check if asset exists
-        asset = FixedAsset.query.get(data['asset_id'])
+        # Check if asset exists and belongs to user
+        asset = FixedAsset.query.filter(
+            and_(
+                FixedAsset.id == data['asset_id'],
+                (FixedAsset.user_id == int(user_id)) | (FixedAsset.user_id.is_(None))
+            )
+        ).first()
         if not asset:
-            return jsonify({'error': 'Asset not found'}), 404
+            return jsonify({'error': 'Asset not found or access denied'}), 404
         
         record = MaintenanceRecord(
             asset_id=data['asset_id'],
@@ -829,7 +1033,8 @@ def create_maintenance_record():
             priority=data.get('priority', 'normal'),
             parts_used=data.get('parts_used'),
             labor_hours=data.get('labor_hours', 0.0),
-            notes=data.get('notes')
+            notes=data.get('notes'),
+            created_by=user_id  # Associate with current user
         )
         
         db.session.add(record)
@@ -908,12 +1113,30 @@ def delete_maintenance_record(record_id):
 @advanced_finance_bp.route('/budgets', methods=['GET'])
 def get_budgets():
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty array (for development)
+        if not user_id:
+            print("Warning: No user context found for budgets, returning empty results")
+            return jsonify([]), 200
+        
         # Get query parameters
         fiscal_year = request.args.get('fiscal_year')
         department = request.args.get('department')
         status = request.args.get('status')
         
-        query = Budget.query
+        # Filter by user - include records with no user_id for backward compatibility
+        query = Budget.query.filter(
+            (Budget.user_id == int(user_id)) | (Budget.user_id.is_(None))
+        )
         
         if fiscal_year:
             query = query.filter(Budget.fiscal_year == fiscal_year)
@@ -948,6 +1171,11 @@ def get_budgets():
 @advanced_finance_bp.route('/budgets', methods=['POST'])
 def create_budget():
     try:
+        # Get user ID from request headers
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify({"error": "User authentication required"}), 401
+        
         data = request.get_json()
         
         # Validate required fields
@@ -968,7 +1196,8 @@ def create_budget():
             variance_amount=data.get('variance_amount', 0),
             variance_percentage=data.get('variance_percentage', 0),
             budget_type=data.get('budget_type'),
-            status=data.get('status', 'active')
+            status=data.get('status', 'active'),
+            user_id=int(user_id)
         )
         
         db.session.add(budget)
@@ -1172,12 +1401,30 @@ def create_budget_from_template():
 @advanced_finance_bp.route('/tax-records', methods=['GET'])
 def get_tax_records():
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty array (for development)
+        if not user_id:
+            print("Warning: No user context found for tax records, returning empty results")
+            return jsonify([]), 200
+        
         # Get query parameters
         tax_type = request.args.get('tax_type')
         period = request.args.get('period')
         status = request.args.get('status')
         
-        query = TaxRecord.query
+        # Filter by user - include records with no created_by for backward compatibility
+        query = TaxRecord.query.filter(
+            (TaxRecord.user_id == int(user_id)) | (TaxRecord.user_id.is_(None))
+        )
         
         if tax_type:
             query = query.filter(TaxRecord.tax_type == tax_type)
@@ -1467,6 +1714,25 @@ def delete_bank_reconciliation(reconciliation_id):
 @advanced_finance_bp.route('/reports/profit-loss', methods=['GET'])
 def get_profit_loss_report():
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty report (for development)
+        if not user_id:
+            print("Warning: No user context found for profit-loss report, returning empty results")
+            return jsonify({
+                'revenue': 0,
+                'expenses': 0,
+                'net_profit': 0
+            }), 200
+        
         # Get query parameters
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
@@ -1474,21 +1740,23 @@ def get_profit_loss_report():
         if not start_date or not end_date:
             return jsonify({'error': 'start_date and end_date are required'}), 400
         
-        # Calculate revenue (credit entries in revenue accounts)
+        # Calculate revenue (credit entries in revenue accounts) - FILTER BY USER
         revenue = db.session.query(func.sum(GeneralLedgerEntry.credit_amount)).filter(
             and_(
                 GeneralLedgerEntry.entry_date >= start_date,
                 GeneralLedgerEntry.entry_date <= end_date,
-                GeneralLedgerEntry.account.has(account_type='Revenue')
+                GeneralLedgerEntry.account.has(account_type='Revenue'),
+                (GeneralLedgerEntry.user_id == int(user_id)) | (GeneralLedgerEntry.user_id.is_(None))
             )
         ).scalar() or 0
         
-        # Calculate expenses (debit entries in expense accounts)
+        # Calculate expenses (debit entries in expense accounts) - FILTER BY USER
         expenses = db.session.query(func.sum(GeneralLedgerEntry.debit_amount)).filter(
             and_(
                 GeneralLedgerEntry.entry_date >= start_date,
                 GeneralLedgerEntry.entry_date <= end_date,
-                GeneralLedgerEntry.account.has(account_type='Expense')
+                GeneralLedgerEntry.account.has(account_type='Expense'),
+                (GeneralLedgerEntry.user_id == int(user_id)) | (GeneralLedgerEntry.user_id.is_(None))
             )
         ).scalar() or 0
         
@@ -1557,25 +1825,58 @@ def get_balance_sheet_report():
 @advanced_finance_bp.route('/dashboard-metrics', methods=['GET'])
 def get_dashboard_metrics():
     try:
-        # Calculate key metrics
-        total_assets = db.session.query(func.sum(FixedAsset.current_value)).scalar() or 0
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty metrics (for development)
+        if not user_id:
+            print("Warning: No user context found for dashboard metrics, returning empty results")
+            return jsonify({
+                'total_assets': 0,
+                'total_accounts_payable': 0,
+                'total_accounts_receivable': 0,
+                'pending_reconciliations': 0,
+                'overdue_invoices': 0
+            }), 200
+        
+        # Calculate key metrics - FILTER BY USER
+        total_assets = db.session.query(func.sum(FixedAsset.current_value)).filter(
+            (FixedAsset.created_by == user_id) | (FixedAsset.created_by.is_(None))
+        ).scalar() or 0
         
         total_ap = db.session.query(func.sum(AccountsPayable.outstanding_amount)).filter(
-            AccountsPayable.status.in_(['pending', 'approved'])
+            and_(
+                AccountsPayable.status.in_(['pending', 'approved']),
+                (AccountsPayable.user_id == int(user_id)) | (AccountsPayable.user_id.is_(None))
+            )
         ).scalar() or 0
         
         total_ar = db.session.query(func.sum(AccountsReceivable.outstanding_amount)).filter(
-            AccountsReceivable.status.in_(['pending', 'overdue'])
+            and_(
+                AccountsReceivable.status.in_(['pending', 'overdue']),
+                (AccountsReceivable.user_id == int(user_id)) | (AccountsReceivable.user_id.is_(None))
+            )
         ).scalar() or 0
         
         pending_reconciliations = db.session.query(func.count(BankReconciliation.id)).filter(
-            BankReconciliation.status == 'pending'
+            and_(
+                BankReconciliation.status == 'pending',
+                (BankReconciliation.user_id == int(user_id)) | (BankReconciliation.user_id.is_(None))
+            )
         ).scalar() or 0
         
         overdue_invoices = db.session.query(func.count(AccountsReceivable.id)).filter(
             and_(
                 AccountsReceivable.status == 'overdue',
-                AccountsReceivable.due_date < date.today()
+                AccountsReceivable.due_date < date.today(),
+                (AccountsReceivable.user_id == int(user_id)) | (AccountsReceivable.user_id.is_(None))
             )
         ).scalar() or 0
         
@@ -1862,13 +2163,30 @@ def create_ap_payment():
         db.session.add(payment)
         db.session.commit()
         
+        # Create automatic journal entry for payment
+        if data.get('status') == 'cleared' or data.get('auto_create_journal', True):
+            journal_result = create_ap_payment_journal({
+                'invoice_id': payment.invoice_id,
+                'payment_amount': payment.payment_amount,
+                'payment_method_id': data.get('payment_method_id'),
+                'bank_account_id': data.get('bank_account_id'),
+                'processing_fee': data.get('processing_fee', 0),
+                'payment_reference': payment.payment_reference,
+                'payment_date': payment.payment_date
+            })
+            
+            if not journal_result.get('success'):
+                # Log warning but don't fail the payment creation
+                print(f"Warning: Could not create journal entry for AP payment {payment.id}: {journal_result.get('error')}")
+        
         # Create audit trail
         create_audit_trail('ap_payments', payment.id, 'create', new_values=data)
         
         return jsonify({
             'id': payment.id,
             'payment_reference': payment.payment_reference,
-            'message': 'AP payment created successfully'
+            'message': 'AP payment created successfully',
+            'journal_entry_created': journal_result.get('success', False) if 'journal_result' in locals() else False
         }), 201
         
     except Exception as e:
@@ -1924,13 +2242,30 @@ def create_ar_payment():
         db.session.add(payment)
         db.session.commit()
         
+        # Create automatic journal entry for payment
+        if data.get('status') == 'cleared' or data.get('auto_create_journal', True):
+            journal_result = create_ar_payment_journal({
+                'invoice_id': payment.invoice_id,
+                'payment_amount': payment.payment_amount,
+                'payment_method_id': data.get('payment_method_id'),
+                'bank_account_id': data.get('bank_account_id'),
+                'processing_fee': data.get('processing_fee', 0),
+                'payment_reference': payment.payment_reference,
+                'payment_date': payment.payment_date
+            })
+            
+            if not journal_result.get('success'):
+                # Log warning but don't fail the payment creation
+                print(f"Warning: Could not create journal entry for AR payment {payment.id}: {journal_result.get('error')}")
+        
         # Create audit trail
         create_audit_trail('ar_payments', payment.id, 'create', new_values=data)
         
         return jsonify({
             'id': payment.id,
             'payment_reference': payment.payment_reference,
-            'message': 'AR payment created successfully'
+            'message': 'AR payment created successfully',
+            'journal_entry_created': journal_result.get('success', False) if 'journal_result' in locals() else False
         }), 201
         
     except Exception as e:

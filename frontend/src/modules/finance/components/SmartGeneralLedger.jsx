@@ -11,14 +11,15 @@ import {
   Security, Lock, Notifications, Settings, FilterList, Search, Timeline, CurrencyExchange, Audit, Compliance,
   MoreVert, ExpandMore, ExpandLess, PlayArrow, Pause, Stop, Save, Cancel, AutoAwesome, Psychology, Lightbulb
 } from '@mui/icons-material';
-import { useRealTimeData } from '../../../hooks/useRealTimeData';
-import { getERPApiService } from '../../../services/erpApiService';
 import { useCoA } from '../context/CoAContext';
+import { useCurrency } from '../../../components/GlobalCurrencySettings';
+import apiClient from '../../../services/apiClient';
 import PermissionGuard, { PermissionButton } from '../../../components/PermissionGuard';
 
 const SmartGeneralLedger = ({ isMobile, isTablet }) => {
   const theme = useTheme();
   const [page, setPage] = useState(0);
+  const { formatCurrency } = useCurrency();
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [orderBy, setOrderBy] = useState('entry_date');
   const [order, setOrder] = useState('desc');
@@ -33,6 +34,13 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
   const [aiSuggestions, setAiSuggestions] = useState([]);
   const [showAiDialog, setShowAiDialog] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  
+  // Local state for entries with localStorage persistence
+  const [generalLedger, setGeneralLedger] = useState(() => {
+    // Load from localStorage on component mount
+    const saved = localStorage.getItem('edonuops_finance_entries');
+    return saved ? JSON.parse(saved) : [];
+  });
   
   // CRUD Dialog States
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -80,7 +88,242 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
   }, []);
 
   // Real-time data hooks
-  const { data: generalLedger, loading: glLoading, error: glError, create, update, remove, refresh } = useRealTimeData('/api/finance/general-ledger');
+  // Mock loading states
+  const glLoading = false;
+  const glError = null;
+  
+  // CRUD functions that use real API
+  const create = async (data) => {
+    try {
+      console.log('Creating GL entry via API:', data);
+      
+      // Prepare data for API - ensure proper date format
+      const apiData = {
+        entry_date: data.entry_date || new Date().toISOString().split('T')[0],
+        reference: data.reference || `JE-${Date.now()}`, // Generate unique reference if empty
+        description: data.description || '',
+        status: data.status || 'draft',
+        total_debit: parseFloat(data.debit_amount) || 0,
+        total_credit: parseFloat(data.credit_amount) || 0
+      };
+      
+      console.log('Sending API data:', apiData);
+      const response = await apiClient.post('/api/finance/journal-entries', apiData);
+      console.log('API response:', response);
+      console.log('API response data:', response.data);
+      
+      // Check if response exists
+      if (!response) {
+        throw new Error('No response received from server');
+      }
+      
+      // Find the account name from chart of accounts
+      const account = chartOfAccounts?.find(acc => acc.id === data.account_id);
+      const account_name = account?.name || 'Unknown Account';
+      
+      // Handle different response structures - the API returns {entry: {...}, message: '...'}
+      const responseEntry = response.data?.entry || response.data;
+      
+      // Create new entry with proper structure
+      const timestamp = Date.now();
+      const now = new Date().toISOString();
+      
+      const newEntry = { 
+        id: responseEntry?.id || timestamp, // Fallback to timestamp if no ID
+        entry_date: apiData.entry_date,
+        reference: apiData.reference,
+        description: apiData.description,
+        status: apiData.status,
+        debit_amount: apiData.total_debit,
+        credit_amount: apiData.total_credit,
+        account_id: data.account_id,
+        account_name,
+        created_at: responseEntry?.created_at || now,
+        updated_at: responseEntry?.created_at || now
+      };
+      
+      setGeneralLedger(prev => [...prev, newEntry]);
+      return newEntry;
+    } catch (error) {
+      console.error('Error creating journal entry:', error);
+      // Provide more specific error message
+      if (error.message.includes('500')) {
+        throw new Error('Server error: Unable to create journal entry. Please try again.');
+      } else if (error.message.includes('400')) {
+        throw new Error('Invalid data: Please check your entry details.');
+      } else {
+        throw new Error(`Failed to create journal entry: ${error.message}`);
+      }
+    }
+  };
+  
+  const update = async (id, data) => {
+    try {
+      console.log('Updating GL entry via API:', id, data);
+      
+      // Prepare data for API
+      const apiData = {
+        entry_date: data.entry_date || new Date().toISOString().split('T')[0],
+        reference: data.reference || `JE-${Date.now()}`, // Generate unique reference if empty
+        description: data.description || '',
+        status: data.status || 'draft',
+        total_debit: parseFloat(data.debit_amount) || 0,
+        total_credit: parseFloat(data.credit_amount) || 0
+      };
+      
+      console.log('Sending update API data:', apiData);
+      const response = await apiClient.put(`/api/finance/journal-entries/${id}`, apiData);
+      console.log('Update API response:', response);
+      console.log('Update API response data:', response.data);
+      
+      // Find the account name if account_id is being updated
+      let account_name = data.account_name;
+      if (data.account_id && !account_name) {
+        const account = chartOfAccounts?.find(acc => acc.id === data.account_id);
+        account_name = account?.name || 'Unknown Account';
+      }
+      
+      // Update local state with the updated data
+      const now = new Date().toISOString();
+      setGeneralLedger(prev => prev.map(entry => 
+        entry.id === id 
+          ? { 
+              ...entry, 
+              entry_date: apiData.entry_date,
+              reference: apiData.reference,
+              description: apiData.description,
+              status: apiData.status,
+              debit_amount: apiData.total_debit,
+              credit_amount: apiData.total_credit,
+              account_name, 
+              updated_at: now
+            }
+          : entry
+      ));
+      return { id, ...data };
+    } catch (error) {
+      console.error('Error updating journal entry:', error);
+      throw error;
+    }
+  };
+  
+  const remove = async (id) => {
+    try {
+      console.log('Deleting GL entry via API:', id);
+      const response = await apiClient.delete(`/api/finance/journal-entries/${id}`);
+      console.log('Delete API response:', response);
+      
+      // Remove from local state
+      setGeneralLedger(prev => prev.filter(entry => entry.id !== id));
+      return true;
+    } catch (error) {
+      console.error('Error deleting journal entry:', error);
+      throw error;
+    }
+  };
+  
+  const refresh = async () => { 
+    try {
+      console.log('Loading GL entries from API');
+      const response = await apiClient.get('/api/finance/journal-entries');
+      console.log('API response for loading entries:', response);
+      console.log('Response type:', typeof response);
+      console.log('Response.data type:', typeof response.data);
+      console.log('Response.data is array:', Array.isArray(response.data));
+      console.log('Response.data length:', response.data?.length);
+      
+      // Check if response and data exist
+      if (!response) {
+        console.warn('No response received from API');
+        setGeneralLedger([]);
+        return;
+      }
+      
+      // Handle different response structures
+      let dataArray = [];
+      if (response.data) {
+        if (Array.isArray(response.data)) {
+          dataArray = response.data;
+          console.log('Using response.data as array, length:', dataArray.length);
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          dataArray = response.data.data;
+          console.log('Using response.data.data as array, length:', dataArray.length);
+        } else if (response.data.entries && Array.isArray(response.data.entries)) {
+          dataArray = response.data.entries;
+          console.log('Using response.data.entries as array, length:', dataArray.length);
+        } else {
+          console.warn('Unexpected response structure:', response.data);
+          dataArray = [];
+        }
+      } else if (Array.isArray(response)) {
+        dataArray = response;
+        console.log('Using response directly as array, length:', dataArray.length);
+      }
+      
+      console.log('Final data array:', dataArray);
+      console.log('Data array length:', dataArray.length);
+      
+      const entries = dataArray.map(entry => ({
+        id: entry.id,
+        entry_date: entry.entry_date,
+        reference: entry.reference,
+        description: entry.description,
+        status: entry.status,
+        debit_amount: entry.total_debit,
+        credit_amount: entry.total_credit,
+        account_id: null, // Backend doesn't store individual account_id per entry
+        account_name: 'Database Entry', // Placeholder since backend doesn't have this field
+        created_at: entry.created_at,
+        updated_at: entry.created_at
+      }));
+      
+      console.log('Processed entries for display:', entries);
+      setGeneralLedger(entries);
+    } catch (error) {
+      console.error('Error loading journal entries:', error);
+      setSnackbar({ open: true, message: 'Error loading entries: ' + error.message, severity: 'error' });
+      // Set empty array on error to prevent crashes
+      setGeneralLedger([]);
+    }
+  };
+
+  // Function to clear all entries (useful for testing)
+  const clearAllEntries = () => {
+    setGeneralLedger([]);
+    setSnackbar({ open: true, message: 'All entries cleared!', severity: 'info' });
+  };
+
+  // Function to export entries to JSON
+  const exportEntries = () => {
+    const dataStr = JSON.stringify(generalLedger, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `finance_entries_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  
+  // Load data from API on component mount
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  // Save to localStorage whenever generalLedger changes (as backup)
+  useEffect(() => {
+    localStorage.setItem('edonuops_finance_entries', JSON.stringify(generalLedger));
+  }, [generalLedger]);
+
+  // Debug: Log GL data
+  useEffect(() => {
+    console.log('GL Data Debug:', {
+      generalLedger,
+      glLoading,
+      glError,
+      dataLength: generalLedger?.length || 0
+    });
+  }, [generalLedger, glLoading, glError]);
 
   
   // Chart of Accounts context
@@ -230,9 +473,13 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
       if (editDialogOpen && selectedEntry) {
         await update(selectedEntry.id, submitData);
         setSnackbar({ open: true, message: 'Journal entry updated successfully!', severity: 'success' });
+        // Refresh the data after successful update
+        refresh();
       } else {
         await create(submitData);
         setSnackbar({ open: true, message: 'Journal entry created successfully!', severity: 'success' });
+        // Refresh the data after successful creation
+        refresh();
       }
       handleCloseDialog();
     } catch (error) {
@@ -551,6 +798,22 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
           >
             Add Entry
           </PermissionButton>
+          <Button
+            variant="outlined"
+            startIcon={<Download />}
+            onClick={exportEntries}
+            sx={{ ml: 1 }}
+          >
+            Export
+          </Button>
+          <Button
+            variant="outlined"
+            color="warning"
+            onClick={clearAllEntries}
+            sx={{ ml: 1 }}
+          >
+            Clear All
+          </Button>
         </Box>
       </Box>
 
@@ -615,7 +878,7 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
             <Grid item xs={12} md={4}>
               <Box textAlign="center">
                 <Typography variant="h4" color="primary.main" gutterBottom>
-                  ${trialBalance.debits.toLocaleString()}
+{formatCurrency(trialBalance.debits)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Total Debits
@@ -625,7 +888,7 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
             <Grid item xs={12} md={4}>
               <Box textAlign="center">
                 <Typography variant="h4" color="secondary.main" gutterBottom>
-                  ${trialBalance.credits.toLocaleString()}
+{formatCurrency(trialBalance.credits)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Total Credits
@@ -635,7 +898,7 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
             <Grid item xs={12} md={4}>
               <Box textAlign="center">
                 <Typography variant="h4" color={trialBalance.balance === 0 ? 'success.main' : 'error.main'} gutterBottom>
-                  ${Math.abs(trialBalance.balance).toLocaleString()}
+{formatCurrency(Math.abs(trialBalance.balance))}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   {trialBalance.balance === 0 ? 'Balanced' : 'Difference'}

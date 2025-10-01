@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { apiClient } from '../../../utils/apiClient.js';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { useTenantApi } from '../../../hooks/useTenantApi';
+import { useTenant } from '../../../contexts/TenantContext';
 
 const CoAContext = createContext();
 
@@ -147,6 +148,14 @@ export const CoAProvider = ({ children }) => {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [viewMode, setViewMode] = useState('tree'); // 'tree', 'table', 'list'
+  const [selectedAccounts, setSelectedAccounts] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [sortBy, setSortBy] = useState('code');
+  const [sortOrder, setSortOrder] = useState('asc');
+  const [editingAccount, setEditingAccount] = useState(null);
+  const [showInactive, setShowInactive] = useState(false);
   const [templateLoaded, setTemplateLoaded] = useState(false);
 
   // Load template from onboarding
@@ -188,6 +197,10 @@ export const CoAProvider = ({ children }) => {
     }
   }, [loadTemplateFromOnboarding, accounts.length, templateLoaded]);
 
+  useEffect(() => {
+    fetchAccounts();
+  }, [fetchAccounts]);
+
   const addAccount = useCallback(async (accountData) => {
     try {
       // Generate a new ID for the account
@@ -197,6 +210,8 @@ export const CoAProvider = ({ children }) => {
         ...accountData,
         balance: 0
       };
+      
+      // Update local state
       setAccounts(prev => [...prev, newAccount]);
       return newAccount;
     } catch (err) {
@@ -207,20 +222,18 @@ export const CoAProvider = ({ children }) => {
 
   const updateAccount = useCallback(async (id, accountData) => {
     try {
-      const updatedAccount = {
-        ...accounts.find(acc => acc.id === id),
-        ...accountData
-      };
-      setAccounts(prev => prev.map(acc => acc.id === id ? updatedAccount : acc));
-      return updatedAccount;
+      // Update local state
+      setAccounts(prev => prev.map(acc => acc.id === id ? { ...acc, ...accountData } : acc));
+      return { id, ...accountData };
     } catch (err) {
       setError(err.message);
       throw err;
     }
-  }, [accounts]);
+  }, []);
 
   const deleteAccount = useCallback(async (id) => {
     try {
+      // Update local state
       setAccounts(prev => prev.filter(acc => acc.id !== id));
     } catch (err) {
       setError(err.message);
@@ -253,14 +266,27 @@ export const CoAProvider = ({ children }) => {
     return rootAccounts;
   }, [accounts]);
 
-  useEffect(() => {
-    fetchAccounts();
-  }, [fetchAccounts]);
 
   const value = {
     accounts,
     loading,
     error,
+    viewMode,
+    setViewMode,
+    selectedAccounts,
+    setSelectedAccounts,
+    searchTerm,
+    setSearchTerm,
+    filterCategory,
+    setFilterCategory,
+    sortBy,
+    setSortBy,
+    sortOrder,
+    setSortOrder,
+    editingAccount,
+    setEditingAccount,
+    showInactive,
+    setShowInactive,
     fetchAccounts,
     addAccount,
     updateAccount,

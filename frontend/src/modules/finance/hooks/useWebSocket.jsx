@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useAuth } from '../../../hooks/useAuth';
+import { useAuth } from '../../../context/AuthContext';
 import apiClient from '../../../services/apiClient';
 
 export const useWebSocket = (channel, callback) => {

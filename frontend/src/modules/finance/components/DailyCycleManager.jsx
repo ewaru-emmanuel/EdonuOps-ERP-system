@@ -4,7 +4,7 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
   Chip, LinearProgress, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, FormControl, InputLabel, Select, MenuItem, IconButton,
-  Tooltip, Divider, List, ListItem, ListItemIcon, ListItemText
+  Tooltip, Divider, List, ListItem, ListItemIcon, ListItemText, InputAdornment
 } from '@mui/material';
 import {
   PlayArrow, Pause, Refresh, CheckCircle, Warning, Error, Info,
@@ -21,10 +21,22 @@ const DailyCycleManager = () => {
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [detailsDialog, setDetailsDialog] = useState({ open: false, data: null });
+  const [cashReconciliationDialog, setCashReconciliationDialog] = useState(false);
+  const [cashReconciliation, setCashReconciliation] = useState({
+    cash_on_hand: '',
+    cash_receipts: '',
+    cash_payments: '',
+    bank_deposits: '',
+    variance: 0,
+    notes: ''
+  });
 
   // Real-time data hooks
   const { data: pendingCycles, loading: pendingLoading, refresh: refreshPending } = useRealTimeData('/api/finance/daily-cycle/pending-cycles');
   const { data: latestStatus, loading: latestLoading, refresh: refreshLatest } = useRealTimeData('/api/finance/daily-cycle/latest-status');
+  const { data: paymentMethods, loading: paymentMethodsLoading } = useRealTimeData('/api/finance/payment-methods');
+  const { data: bankAccounts, loading: bankAccountsLoading } = useRealTimeData('/api/finance/bank-accounts');
+  const { data: dailyCashFlow, loading: cashFlowLoading } = useRealTimeData(`/api/finance/daily-cash-flow?date=${selectedDate}`);
 
   useEffect(() => {
     loadCycleStatus();
@@ -195,6 +207,15 @@ const DailyCycleManager = () => {
                   color="success"
                 >
                   Execute Full Cycle
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<AccountBalance />}
+                  onClick={() => setCashReconciliationDialog(true)}
+                  disabled={loading}
+                  color="primary"
+                >
+                  Cash Reconciliation
                 </Button>
                 <Button
                   variant="outlined"
@@ -466,6 +487,163 @@ const DailyCycleManager = () => {
         <DialogActions>
           <Button onClick={() => setDetailsDialog({ open: false, data: null })}>
             Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Cash Reconciliation Dialog */}
+      <Dialog
+        open={cashReconciliationDialog}
+        onClose={() => setCashReconciliationDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Daily Cash Reconciliation - {new Date(selectedDate).toLocaleDateString()}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Reconcile cash transactions by payment method for accurate daily closing
+            </Alert>
+            
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Cash on Hand (Opening)"
+                  type="number"
+                  fullWidth
+                  value={cashReconciliation.cash_on_hand}
+                  onChange={(e) => setCashReconciliation({...cashReconciliation, cash_on_hand: e.target.value})}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Cash Receipts (Today)"
+                  type="number"
+                  fullWidth
+                  value={cashReconciliation.cash_receipts}
+                  onChange={(e) => setCashReconciliation({...cashReconciliation, cash_receipts: e.target.value})}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Cash Payments (Today)"
+                  type="number"
+                  fullWidth
+                  value={cashReconciliation.cash_payments}
+                  onChange={(e) => setCashReconciliation({...cashReconciliation, cash_payments: e.target.value})}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Bank Deposits (Today)"
+                  type="number"
+                  fullWidth
+                  value={cashReconciliation.bank_deposits}
+                  onChange={(e) => setCashReconciliation({...cashReconciliation, bank_deposits: e.target.value})}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                  }}
+                />
+              </Grid>
+              
+              {/* Calculated Fields */}
+              <Grid item xs={12}>
+                <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
+                  Reconciliation Summary
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Expected Cash Balance"
+                  type="number"
+                  fullWidth
+                  value={
+                    (parseFloat(cashReconciliation.cash_on_hand || 0) + 
+                     parseFloat(cashReconciliation.cash_receipts || 0) - 
+                     parseFloat(cashReconciliation.cash_payments || 0) - 
+                     parseFloat(cashReconciliation.bank_deposits || 0)).toFixed(2)
+                  }
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                    readOnly: true
+                  }}
+                  disabled
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Variance"
+                  type="number"
+                  fullWidth
+                  value={cashReconciliation.variance}
+                  onChange={(e) => setCashReconciliation({...cashReconciliation, variance: parseFloat(e.target.value) || 0})}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                  }}
+                  color={Math.abs(cashReconciliation.variance) > 5 ? 'error' : 'success'}
+                  helperText={Math.abs(cashReconciliation.variance) > 5 ? 'Large variance - investigate' : 'Variance within tolerance'}
+                />
+              </Grid>
+              
+              {/* Payment Method Breakdown */}
+              <Grid item xs={12}>
+                <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
+                  Payment Method Breakdown
+                </Typography>
+              </Grid>
+              {paymentMethods && paymentMethods.map((method) => (
+                <Grid item xs={12} sm={6} md={4} key={method.id}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="subtitle2" gutterBottom>
+                        {method.name}
+                      </Typography>
+                      <TextField
+                        label="Amount"
+                        type="number"
+                        size="small"
+                        fullWidth
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                        }}
+                        placeholder="Daily total"
+                      />
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+              
+              <Grid item xs={12}>
+                <TextField
+                  label="Reconciliation Notes"
+                  fullWidth
+                  multiline
+                  rows={3}
+                  value={cashReconciliation.notes}
+                  onChange={(e) => setCashReconciliation({...cashReconciliation, notes: e.target.value})}
+                  placeholder="Notes about variances, adjustments, or issues..."
+                />
+              </Grid>
+            </Grid>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCashReconciliationDialog(false)}>
+            Cancel
+          </Button>
+          <Button variant="contained" color="primary">
+            Complete Reconciliation
           </Button>
         </DialogActions>
       </Dialog>

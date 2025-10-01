@@ -444,7 +444,25 @@ def create_product_variant(product_id):
 def get_stock_levels():
     """Get all stock levels"""
     try:
-        stock_levels = StockLevel.query.all()
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty array (for development)
+        if not user_id:
+            print("Warning: No user context found for stock levels, returning empty results")
+            return jsonify([]), 200
+        
+        # Filter by user - include records with no created_by for backward compatibility
+        stock_levels = StockLevel.query.filter(
+            (StockLevel.created_by == user_id) | (StockLevel.created_by.is_(None))
+        ).all()
         result = []
         for stock in stock_levels:
             stock_data = {
@@ -468,6 +486,20 @@ def get_stock_levels():
 def add_stock():
     """Add stock to a product"""
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, use a default for development
+        if not user_id:
+            user_id = 1  # Default user for development
+        
         data = request.get_json()
         
         # Validate required fields
@@ -480,10 +512,15 @@ def add_stock():
         cost = data.get('cost', 0.0)
         notes = data.get('notes', '')
         
-        # Check if product exists
-        product = InventoryProduct.query.get(product_id)
+        # Check if product exists and belongs to user
+        product = InventoryProduct.query.filter(
+            and_(
+                InventoryProduct.id == product_id,
+                (InventoryProduct.created_by == user_id) | (InventoryProduct.created_by.is_(None))
+            )
+        ).first()
         if not product:
-            return jsonify({'error': 'Product not found'}), 404
+            return jsonify({'error': 'Product not found or access denied'}), 404
         
         # Check if stock level already exists for this product and simple warehouse
         existing_stock = StockLevel.query.filter_by(
@@ -509,7 +546,8 @@ def add_stock():
                 quantity_on_hand=quantity,
                 quantity_available=quantity,
                 unit_cost=cost,
-                last_updated=datetime.utcnow()
+                last_updated=datetime.utcnow(),
+                created_by=user_id  # Associate with current user
             )
             db.session.add(stock_level)
         
@@ -523,7 +561,8 @@ def add_stock():
             reference_type='Stock Addition',
             reference_number='SA' + str(datetime.utcnow().strftime('%Y%m%d%H%M%S')),
             notes=notes,
-            transaction_date=datetime.utcnow()
+            transaction_date=datetime.utcnow(),
+            created_by=user_id  # Associate with current user
         )
         db.session.add(transaction)
         
@@ -902,19 +941,42 @@ def create_warehouse_aisle():
 def get_inventory_adjustments():
     """Get all inventory adjustments"""
     try:
-        # Mock data for now - in real implementation, this would come from database
-        adjustments = [
-            {
-                'id': 1,
-                'product_id': 1,
-                'adjustment_type': 'stock_take',
-                'quantity': 10,
-                'reason': 'Physical count adjustment',
-                'date': datetime.utcnow().isoformat(),
-                'user_id': 1
-            }
-        ]
-        return jsonify(adjustments), 200
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty array (for development)
+        if not user_id:
+            print("Warning: No user context found for adjustments, returning empty results")
+            return jsonify([]), 200
+        
+        # Filter by user - include records with no created_by for backward compatibility
+        adjustments = InventoryTransaction.query.filter(
+            and_(
+                InventoryTransaction.transaction_type == 'adjustment',
+                (InventoryTransaction.created_by == user_id) | (InventoryTransaction.created_by.is_(None))
+            )
+        ).order_by(InventoryTransaction.transaction_date.desc()).all()
+        
+        result = []
+        for adjustment in adjustments:
+            result.append({
+                'id': adjustment.id,
+                'product_id': adjustment.product_id,
+                'adjustment_type': adjustment.transaction_type,
+                'quantity': adjustment.quantity,
+                'reason': adjustment.notes or 'No reason provided',
+                'date': adjustment.transaction_date.isoformat(),
+                'user_id': adjustment.created_by
+            })
+        
+        return jsonify(result), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1033,7 +1095,29 @@ def get_inventory_kpis():
 def get_stock_levels_report():
     """Get detailed stock levels report"""
     try:
-        # Get stock levels with product details
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty report (for development)
+        if not user_id:
+            print("Warning: No user context found for stock levels report, returning empty results")
+            return jsonify({
+                'report_data': [],
+                'summary': {
+                    'total_products': 0,
+                    'total_value': 0,
+                    'low_stock_count': 0
+                }
+            }), 200
+        
+        # Get stock levels with product details - FILTER BY USER
         stock_levels = db.session.query(
             StockLevel,
             InventoryProduct.name,
@@ -1045,6 +1129,8 @@ def get_stock_levels_report():
             InventoryProduct, StockLevel.product_id == InventoryProduct.id
         ).join(
             ProductCategory, InventoryProduct.category_id == ProductCategory.id
+        ).filter(
+            (StockLevel.created_by == user_id) | (StockLevel.created_by.is_(None))
         ).all()
         
         report_data = []

@@ -178,7 +178,8 @@ export const useRealtimeData = (apiMethod, dependencies = [], wsEndpoint = null)
   useEffect(() => {
     if (!wsEndpoint) return;
 
-    const ws = new WebSocket(`ws://127.0.0.1:5000/ws/${wsEndpoint}`);
+    const wsBaseUrl = process.env.REACT_APP_WS_URL || `ws://${window.location.hostname}:${window.location.port || '5000'}`;
+    const ws = new WebSocket(`${wsBaseUrl}/ws/${wsEndpoint}`);
     
     ws.onopen = () => {
       console.log(`🔌 WebSocket connected to ${wsEndpoint}`);

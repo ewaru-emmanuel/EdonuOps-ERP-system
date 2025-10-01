@@ -31,7 +31,7 @@ import {
   Person,
   Receipt
 } from '@mui/icons-material';
-import { useAuth } from '../../../hooks/useAuth';
+import { useAuth } from '../../../context/AuthContext';
 
 const InvoiceForm = ({ open, onClose, invoice = null, onSave }) => {
   const { user } = useAuth();

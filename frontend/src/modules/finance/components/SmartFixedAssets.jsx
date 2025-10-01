@@ -8,7 +8,7 @@ import {
 } from '@mui/material';
 import {
   Add, Edit, Delete, Visibility, Download, Refresh, CheckCircle, Warning, Error, Info, AttachMoney, Schedule, BarChart, PieChart, ShowChart,
-  TrendingUp, TrendingDown, AccountBalance, Receipt, Payment, Business, Assessment, LocalTaxi, AccountBalanceWallet,
+  TrendingUp, TrendingDown, AccountBalance, Receipt, Payment, Business, Assessment, AccountBalanceWallet,
   Security, Lock, Notifications, Settings, FilterList, Search, Timeline, CurrencyExchange, Audit, Compliance,
   MoreVert, ExpandMore, ExpandLess, PlayArrow, Pause, Stop, Save, Cancel, AutoAwesome, Psychology, Lightbulb,
   CloudUpload, Description, ReceiptLong, PaymentOutlined, ScheduleSend, AutoFixHigh, SmartToy, QrCode, CameraAlt,
@@ -1165,6 +1165,9 @@ const SmartFixedAssets = ({ isMobile, isTablet }) => {
                    type="number"
                    value={formData.purchase_value}
                    onChange={(e) => handleInputChange('purchase_value', e.target.value)}
+                   InputProps={{
+                     startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                   }}
                  />
                </Grid>
               <Grid item xs={12} sm={6}>
@@ -1175,6 +1178,73 @@ const SmartFixedAssets = ({ isMobile, isTablet }) => {
                   type="number"
                   value={formData.current_value}
                   onChange={(e) => handleInputChange('current_value', e.target.value)}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                  }}
+                />
+              </Grid>
+              
+              {/* Payment Method Information for Asset Purchase */}
+              <Grid item xs={12}>
+                <Typography variant="h6" sx={{ mt: 2, mb: 1, color: 'primary.main' }}>
+                  Purchase Payment Information
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Payment Method</InputLabel>
+                  <Select
+                    value={formData.payment_method_id || ''}
+                    onChange={(e) => handleInputChange('payment_method_id', e.target.value)}
+                    label="Payment Method"
+                  >
+                    <MenuItem value="">
+                      <em>Select Payment Method</em>
+                    </MenuItem>
+                    <MenuItem value="1">Cash</MenuItem>
+                    <MenuItem value="2">Credit/Debit Card</MenuItem>
+                    <MenuItem value="3">Bank Transfer</MenuItem>
+                    <MenuItem value="4">Check</MenuItem>
+                    <MenuItem value="5">Wire Transfer</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Bank Account</InputLabel>
+                  <Select
+                    value={formData.bank_account_id || ''}
+                    onChange={(e) => handleInputChange('bank_account_id', e.target.value)}
+                    label="Bank Account"
+                  >
+                    <MenuItem value="">
+                      <em>Select Bank Account</em>
+                    </MenuItem>
+                    <MenuItem value="1">Main Checking Account</MenuItem>
+                    <MenuItem value="2">Merchant Account</MenuItem>
+                    <MenuItem value="3">Savings Account</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Purchase Reference"
+                  value={formData.purchase_reference || ''}
+                  onChange={(e) => handleInputChange('purchase_reference', e.target.value)}
+                  fullWidth
+                  margin="normal"
+                  placeholder="PO #, Invoice #, Check #"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Purchase Date"
+                  type="date"
+                  value={formData.purchase_date || ''}
+                  onChange={(e) => handleInputChange('purchase_date', e.target.value)}
+                  fullWidth
+                  margin="normal"
+                  InputLabelProps={{ shrink: true }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -2048,6 +2118,59 @@ const SmartFixedAssets = ({ isMobile, isTablet }) => {
                   <MenuItem value="high">High</MenuItem>
                   <MenuItem value="critical">Critical</MenuItem>
                 </TextField>
+              </Grid>
+              
+              {/* Payment Method Information for Maintenance */}
+              <Grid item xs={12}>
+                <Typography variant="h6" sx={{ mt: 2, mb: 1, color: 'primary.main' }}>
+                  Maintenance Payment Information
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Payment Method</InputLabel>
+                  <Select
+                    value={maintenanceForm.payment_method_id || ''}
+                    onChange={(e) => handleMaintenanceInputChange('payment_method_id', e.target.value)}
+                    label="Payment Method"
+                  >
+                    <MenuItem value="">
+                      <em>Select Payment Method</em>
+                    </MenuItem>
+                    <MenuItem value="1">Cash</MenuItem>
+                    <MenuItem value="2">Credit/Debit Card</MenuItem>
+                    <MenuItem value="3">Bank Transfer</MenuItem>
+                    <MenuItem value="4">Check</MenuItem>
+                    <MenuItem value="5">Wire Transfer</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Bank Account</InputLabel>
+                  <Select
+                    value={maintenanceForm.bank_account_id || ''}
+                    onChange={(e) => handleMaintenanceInputChange('bank_account_id', e.target.value)}
+                    label="Bank Account"
+                  >
+                    <MenuItem value="">
+                      <em>Select Bank Account</em>
+                    </MenuItem>
+                    <MenuItem value="1">Main Checking Account</MenuItem>
+                    <MenuItem value="2">Merchant Account</MenuItem>
+                    <MenuItem value="3">Savings Account</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Payment Reference"
+                  value={maintenanceForm.payment_reference || ''}
+                  onChange={(e) => handleMaintenanceInputChange('payment_reference', e.target.value)}
+                  fullWidth
+                  margin="normal"
+                  placeholder="Check #, Invoice #, Work Order #"
+                />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField

@@ -14,7 +14,7 @@ import {
   CloudUpload, Description, ReceiptLong, PaymentOutlined, ScheduleSend, AutoFixHigh, SmartToy, QrCode, CameraAlt,
   Email, Send, CreditCard, AccountBalanceWallet as WalletIcon, TrendingUp as TrendingUpIcon, CalendarToday,
   Timeline as TimelineIcon, ShowChart as ShowChartIcon, TrendingUp as TrendingUpIcon2, CompareArrows, ScatterPlot,
-  Receipt as ReceiptIcon, LocalTaxi as TaxIcon, Assessment as AssessmentIcon, Gavel, Policy, Security as SecurityIcon,
+  Receipt as ReceiptIcon, Receipt as TaxIcon, Assessment as AssessmentIcon, Gavel, Policy, Security as SecurityIcon,
   HomeRepairService, LocalShipping, Upload,
   VerifiedUser, Warning as WarningIcon, Error as ErrorIcon, CheckCircle as CheckCircleIcon, Schedule as ScheduleIcon,
   CalendarToday as CalendarIcon, Notifications as NotificationsIcon, Download as DownloadIcon, Upload as UploadIcon
@@ -29,6 +29,17 @@ const SmartTaxManagement = ({ isMobile, isTablet }) => {
   const [detailViewOpen, setDetailViewOpen] = useState(false);
   const [filingDialogOpen, setFilingDialogOpen] = useState(false);
   const [complianceDialogOpen, setComplianceDialogOpen] = useState(false);
+  const [taxPaymentDialogOpen, setTaxPaymentDialogOpen] = useState(false);
+  const [taxPaymentData, setTaxPaymentData] = useState({
+    tax_record_id: null,
+    payment_date: '',
+    payment_amount: '',
+    payment_method_id: '',
+    bank_account_id: '',
+    payment_reference: '',
+    confirmation_number: '',
+    payment_notes: ''
+  });
   const [filterJurisdiction, setFilterJurisdiction] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -41,6 +52,8 @@ const SmartTaxManagement = ({ isMobile, isTablet }) => {
   const { data: taxRecords, loading: taxLoading, error: taxError } = useRealTimeData('/api/finance/tax-records');
   const { data: taxFilingHistory, loading: filingLoading, error: filingError } = useRealTimeData('/api/finance/tax-filing-history');
   const { data: complianceReports, loading: complianceLoading, error: complianceError } = useRealTimeData('/api/finance/compliance-reports');
+  const { data: paymentMethods, loading: paymentMethodsLoading } = useRealTimeData('/api/finance/payment-methods');
+  const { data: bankAccounts, loading: bankAccountsLoading } = useRealTimeData('/api/finance/bank-accounts');
 
   // Calculate metrics
   const metrics = useMemo(() => {
@@ -561,7 +574,7 @@ const SmartTaxManagement = ({ isMobile, isTablet }) => {
             <Grid item xs={12} sm={6} md={3}>
               <Card variant="outlined">
                 <CardContent sx={{ textAlign: 'center' }}>
-                  <LocalTaxi color="primary" sx={{ fontSize: 40, mb: 1 }} />
+                  <TaxIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
                   <Typography variant="subtitle2">Income Tax</Typography>
                   <Chip label="Active" color="success" size="small" />
                 </CardContent>
@@ -686,6 +699,130 @@ const SmartTaxManagement = ({ isMobile, isTablet }) => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDetailViewOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Tax Payment Dialog */}
+      <Dialog
+        open={taxPaymentDialogOpen}
+        onClose={() => setTaxPaymentDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Record Tax Payment
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Payment Date"
+                  type="date"
+                  value={taxPaymentData.payment_date}
+                  onChange={(e) => setTaxPaymentData({...taxPaymentData, payment_date: e.target.value})}
+                  fullWidth
+                  margin="normal"
+                  InputLabelProps={{ shrink: true }}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Payment Amount"
+                  type="number"
+                  value={taxPaymentData.payment_amount}
+                  onChange={(e) => setTaxPaymentData({...taxPaymentData, payment_amount: e.target.value})}
+                  fullWidth
+                  margin="normal"
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                  }}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Payment Method</InputLabel>
+                  <Select
+                    value={taxPaymentData.payment_method_id || ''}
+                    onChange={(e) => setTaxPaymentData({...taxPaymentData, payment_method_id: e.target.value})}
+                    label="Payment Method"
+                    disabled={paymentMethodsLoading}
+                  >
+                    <MenuItem value="">
+                      <em>Select Payment Method</em>
+                    </MenuItem>
+                    {paymentMethods && paymentMethods.map((method) => (
+                      <MenuItem key={method.id} value={method.id}>
+                        {method.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Bank Account</InputLabel>
+                  <Select
+                    value={taxPaymentData.bank_account_id || ''}
+                    onChange={(e) => setTaxPaymentData({...taxPaymentData, bank_account_id: e.target.value})}
+                    label="Bank Account"
+                    disabled={bankAccountsLoading}
+                  >
+                    <MenuItem value="">
+                      <em>Select Bank Account</em>
+                    </MenuItem>
+                    {bankAccounts && bankAccounts.map((account) => (
+                      <MenuItem key={account.id} value={account.id}>
+                        {account.account_name} ({account.account_type})
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Payment Reference"
+                  value={taxPaymentData.payment_reference}
+                  onChange={(e) => setTaxPaymentData({...taxPaymentData, payment_reference: e.target.value})}
+                  fullWidth
+                  margin="normal"
+                  placeholder="Check #, Wire confirmation"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Government Confirmation #"
+                  value={taxPaymentData.confirmation_number}
+                  onChange={(e) => setTaxPaymentData({...taxPaymentData, confirmation_number: e.target.value})}
+                  fullWidth
+                  margin="normal"
+                  placeholder="Government payment confirmation"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  label="Payment Notes"
+                  value={taxPaymentData.payment_notes}
+                  onChange={(e) => setTaxPaymentData({...taxPaymentData, payment_notes: e.target.value})}
+                  fullWidth
+                  margin="normal"
+                  multiline
+                  rows={3}
+                  placeholder="Additional payment details..."
+                />
+              </Grid>
+            </Grid>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTaxPaymentDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button variant="contained" color="primary">
+            Record Payment
+          </Button>
         </DialogActions>
       </Dialog>
 

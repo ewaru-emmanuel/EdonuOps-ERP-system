@@ -1,7 +1,7 @@
 // frontend/src/components/Navbar.jsx
 
 import React from 'react';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../context/AuthContext';
 
 function Navbar() {
   const { isAuthenticated, logout, user } = useAuth();

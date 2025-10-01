@@ -4,7 +4,10 @@ export const useVisitorSession = () => {
   const [visitorId, setVisitorId] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const API_BASE = process.env.REACT_APP_API_BASE || process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+  // In development, use full URL to backend; in production, use relative URLs
+  const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
+  const API_BASE = process.env.REACT_APP_API_BASE || process.env.REACT_APP_API_URL || 
+                  (isDevelopment ? 'http://localhost:5000/api' : '/api');
 
   useEffect(() => {
     // Generate or retrieve unique visitor ID

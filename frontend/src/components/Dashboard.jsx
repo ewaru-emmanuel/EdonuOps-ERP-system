@@ -55,9 +55,9 @@ import {
   Tune as TuneIcon,
   AdminPanelSettings as AdminPanelSettingsIcon
 } from '@mui/icons-material';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../context/AuthContext';
 import { useUserPreferences } from '../hooks/useUserPreferences';
-import { useVisitorSession } from '../hooks/useVisitorSession';
+import { usePermissions } from '../hooks/usePermissions';
 import apiClient from '../services/apiClient';
 
 // Feedback Form Component using Formspree
@@ -131,13 +131,36 @@ const Dashboard = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isTablet = useMediaQuery(theme.breakpoints.down('md'));
   const { formatCurrency: formatGlobalCurrency } = useCurrency();
-  const { isModuleEnabled, hasPreferences, isLoading: preferencesLoading, selectedModules, updatePreferences } = useUserPreferences();
-  const { visitorId, sessionId, isSessionValid } = useVisitorSession();
+  const { 
+    isModuleEnabled, 
+    hasPreferences, 
+    isLoading: preferencesLoading, 
+    selectedModules, 
+    updatePreferences, 
+    error: preferencesError,
+    refresh: refreshPreferences
+  } = useUserPreferences();
+  const { hasModuleAccess, loading: permissionsLoading } = usePermissions();
+  
+  // Calculate actual available modules based on permissions
+  const availableModules = ['finance', 'inventory', 'procurement', 'crm', 'general'];
+  const actualEnabledModules = availableModules.filter(module => hasModuleAccess(module));
+  // Count only business modules (exclude dashboard)
+  const businessModules = selectedModules.filter(module => module !== 'dashboard');
+  const displayModuleCount = businessModules.length;
+  
+  console.log('📊 Dashboard Module Count Debug:', {
+    selectedModules,
+    businessModules,
+    displayModuleCount,
+    hasPreferences
+  });
+  // Removed useVisitorSession - now using user-based preferences
   
   // Module definitions for settings
   const allModules = [
     {
-      id: 'financials',
+      id: 'finance',
       name: 'Financials',
       icon: <FinanceIcon sx={{ fontSize: 20 }} />,
       description: 'Complete financial management suite (auto-enables Procurement)',
@@ -178,8 +201,17 @@ const Dashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
+      console.log('📊 Fetching dashboard data...');
       const response = await apiClient.get('/api/dashboard/summary');
+      console.log('📊 Dashboard API Response:', response);
       const safe = response?.data || response || {};
+      console.log('📊 Processed data:', {
+        totalRevenue: safe.totalRevenue || 0,
+        totalCustomers: safe.totalCustomers || 0,
+        totalLeads: safe.totalLeads || 0,
+        totalProducts: safe.totalProducts || 0,
+        totalEmployees: safe.totalEmployees || 0
+      });
       setDashboardData({
         totalRevenue: safe.totalRevenue || 0,
         totalCustomers: safe.totalCustomers || 0,
@@ -191,7 +223,7 @@ const Dashboard = () => {
         systemStatus: safe.systemStatus || 'operational'
       });
     } catch (error) {
-      console.error('Error fetching dashboard data:', error);
+      console.error('❌ Error fetching dashboard data:', error);
       setDashboardData({
         totalRevenue: 0,
         totalCustomers: 0,
@@ -218,34 +250,38 @@ const Dashboard = () => {
   };
 
   // Auto-enable procurement when finance is selected
-  const handleModuleToggle = (moduleId, isEnabled) => {
-    let newModules = [...selectedModules];
-    
-    if (isEnabled) {
-      // Adding a module
-      if (moduleId === 'financials' && !newModules.includes('procurement')) {
-        // Auto-enable procurement when finance is enabled
-        newModules = [...newModules, 'financials', 'procurement'];
-      } else if (moduleId === 'procurement' && !newModules.includes('financials')) {
-        // Auto-enable finance when procurement is enabled
-        newModules = [...newModules, 'procurement', 'financials'];
-      } else if (!newModules.includes(moduleId)) {
-        newModules.push(moduleId);
-      }
-    } else {
-      // Removing a module
-      if (moduleId === 'financials' && newModules.includes('procurement')) {
-        // Auto-disable procurement when finance is disabled
-        newModules = newModules.filter(id => id !== 'financials' && id !== 'procurement');
-      } else if (moduleId === 'procurement' && newModules.includes('financials')) {
-        // Auto-disable finance when procurement is disabled
-        newModules = newModules.filter(id => id !== 'procurement' && id !== 'financials');
+  const handleModuleToggle = async (moduleId, isEnabled) => {
+    try {
+      let newModules = [...selectedModules];
+      
+      if (isEnabled) {
+        // Adding a module
+        if (moduleId === 'finance' && !newModules.includes('procurement')) {
+          // Auto-enable procurement when finance is enabled
+          newModules = [...newModules, 'finance', 'procurement'];
+        } else if (moduleId === 'procurement' && !newModules.includes('finance')) {
+          // Auto-enable finance when procurement is enabled
+          newModules = [...newModules, 'procurement', 'finance'];
+        } else if (!newModules.includes(moduleId)) {
+          newModules.push(moduleId);
+        }
       } else {
-        newModules = newModules.filter(id => id !== moduleId);
+        // Removing a module
+        if (moduleId === 'finance' && newModules.includes('procurement')) {
+          // Auto-disable procurement when finance is disabled
+          newModules = newModules.filter(id => id !== 'finance' && id !== 'procurement');
+        } else if (moduleId === 'procurement' && newModules.includes('finance')) {
+          // Auto-disable finance when procurement is disabled
+          newModules = newModules.filter(id => id !== 'procurement' && id !== 'finance');
+        } else {
+          newModules = newModules.filter(id => id !== moduleId);
+        }
       }
+      
+      await updatePreferences({ selected_modules: newModules });
+    } catch (error) {
+      console.error('Error updating modules:', error);
     }
-    
-    updatePreferences({ selectedModules: newModules });
   };
 
   const handleGettingStarted = (action) => {
@@ -265,7 +301,8 @@ const Dashboard = () => {
   };
 
   const handleSessionRefresh = () => {
-    // This would call the session refresh function from useVisitorSession
+    // Refresh user preferences from backend
+    refreshPreferences();
     // For now, we'll just show an alert
     alert('Session refreshed successfully!');
   };
@@ -298,7 +335,7 @@ const Dashboard = () => {
   // Define all available modules with their details
   const quickActionModules = [
     { id: 'crm', name: 'Add Customer', icon: <PeopleIcon />, color: 'primary', path: '/crm', module: 'crm' },
-    { id: 'financials', name: 'Create Invoice', icon: <FinanceIcon />, color: 'success', path: '/finance', module: 'financials' },
+    { id: 'finance', name: 'Create Invoice', icon: <FinanceIcon />, color: 'success', path: '/finance', module: 'finance' },
     { id: 'inventory', name: 'Add Product', icon: <ProductsIcon />, color: 'warning', path: '/inventory', module: 'inventory' },
     { id: 'procurement', name: 'Create PO', icon: <StoreIcon />, color: 'warning', path: '/procurement', module: 'procurement' },
   ];
@@ -353,8 +390,8 @@ const Dashboard = () => {
               gutterBottom
             >
               {hasPreferences 
-                ? `Your personalized business overview with ${selectedModules.length} enabled modules`
-                : 'Complete business management platform'
+                ? `Business overview with ${displayModuleCount} enabled modules`
+                : `Complete business management platform with ${displayModuleCount} modules available`
               }
             </Typography>
           </Box>
@@ -366,7 +403,7 @@ const Dashboard = () => {
         
         <Alert severity="success" sx={{ mt: 2 }}>
           <Typography variant={isMobile ? "body1" : "h6"} sx={{ fontWeight: 'bold' }}>
-            ✅ System Ready - {hasPreferences ? `${selectedModules.length} modules enabled` : 'All modules operational'}
+            ✅ System Ready - {hasPreferences ? `${displayModuleCount} modules enabled` : `${displayModuleCount} modules operational`}
           </Typography>
           <Typography variant="body2">
             {hasPreferences 
@@ -394,7 +431,7 @@ const Dashboard = () => {
         {hasPreferences && (
           <Alert severity="success" sx={{ mt: 2 }}>
             <Typography variant="body2">
-              ✅ <strong>Customized:</strong> Your dashboard is configured with {selectedModules.length} modules. 
+              ✅ <strong>Customized:</strong> Your dashboard is configured with {displayModuleCount} modules. 
               <Button 
                 size="small" 
                 sx={{ ml: 1 }} 
@@ -411,9 +448,9 @@ const Dashboard = () => {
         <Alert severity="info" sx={{ mt: 2 }}>
           <Typography variant="body2">
             🔒 <strong>Privacy Protected:</strong> Your data is completely isolated and private
-            {!isSessionValid && (
+            {preferencesError && (
               <Chip 
-                label="Session Expired" 
+                label="Preferences Error" 
                 size="small" 
                 color="warning" 
                 sx={{ ml: 1 }}
@@ -543,7 +580,7 @@ const Dashboard = () => {
                 Your Module Status
               </Typography>
               <Chip 
-                label={`${selectedModules.length} of ${allModules.length} enabled`} 
+                label={`${displayModuleCount} of ${allModules.length} enabled`} 
                 color="primary" 
                 variant="outlined"
               />
@@ -578,12 +615,12 @@ const Dashboard = () => {
                         {isModuleEnabled(module.id) ? 'Enabled' : 'Click to enable'}
                       </Typography>
                       {/* Show auto-enable relationship */}
-                      {module.id === 'procurement' && isModuleEnabled('financials') && (
+                      {module.id === 'procurement' && isModuleEnabled('finance') && (
                         <Typography variant="caption" color="primary" display="block">
                           Auto-enabled with Finance
                         </Typography>
                       )}
-                      {module.id === 'financials' && isModuleEnabled('procurement') && (
+                      {module.id === 'finance' && isModuleEnabled('procurement') && (
                         <Typography variant="caption" color="primary" display="block">
                           Auto-enables Procurement
                         </Typography>
@@ -752,7 +789,7 @@ const Dashboard = () => {
                   </ListItemIcon>
                   <ListItemText 
                     primary="System Setup Complete"
-                    secondary={`${selectedModules.length} modules configured`}
+                    secondary={`${displayModuleCount} modules configured`}
                   />
                 </ListItem>
                 
@@ -818,7 +855,7 @@ const Dashboard = () => {
       {/* Footer */}
       <Box sx={{ mt: 4, textAlign: 'center' }}>
         <Typography variant="body2" color="text.secondary">
-          EdonuOps Enterprise Platform - {hasPreferences ? `${selectedModules.length} modules enabled` : 'All modules available'}
+          EdonuOps Enterprise Platform - {displayModuleCount} modules enabled
         </Typography>
         <Box sx={{ mt: 1 }}>
           <Chip label="SOC 2 Compliant" size="small" sx={{ mr: 1, mb: 1 }} />

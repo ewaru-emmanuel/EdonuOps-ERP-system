@@ -21,7 +21,7 @@ import SmartAdjustments from './components/SmartAdjustments';
 import SmartInventoryReports from './components/SmartInventoryReports';
 import SmartInventorySettings from './components/SmartInventorySettings';
 import SmartTransfers from './components/SmartTransfers';
-import apiClient from '../../services/apiClient';
+// Removed apiClient to prevent authentication calls
 
 const CoreInventoryModule = () => {
   const [searchParams] = useSearchParams();
@@ -31,7 +31,9 @@ const CoreInventoryModule = () => {
   useEffect(() => {
     const loadWarehouses = async () => {
       try {
-        const list = await apiClient.get('/api/inventory/warehouses');
+        // Mock get warehouses - no API call
+        console.log('Mock get warehouses');
+        const list = [];
         setWarehousesCount(Array.isArray(list) ? list.length : 0);
       } catch {
         setWarehousesCount(0);

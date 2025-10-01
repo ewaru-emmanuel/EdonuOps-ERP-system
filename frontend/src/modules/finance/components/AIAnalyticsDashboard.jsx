@@ -97,15 +97,7 @@ const AIAnalyticsDashboard = () => {
   const loadWorkflows = async () => {
     try {
       // In a real implementation, this would load from the database
-      setWorkflows([
-        {
-          id: 'wf_001',
-          type: 'approval',
-          status: 'pending',
-          created_at: new Date().toISOString(),
-          current_approver: 'John Doe'
-        }
-      ]);
+      setWorkflows([]);
     } catch (error) {
       console.error('Error loading workflows:', error);
     }

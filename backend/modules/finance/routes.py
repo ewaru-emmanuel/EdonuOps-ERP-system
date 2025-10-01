@@ -14,6 +14,28 @@ def fx_revaluation_preview():
     Returns: summary only (no postings) for audit-safe planning.
     """
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty summary (for development)
+        if not user_id:
+            print("Warning: No user context found for FX revaluation, returning empty results")
+            return jsonify({
+                'as_of': datetime.utcnow().date().isoformat(),
+                'base_currency': 'USD',
+                'ar_unrealized_gl': 0.0,
+                'ap_unrealized_gl': 0.0,
+                'cash_unrealized_gl': 0.0,
+                'by_currency': []
+            }), 200
+        
         as_of = request.args.get('as_of') or datetime.utcnow().date().isoformat()
         base = request.args.get('base') or 'USD'
         # Placeholder summary; real impl would query AR/AP/cash balances by currency
@@ -32,9 +54,28 @@ def fx_revaluation_preview():
 
 @finance_bp.route('/accounts', methods=['GET'])
 def get_accounts():
-    """Get all accounts from database"""
+    """Get accounts for the current user only"""
     try:
-        accounts = Account.query.all()
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty array (for development)
+        if not user_id:
+            print("Warning: No user context found for accounts, returning empty results")
+            return jsonify([]), 200
+        
+        # Filter accounts by user - include accounts with no user_id for backward compatibility
+        accounts = Account.query.filter(
+            (Account.user_id == int(user_id)) | (Account.user_id.is_(None))
+        ).all()
+        
         return jsonify([{
             "id": acc.id,
             "code": acc.code,
@@ -43,6 +84,7 @@ def get_accounts():
             "balance": float(acc.balance) if acc.balance else 0.0,
             "parent_id": acc.parent_id,
             "is_active": acc.is_active,
+            "user_id": acc.user_id,
             "created_at": acc.created_at.isoformat() if acc.created_at else None
         } for acc in accounts]), 200
     except Exception as e:
@@ -51,9 +93,28 @@ def get_accounts():
 
 @finance_bp.route('/journal-entries', methods=['GET'])
 def get_journal_entries():
-    """Get all journal entries from database"""
+    """Get journal entries for the current user only"""
     try:
-        entries = JournalEntry.query.all()
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty array (for development)
+        if not user_id:
+            print("Warning: No user context found, returning empty results")
+            return jsonify([]), 200
+        
+        # Filter entries by user - include entries with no user_id for backward compatibility
+        entries = JournalEntry.query.filter(
+            (JournalEntry.user_id == int(user_id)) | (JournalEntry.user_id.is_(None))
+        ).all()
+        
         return jsonify([{
             "id": entry.id,
             "entry_date": entry.doc_date.isoformat() if entry.doc_date else None,
@@ -62,7 +123,8 @@ def get_journal_entries():
             "status": entry.status,
             "total_debit": float(entry.total_debit) if entry.total_debit else 0.0,
             "total_credit": float(entry.total_credit) if entry.total_credit else 0.0,
-            "created_at": entry.created_at.isoformat() if entry.created_at else None
+            "created_at": entry.created_at.isoformat() if entry.created_at else None,
+            "user_id": entry.user_id
         } for entry in entries]), 200
     except Exception as e:
         print(f"Error fetching journal entries: {e}")
@@ -73,13 +135,29 @@ def create_account():
     """Create a new account in database"""
     try:
         data = request.get_json()
+        
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return error
+        if not user_id:
+            return jsonify({"error": "User authentication required"}), 401
+        
         new_account = Account(
             code=data.get('code'),
             name=data.get('name'),
             type=data.get('type'),
             balance=data.get('balance', 0),
             parent_id=data.get('parent_id'),
-            is_active=data.get('is_active', True)
+            is_active=data.get('is_active', True),
+            user_id=user_id  # Associate with current user
         )
         db.session.add(new_account)
         db.session.commit()
@@ -104,7 +182,26 @@ def create_account():
 def update_account(account_id):
     """Update an account in database"""
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return error
+        if not user_id:
+            return jsonify({"error": "User authentication required"}), 401
+        
+        # Get account and check ownership
         account = Account.query.get_or_404(account_id)
+        
+        # Ensure user can only update their own accounts (or accounts with no user_id for backward compatibility)
+        if account.user_id is not None and account.user_id != int(user_id):
+            return jsonify({"error": "Access denied: You can only update your own accounts"}), 403
+        
         data = request.get_json()
         
         account.code = data.get('code', account.code)
@@ -135,7 +232,26 @@ def update_account(account_id):
 def delete_account(account_id):
     """Delete an account from database"""
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return error
+        if not user_id:
+            return jsonify({"error": "User authentication required"}), 401
+        
+        # Get account and check ownership
         account = Account.query.get_or_404(account_id)
+        
+        # Ensure user can only delete their own accounts (or accounts with no user_id for backward compatibility)
+        if account.user_id is not None and account.user_id != int(user_id):
+            return jsonify({"error": "Access denied: You can only delete your own accounts"}), 403
+        
         db.session.delete(account)
         db.session.commit()
         return jsonify({"message": "Account deleted successfully"}), 200
@@ -149,26 +265,49 @@ def create_journal_entry():
     """Create a new journal entry in database"""
     try:
         data = request.get_json()
+        
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return error
+        if not user_id:
+            return jsonify({"error": "User authentication required"}), 401
+        
+        # Generate unique reference if empty or not provided
+        reference = data.get('reference', '').strip()
+        if not reference:
+            reference = f"JE-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{datetime.utcnow().microsecond}"
+        
         new_entry = JournalEntry(
-            entry_date=datetime.fromisoformat(data.get('entry_date')) if data.get('entry_date') else datetime.utcnow(),
-            reference=data.get('reference'),
+            period=datetime.fromisoformat(data.get('entry_date')).strftime('%Y-%m') if data.get('entry_date') else datetime.utcnow().strftime('%Y-%m'),
+            doc_date=datetime.fromisoformat(data.get('entry_date')) if data.get('entry_date') else datetime.utcnow(),
+            reference=reference,
             description=data.get('description'),
             status=data.get('status', 'draft'),
             total_debit=data.get('total_debit', 0),
-            total_credit=data.get('total_credit', 0)
+            total_credit=data.get('total_credit', 0),
+            user_id=user_id  # Associate with current user
         )
         db.session.add(new_entry)
         db.session.commit()
         return jsonify({
             "message": "Journal entry created successfully", 
-            "id": new_entry.id,
             "entry": {
                 "id": new_entry.id,
+                "entry_date": new_entry.doc_date.isoformat() if new_entry.doc_date else None,
                 "reference": new_entry.reference,
                 "description": new_entry.description,
                 "status": new_entry.status,
                 "total_debit": float(new_entry.total_debit) if new_entry.total_debit else 0.0,
-                "total_credit": float(new_entry.total_credit) if new_entry.total_credit else 0.0
+                "total_credit": float(new_entry.total_credit) if new_entry.total_credit else 0.0,
+                "created_at": new_entry.created_at.isoformat() if new_entry.created_at else None
             }
         }), 201
     except Exception as e:
@@ -180,11 +319,39 @@ def create_journal_entry():
 def update_journal_entry(entry_id):
     """Update a journal entry in database"""
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return error
+        if not user_id:
+            return jsonify({"error": "User authentication required"}), 401
+        
+        # Get entry and check ownership
         entry = JournalEntry.query.get_or_404(entry_id)
+        
+        # Ensure user can only update their own entries (or entries with no user_id for backward compatibility)
+        if entry.user_id is not None and entry.user_id != int(user_id):
+            return jsonify({"error": "Access denied: You can only update your own entries"}), 403
+        
         data = request.get_json()
         
-        entry.entry_date = datetime.fromisoformat(data.get('entry_date')) if data.get('entry_date') else entry.entry_date
-        entry.reference = data.get('reference', entry.reference)
+        if data.get('entry_date'):
+            entry.doc_date = datetime.fromisoformat(data.get('entry_date'))
+            entry.period = datetime.fromisoformat(data.get('entry_date')).strftime('%Y-%m')
+        
+        # Handle reference update - generate unique if empty
+        if 'reference' in data:
+            reference = data.get('reference', '').strip()
+            if not reference:
+                reference = f"JE-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{datetime.utcnow().microsecond}"
+            entry.reference = reference
+        
         entry.description = data.get('description', entry.description)
         entry.status = data.get('status', entry.status)
         entry.total_debit = data.get('total_debit', entry.total_debit)
@@ -195,11 +362,14 @@ def update_journal_entry(entry_id):
             "message": "Journal entry updated successfully",
             "entry": {
                 "id": entry.id,
+                "entry_date": entry.doc_date.isoformat() if entry.doc_date else None,
                 "reference": entry.reference,
                 "description": entry.description,
                 "status": entry.status,
                 "total_debit": float(entry.total_debit) if entry.total_debit else 0.0,
-                "total_credit": float(entry.total_credit) if entry.total_credit else 0.0
+                "total_credit": float(entry.total_credit) if entry.total_credit else 0.0,
+                "created_at": entry.created_at.isoformat() if entry.created_at else None,
+                "updated_at": entry.updated_at.isoformat() if entry.updated_at else None
             }
         }), 200
     except Exception as e:
@@ -211,7 +381,26 @@ def update_journal_entry(entry_id):
 def delete_journal_entry(entry_id):
     """Delete a journal entry from database"""
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return error
+        if not user_id:
+            return jsonify({"error": "User authentication required"}), 401
+        
+        # Get entry and check ownership
         entry = JournalEntry.query.get_or_404(entry_id)
+        
+        # Ensure user can only delete their own entries (or entries with no user_id for backward compatibility)
+        if entry.user_id is not None and entry.user_id != int(user_id):
+            return jsonify({"error": "Access denied: You can only delete your own entries"}), 403
+        
         db.session.delete(entry)
         db.session.commit()
         return jsonify({"message": "Journal entry deleted successfully"}), 200

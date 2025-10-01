@@ -1,6 +1,8 @@
-import React, { useState, createContext, useContext, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { CurrencyProvider, useCurrency } from './components/GlobalCurrencySettings';
+import { TenantProvider } from './contexts/TenantContext';
+import TenantSwitcher from './components/TenantSwitcher';
 import {
   AppBar,
   Toolbar,
@@ -21,8 +23,8 @@ import {
   Menu,
   MenuItem,
   Divider,
-  Chip,
   Badge,
+  CircularProgress,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -43,7 +45,6 @@ import {
   Logout as LogoutIcon,
   Notifications as NotificationsIcon,
   Settings as SettingsIcon,
-  CurrencyExchange as CurrencyIcon,
   ShoppingCart,
   AdminPanelSettings as AdminPanelSettingsIcon,
   // Finance module icons
@@ -52,7 +53,7 @@ import {
   Payment as PaymentIcon,
   Business as BusinessIcon,
   TrendingUp as TrendingUpIcon,
-  LocalTaxi as TaxIcon,
+  Receipt as TaxIcon,
   AccountBalanceWallet as BankIcon,
   BarChart as BarChartIcon,
   Security as SecurityIcon,
@@ -76,32 +77,28 @@ import AttachmentIcon from '@mui/icons-material/Attachment';
 import Dashboard from './components/Dashboard';
 import LandingPage from './components/LandingPage';
 import OnboardingWizard from './components/OnboardingWizard';
-import Login from './pages/Login';
-import Register from './pages/Register';
+import SimpleLogin from './components/SimpleLogin';
+import EnhancedRegister from './pages/EnhancedRegister';
 import DashboardSettings from './modules/erp/dashboard/DashboardSettings';
 import AdminSettings from './modules/erp/admin/AdminSettings';
 import NotificationsCenter from './components/NotificationsCenter';
 import FinanceModule from './modules/finance/FinanceModule';
 import CRMModule from './modules/crm/CRMModule';
-import { CRMProvider } from './modules/crm/context/CRMContext';
-import InventoryModule from './modules/inventory/InventoryModule';
 import CoreInventoryModule from './modules/inventory/CoreInventoryModule';
 import ProcurementModule from './modules/erp/procurement/ProcurementModule';
 import BreadcrumbNavigation from './components/BreadcrumbNavigation';
-
-// Import API service
-import { initializeERPApiService } from './services/erpApiService';
+import UserProfile from './pages/UserProfile';
 
 // Import centralized API client
 import apiClient from './services/apiClient';
 
 // Import permissions system
 import { PermissionsProvider, usePermissions } from './hooks/usePermissions';
-import ProtectedRoute from './components/ProtectedRoute';
+import SimpleProtectedRoute from './components/SimpleProtectedRoute';
 
 // Import user preferences hook
 import { useUserPreferences } from './hooks/useUserPreferences';
-import { useAuth, AuthProvider } from './hooks/useAuth';
+import { AuthProvider as SimpleAuthProvider, useAuth } from './context/AuthContext';
 
 
 
@@ -113,12 +110,11 @@ const AppContent = () => {
   
   // Hide navigation on public pages (landing, login, register)
   // Show navigation only on authenticated pages
-  const { isAuthenticated } = useAuth() || { isAuthenticated: false };
   const isPublicPage = location.pathname === '/' || 
                       location.pathname === '/login' || 
                       location.pathname === '/register';
   
-  const hideNavigation = isPublicPage || !isAuthenticated;
+  const hideNavigation = isPublicPage;
   
   return (
     <Box>
@@ -143,22 +139,23 @@ const AppContent = () => {
         <Routes>
           {/* Public routes - accessible without login */}
           <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<ProtectedRoute requireAuth={false}><Login /></ProtectedRoute>} />
-          <Route path="/register" element={<ProtectedRoute requireAuth={false}><Register /></ProtectedRoute>} />
+          <Route path="/login" element={<SimpleLogin />} />
+          <Route path="/register" element={<EnhancedRegister />} />
           
-          {/* Protected routes - require authentication */}
-          <Route path="/onboarding" element={<ProtectedRoute><OnboardingWizard /></ProtectedRoute>} />
-          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/dashboard/settings" element={<ProtectedRoute><DashboardSettings /></ProtectedRoute>} />
-          <Route path="/admin/settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
-          <Route path="/notifications" element={<ProtectedRoute><NotificationsCenter /></ProtectedRoute>} />
-          <Route path="/finance" element={<ProtectedRoute><FinanceModule /></ProtectedRoute>} />
-          <Route path="/crm" element={<ProtectedRoute><CRMProvider><CRMModule /></CRMProvider></ProtectedRoute>} />
-          <Route path="/procurement" element={<ProtectedRoute><ProcurementModule /></ProtectedRoute>} />
-          <Route path="/inventory" element={<ProtectedRoute><CoreInventoryModule /></ProtectedRoute>} />
+          {/* All routes - simple lock: if logged in show, if not show login */}
+          <Route path="/onboarding" element={<SimpleProtectedRoute><OnboardingWizard /></SimpleProtectedRoute>} />
+          <Route path="/dashboard" element={<SimpleProtectedRoute><Dashboard /></SimpleProtectedRoute>} />
+          <Route path="/dashboard/settings" element={<SimpleProtectedRoute><DashboardSettings /></SimpleProtectedRoute>} />
+          <Route path="/admin/settings" element={<SimpleProtectedRoute><AdminSettings /></SimpleProtectedRoute>} />
+          <Route path="/notifications" element={<SimpleProtectedRoute><NotificationsCenter /></SimpleProtectedRoute>} />
+          <Route path="/finance" element={<SimpleProtectedRoute><FinanceModule /></SimpleProtectedRoute>} />
+          <Route path="/crm" element={<SimpleProtectedRoute><CRMModule /></SimpleProtectedRoute>} />
+          <Route path="/procurement" element={<SimpleProtectedRoute><ProcurementModule /></SimpleProtectedRoute>} />
+          <Route path="/inventory" element={<SimpleProtectedRoute><CoreInventoryModule /></SimpleProtectedRoute>} />
+          <Route path="/profile" element={<SimpleProtectedRoute><UserProfile /></SimpleProtectedRoute>} />
           
-          {/* Catch-all route - redirect to login if not authenticated, otherwise landing */}
-          <Route path="*" element={<ProtectedRoute requireAuth={false}><LandingPage /></ProtectedRoute>} />
+          {/* Catch-all route - redirect to login for any unknown routes */}
+          <Route path="*" element={<SimpleProtectedRoute><LandingPage /></SimpleProtectedRoute>} />
         </Routes>
         </Box>
       {!hideNavigation && <Navigation sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />}
@@ -189,19 +186,18 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
       return new Set();
     }
   });
-  const { logout } = useAuth();
-  const { baseCurrency, setShowChangeDialog } = useCurrency();
-  const { isModuleEnabled, hasPreferences, selectedModules } = useUserPreferences();
+  const { hasPreferences, selectedModules } = useUserPreferences();
+  const { logout: authLogout } = useAuth();
   
   // Use permissions hook
-  const { hasModuleAccess, getUserCapabilities, loading: permissionsLoading } = usePermissions();
+  const { hasModuleAccess, loading: permissionsLoading } = usePermissions();
 
 
   // Define all navigation links with their module IDs and required permissions
   const allNavLinks = [
-    { name: 'Dashboard', path: '/dashboard', icon: <DashboardIcon />, moduleId: 'dashboard', requiredModule: 'general' },
-    { name: 'Finance', path: '/finance', icon: <FinanceIcon />, moduleId: 'financials', requiredModule: 'finance' },
-    { name: 'CRM', path: '/crm', icon: <CRMIcon />, moduleId: 'crm', requiredModule: 'sales' },
+    { name: 'Dashboard', path: '/dashboard', icon: <DashboardIcon />, moduleId: 'dashboard', requiredModule: 'dashboard' },
+    { name: 'Finance', path: '/finance', icon: <FinanceIcon />, moduleId: 'finance', requiredModule: 'finance' },
+    { name: 'CRM', path: '/crm', icon: <CRMIcon />, moduleId: 'crm', requiredModule: 'crm' },
     { name: 'Procurement', path: '/procurement', icon: <ShoppingCart />, moduleId: 'procurement', requiredModule: 'procurement' },
     { name: ' Inventory', path: '/inventory', icon: <InventoryIcon />, moduleId: 'inventory', requiredModule: 'inventory' }
   ];
@@ -282,23 +278,25 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
     return [];
   };
 
-  // Use hook data if available, otherwise fallback to localStorage
-  const effectiveSelectedModules = selectedModules.length > 0 ? selectedModules : getFallbackSelectedModules();
-  const effectiveHasPreferences = hasPreferences() || effectiveSelectedModules.length > 0;
+  // Use ONLY hook data from backend - no localStorage fallback
+  // This ensures sidebar matches dashboard exactly
+  const effectiveSelectedModules = selectedModules; // Only use backend data
+  const effectiveHasPreferences = hasPreferences; // Only use backend data
+  
 
   // Filter navigation links based on permissions and user's selected modules
   const navLinks = allNavLinks.filter(link => {
-    // Always show dashboard
+    // Always show dashboard (not a module, just navigation)
     if (link.moduleId === 'dashboard') return true;
     
     // Check permissions first (most important)
-    if (!permissionsLoading && !hasModuleAccess(link.requiredModule)) {
+    if (!hasModuleAccess(link.requiredModule)) {
       return false;
     }
     
-    // Then check user preferences
-    if (!effectiveHasPreferences) return true; // Show all if no preferences set
-    return effectiveSelectedModules.includes(link.moduleId);
+    // ALWAYS show modules if user has access (don't hide based on preferences loading state)
+    // The preferences are just for customization, not for hiding modules
+    return true;
   });
 
 
@@ -514,8 +512,23 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
   };
 
   const handleLogout = () => {
-    logout();
+    
+    // Use the auth hook logout function
+    authLogout();
+    
+    // Clear additional session data
+    localStorage.removeItem('currentTenant');
+    localStorage.removeItem('user_logged_in');
+    localStorage.removeItem('edonuops_visitor_id');
+    localStorage.removeItem('edonuops_session_id');
+    localStorage.removeItem('edonuops_session_expiry');
+    
+    
+    // Close menu and redirect
     handleUserMenuClose();
+    
+    // Force page reload to reset all state
+    window.location.href = '/login';
   };
 
   // Auto-close sidebar on mobile when route changes
@@ -534,8 +547,10 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
     }
   }, [isMobile, setSidebarOpen]);
 
+
   const drawer = (
     <Box sx={{ width: sidebarOpen ? 200 : 60 }}>
+      
       {/* Gmail-style header */}
       <Box sx={{ 
         p: 2, 
@@ -750,6 +765,7 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
           </Typography>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <TenantSwitcher />
             <IconButton color="inherit" onClick={openNotifications} title="Notifications">
               <Badge badgeContent={unreadCount} color="error">
                 <NotificationsIcon />
@@ -797,7 +813,10 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
           horizontal: 'right',
         }}
       >
-        <MenuItem>
+        <MenuItem onClick={() => {
+          handleUserMenuClose();
+          navigate('/profile');
+        }}>
           <ListItemIcon>
             <PersonIcon fontSize="small" />
           </ListItemIcon>
@@ -1042,13 +1061,15 @@ const App = () => {
         </Box>
       ) : (
         <CurrencyProvider>
-          <AuthProvider>
-            <PermissionsProvider>
-              <Router>
-                <AppContent mode={mode} toggleMode={toggleMode} />
-              </Router>
-            </PermissionsProvider>
-          </AuthProvider>
+          <TenantProvider>
+            <SimpleAuthProvider>
+              <PermissionsProvider>
+                <Router>
+                  <AppContent mode={mode} toggleMode={toggleMode} />
+                </Router>
+              </PermissionsProvider>
+            </SimpleAuthProvider>
+          </TenantProvider>
         </CurrencyProvider>
       )}
     </ThemeProvider>

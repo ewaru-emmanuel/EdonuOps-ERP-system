@@ -12,7 +12,25 @@ inventory_bp = Blueprint('inventory', __name__)
 def get_products():
     """Get all products from database"""
     try:
-        products = Product.query.all()
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, return empty array (for development)
+        if not user_id:
+            print("Warning: No user context found for products, returning empty results")
+            return jsonify([]), 200
+        
+        # Filter by user - include records with no created_by for backward compatibility
+        products = Product.query.filter(
+            (Product.created_by == user_id) | (Product.created_by.is_(None))
+        ).all()
         return jsonify([{
             "id": product.id,
             "name": product.name,
@@ -90,6 +108,21 @@ def create_product():
     try:
         data = request.get_json()
         
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            # Try to get from JWT token as fallback
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, use a default for development
+        if not user_id:
+            user_id = 1  # Default user for development
+            print("Warning: No user context found for product creation, using default user ID")
+        
         # Handle category mapping - frontend sends 'category' as string, we need category_id
         category_id = None
         if data.get('category'):
@@ -118,7 +151,8 @@ def create_product():
             status=data.get('status', 'active'),
             current_cost=float(data.get('price', 0.0)),  # Use price as current_cost
             min_stock=float(data.get('min_stock', 0)),
-            unit=data.get('unit', 'pcs')
+            unit=data.get('unit', 'pcs'),
+            created_by=user_id  # Associate with current user
         )
         db.session.add(new_product)
         db.session.commit()
@@ -149,7 +183,27 @@ def create_product():
 def update_product(product_id):
     """Update a product in database"""
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, use a default for development
+        if not user_id:
+            user_id = 1  # Default user for development
+            print("Warning: No user context found for product update, using default user ID")
+        
+        # Get product and check ownership
         product = Product.query.get_or_404(product_id)
+        
+        # Ensure user can only update their own products (or products with no created_by for backward compatibility)
+        if product.created_by is not None and product.created_by != user_id:
+            return jsonify({"error": "Access denied: You can only update your own products"}), 403
+        
         data = request.get_json()
         
         product.name = data.get('name', product.name)
@@ -188,7 +242,27 @@ def update_product(product_id):
 def delete_product(product_id):
     """Delete a product from database"""
     try:
+        # Get user ID from request headers or JWT token
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
+        
+        # If still no user_id, use a default for development
+        if not user_id:
+            user_id = 1  # Default user for development
+            print("Warning: No user context found for product deletion, using default user ID")
+        
+        # Get product and check ownership
         product = Product.query.get_or_404(product_id)
+        
+        # Ensure user can only delete their own products (or products with no created_by for backward compatibility)
+        if product.created_by is not None and product.created_by != user_id:
+            return jsonify({"error": "Access denied: You can only delete your own products"}), 403
+        
         db.session.delete(product)
         db.session.commit()
         return jsonify({"message": "Product deleted successfully"}), 200

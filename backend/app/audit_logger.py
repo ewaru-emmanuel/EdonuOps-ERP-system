@@ -13,18 +13,7 @@ class AuditAction(Enum):
     POST = "POST"
     RECONCILE = "RECONCILE"
 
-class AuditLog(db.Model):
-    __tablename__ = 'audit_logs'
-    id = db.Column(db.Integer, primary_key=True)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-    user_id = db.Column(db.String(50), nullable=False)
-    action = db.Column(db.String(20), nullable=False)
-    entity_type = db.Column(db.String(50), nullable=False)  # E.g., "journal_entry"
-    entity_id = db.Column(db.String(50), nullable=False)
-    old_values = db.Column(JSON)
-    new_values = db.Column(JSON)
-    ip_address = db.Column(db.String(50))
-    user_agent = db.Column(db.String(200))
+# AuditLog model moved to modules/core/audit_models.py to avoid conflicts
 
 class AuditLogger:
     @staticmethod

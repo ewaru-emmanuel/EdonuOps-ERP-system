@@ -45,6 +45,13 @@ class GeneralLedgerEntry(db.Model):
     
     # Relationships are defined in ChartOfAccounts model
     
+    # Payment method integration fields
+    payment_method_id = db.Column(db.Integer, db.ForeignKey('payment_methods.id'))
+    bank_account_id = db.Column(db.Integer, db.ForeignKey('bank_accounts.id'))
+    payment_reference = db.Column(db.String(100))
+    source_module = db.Column(db.String(50))  # e.g., 'AR', 'AP', 'Manual', 'Inventory'
+    source_transaction_id = db.Column(db.Integer)  # ID in the source module
+    
     # Audit fields
     audit_trail = db.Column(db.Text)  # JSON string for audit trail
 
@@ -152,12 +159,25 @@ class AccountsPayable(db.Model):
     approval_status = db.Column(db.String(20), default='pending')  # pending, approved, rejected
     approved_by = db.Column(db.String(100))
     approved_at = db.Column(db.DateTime)
+    
+    # Payment tracking fields
+    payment_method_id = db.Column(db.Integer, db.ForeignKey('payment_methods.id'))
+    bank_account_id = db.Column(db.Integer, db.ForeignKey('bank_accounts.id'))
+    payment_reference = db.Column(db.String(100))  # Check #, Wire confirmation, etc.
+    payment_date = db.Column(db.Date)  # When payment was made
+    processing_fee = db.Column(db.Float, default=0.0)  # Wire fees, etc.
+    actual_payment_amount = db.Column(db.Float)  # Amount actually paid (may differ from total)
+    payment_notes = db.Column(db.Text)
+    
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
     vendor = db.relationship('FinanceVendor', backref='payables')
     payments = db.relationship('APPayment', backref='invoice', lazy='dynamic')
+    # Payment relationships will be added after payment models are defined
 
 # Accounts Receivable - Enhanced
 class AccountsReceivable(db.Model):
@@ -180,12 +200,25 @@ class AccountsReceivable(db.Model):
     credit_limit = db.Column(db.Float)
     dunning_level = db.Column(db.Integer, default=0)
     last_reminder_date = db.Column(db.Date)
+    
+    # Payment tracking fields
+    payment_method_id = db.Column(db.Integer, db.ForeignKey('payment_methods.id'))
+    bank_account_id = db.Column(db.Integer, db.ForeignKey('bank_accounts.id'))
+    payment_reference = db.Column(db.String(100))  # Check #, Transaction ID, etc.
+    payment_date = db.Column(db.Date)  # When payment was received
+    processing_fee = db.Column(db.Float, default=0.0)  # Credit card fees, etc.
+    net_amount_received = db.Column(db.Float)  # Amount after processing fees
+    payment_notes = db.Column(db.Text)
+    
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
     customer = db.relationship('FinanceCustomer', backref='receivables')
     payments = db.relationship('ARPayment', backref='invoice', lazy='dynamic')
+    # Payment relationships will be added after payment models are defined
 
 # Fixed Assets - Enhanced
 class FixedAsset(db.Model):
@@ -213,6 +246,7 @@ class FixedAsset(db.Model):
     disposal_value = db.Column(db.Float)
     insurance_info = db.Column(db.Text)
     warranty_info = db.Column(db.Text)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -235,6 +269,7 @@ class Budget(db.Model):
     status = db.Column(db.String(20), default='active')  # active, inactive, archived
     approved_by = db.Column(db.String(100))
     approved_at = db.Column(db.DateTime)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -260,6 +295,7 @@ class TaxRecord(db.Model):
     filing_reference = db.Column(db.String(50))
     payment_reference = db.Column(db.String(50))
     notes = db.Column(db.Text)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -281,6 +317,7 @@ class BankReconciliation(db.Model):
     reconciled_by = db.Column(db.String(100))
     reconciled_at = db.Column(db.DateTime)
     notes = db.Column(db.Text)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -297,6 +334,7 @@ class APPayment(db.Model):
     payment_reference = db.Column(db.String(50))
     bank_account = db.Column(db.String(50))
     status = db.Column(db.String(20), default='pending')  # pending, processed, cleared, void
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -312,6 +350,7 @@ class ARPayment(db.Model):
     payment_reference = db.Column(db.String(50))
     bank_account = db.Column(db.String(50))
     status = db.Column(db.String(20), default='pending')  # pending, processed, cleared, void
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -330,6 +369,7 @@ class FinanceVendor(db.Model):
     payment_terms = db.Column(db.String(50))
     credit_limit = db.Column(db.Float)
     status = db.Column(db.String(20), default='active')
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -347,6 +387,7 @@ class FinanceCustomer(db.Model):
     payment_terms = db.Column(db.String(50))
     credit_limit = db.Column(db.Float)
     status = db.Column(db.String(20), default='active')
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

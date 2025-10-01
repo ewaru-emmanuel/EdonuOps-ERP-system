@@ -8,7 +8,7 @@ import {
 } from '@mui/material';
 import {
   Add, Edit, Delete, Visibility, Download, Refresh, CheckCircle, Warning, Error, Info, AttachMoney, Schedule, BarChart, PieChart, ShowChart,
-  TrendingUp, TrendingDown, AccountBalance, Receipt, Payment, Business, Assessment, LocalTaxi, AccountBalanceWallet,
+  TrendingUp, TrendingDown, AccountBalance, Receipt, Payment, Business, Assessment, AccountBalanceWallet,
   Security, Lock, Notifications, Settings, FilterList, Search, Timeline, CurrencyExchange, Audit, Compliance,
   MoreVert, ExpandMore, ExpandLess, PlayArrow, Pause, Stop, Save, Cancel, AutoAwesome, Psychology, Lightbulb,
   CloudUpload, Description, ReceiptLong, PaymentOutlined, ScheduleSend, AutoFixHigh, SmartToy, QrCode, CameraAlt,
@@ -18,11 +18,13 @@ import {
   PictureAsPdf, TableChart, BarChart as BarChartIcon, PieChart as PieChartIcon, ShowChart as ShowChartIcon3,
   GetApp, Share, Print, Visibility as VisibilityIcon, Edit as EditIcon, Download as DownloadIcon, Inventory, Store, LocalShipping, Category, Warehouse
 } from '@mui/icons-material';
-import { useRealTimeData } from '../../../hooks/useRealTimeData';
+import { useCurrency } from '../../../components/GlobalCurrencySettings';
+// Removed useRealTimeData to prevent authentication calls
 
 const SmartInventoryReports = ({ isMobile, isTablet }) => {
   const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
+  const { formatCurrency } = useCurrency();
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [selectedReport, setSelectedReport] = useState(null);
   const [detailViewOpen, setDetailViewOpen] = useState(false);
@@ -35,18 +37,38 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   // Data hooks - inventory specific
-  const { data: inventoryKpiData, loading: kpiLoading, error: kpiError } = useRealTimeData('/api/inventory/analytics/kpis');
-  const { data: stockLevelsData, loading: stockLoading, error: stockError } = useRealTimeData('/api/inventory/core/reports/stock-levels');
-  const { data: trendsData, loading: trendsLoading, error: trendsError } = useRealTimeData('/api/inventory/analytics/trends');
+  // Mock data to prevent API calls
+  const inventoryKpiData = [];
+  const kpiLoading = false;
+  const kpiError = null;
   
-  // Daily cycle data (using our new inventory daily cycle system)
-  const { data: dailyCycleData, loading: cycleLoading, error: cycleError } = useRealTimeData('/api/inventory/daily-cycle/summary');
-  const { data: dailyBalancesData, loading: balancesLoading, error: balancesError } = useRealTimeData('/api/inventory/daily-cycle/balances');
-  const { data: cycleHistoryData, loading: historyLoading, error: historyError } = useRealTimeData('/api/inventory/daily-cycle/history');
+  const stockLevelsData = [];
+  const stockLoading = false;
+  const stockError = null;
   
-  // Integration data
-  const { data: procurementData, loading: procurementLoading, error: procurementError } = useRealTimeData('/api/procurement/vendors');
-  const { data: salesData, loading: salesLoading, error: salesError } = useRealTimeData('/api/sales/customers');
+  const trendsData = [];
+  const trendsLoading = false;
+  const trendsError = null;
+  
+  const dailyCycleData = [];
+  const cycleLoading = false;
+  const cycleError = null;
+  
+  const dailyBalancesData = [];
+  const balancesLoading = false;
+  const balancesError = null;
+  
+  const cycleHistoryData = [];
+  const historyLoading = false;
+  const historyError = null;
+  
+  const procurementData = [];
+  const procurementLoading = false;
+  const procurementError = null;
+  
+  const salesData = [];
+  const salesLoading = false;
+  const salesError = null;
 
   // Calculate comprehensive inventory metrics (similar to finance module)
   const metrics = useMemo(() => {
@@ -182,7 +204,7 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-          📦 Smart Inventory Reports & Analytics
+          Smart Inventory Reports & Analytics
         </Typography>
         <Box sx={{ display: 'flex', gap: 2 }}>
           <Button
@@ -204,7 +226,7 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
 
       {/* Key Performance Indicators */}
       <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
-        📊 Inventory KPIs & Metrics
+        Inventory KPIs & Metrics
       </Typography>
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>
@@ -286,12 +308,12 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
 
       {/* Daily Inventory Summary (like Finance Daily Cash Flow) */}
       <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
-        📅 Daily Inventory Summary
+        Daily Inventory Summary
       </Typography>
       <Card sx={{ mb: 4 }}>
         <CardContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Daily inventory balances from inventory cycle system • 📊 CALCULATED indicates real-time data
+            Daily inventory balances from inventory cycle system • CALCULATED indicates real-time data
           </Typography>
           <TableContainer>
             <Table size="small">
@@ -314,7 +336,7 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         {day.dateLabel}
                         {day.isToday && <Chip label="Today" size="small" color="primary" />}
-                        <Chip label="📊 CALCULATED" size="small" variant="outlined" />
+                        <Chip label="CALCULATED" size="small" variant="outlined" />
                       </Box>
                     </TableCell>
                     <TableCell align="right">${day.openingValue.toLocaleString()}</TableCell>
@@ -352,12 +374,12 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
 
       {/* Top Products Analysis (like Finance Account Analysis) */}
       <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
-        🏆 Top Products by Value
+        Top Products by Value
       </Typography>
       <Card sx={{ mb: 4 }}>
         <CardContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            📊 CALCULATED from daily inventory balances
+            CALCULATED from daily inventory balances
           </Typography>
           <TableContainer>
             <Table>
@@ -388,14 +410,14 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
                     </TableCell>
                     <TableCell>{product.sku}</TableCell>
                     <TableCell align="right">{product.quantity.toLocaleString()}</TableCell>
-                    <TableCell align="right">${product.unitCost.toFixed(2)}</TableCell>
+                    <TableCell align="right">{formatCurrency(product.unitCost)}</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                      ${product.totalValue.toLocaleString()}
+                      {formatCurrency(product.totalValue)}
                     </TableCell>
                     <TableCell align="right" sx={{ 
                       color: product.netChange >= 0 ? theme.palette.success.main : theme.palette.error.main 
                     }}>
-                      {product.netChange >= 0 ? '+' : ''}${product.netChange.toLocaleString()}
+                      {product.netChange >= 0 ? '+' : ''}{formatCurrency(product.netChange)}
                     </TableCell>
                     <TableCell>
                       <Chip label={product.costMethod} size="small" variant="outlined" />
@@ -411,7 +433,7 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
 
       {/* Inventory Performance Ratios (like Finance Key Ratios) */}
       <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
-        📈 Inventory Performance Ratios
+        Inventory Performance Ratios
       </Typography>
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>

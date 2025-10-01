@@ -1,3 +1,16 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Prevent flicker during authentication check */
+.auth-loading {
+  overflow: hidden;
+}
+
+.auth-loading * {
+  visibility: hidden;
+}
+
+.auth-loaded * {
+  visibility: visible;
+}

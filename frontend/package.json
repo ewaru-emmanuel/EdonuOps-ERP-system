@@ -2,6 +2,7 @@
   "name": "edonuops-frontend",
   "version": "0.1.0",
   "private": true,
+  "proxy": "http://localhost:5000",
   "dependencies": {
     "@devexpress/dx-react-core": "^4.0.11",
     "@devexpress/dx-react-grid": "^4.0.11",
