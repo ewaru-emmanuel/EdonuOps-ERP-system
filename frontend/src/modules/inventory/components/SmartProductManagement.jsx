@@ -49,6 +49,22 @@ const SmartProductManagement = () => {
     trackingType: 'all'
   });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [addFormData, setAddFormData] = useState({
+    name: '',
+    sku: '',
+    product_id: '',
+    description: '',
+    category_id: '',
+    base_uom_id: '',
+    status: 'active',
+    min_stock_level: 0,
+    max_stock_level: 0,
+    reorder_point: 0,
+    current_cost: 0,
+    track_serial_numbers: false,
+    track_lots: false,
+    track_expiry: false
+  });
   const [editFormData, setEditFormData] = useState({
     name: '',
     sku: '',
@@ -74,23 +90,61 @@ const SmartProductManagement = () => {
   // const uomData = uoms || []; // Removed unused variable
 
   const handleAddProduct = () => {
+    // Reset form data when opening dialog
+    setAddFormData({
+      name: '',
+      sku: '',
+      product_id: '',
+      description: '',
+      category_id: '',
+      base_uom_id: '',
+      status: 'active',
+      min_stock_level: 0,
+      max_stock_level: 0,
+      reorder_point: 0,
+      current_cost: 0,
+      track_serial_numbers: false,
+      track_lots: false,
+      track_expiry: false
+    });
     setAddDialogOpen(true);
+  };
+
+  const handleCloseAddDialog = () => {
+    setAddDialogOpen(false);
+    // Reset form data when closing dialog
+    setAddFormData({
+      name: '',
+      sku: '',
+      product_id: '',
+      description: '',
+      category_id: '',
+      base_uom_id: '',
+      status: 'active',
+      min_stock_level: 0,
+      max_stock_level: 0,
+      reorder_point: 0,
+      current_cost: 0,
+      track_serial_numbers: false,
+      track_lots: false,
+      track_expiry: false
+    });
   };
 
   const createNewProduct = async () => {
     try {
-      // Get form data from the add dialog
+      // Use form state data
       const formData = {
-        name: document.querySelector('input[placeholder="Enter product name"]')?.value || '',
-        sku: useProductId ? '' : document.querySelector('input[placeholder="Enter SKU"]')?.value || '',
-        product_id: useProductId ? document.querySelector('input[placeholder="Enter Product ID"]')?.value || '' : '',
-        description: document.querySelector('textarea[placeholder="Enter product description"]')?.value || '',
-        category_id: document.querySelector('select[aria-label="Category"]')?.value || '',
-        base_uom_id: document.querySelector('select[aria-label="Base UoM"]')?.value || '',
-        status: 'active',
-        track_serial_numbers: document.querySelector('input[type="checkbox"][aria-label="Track Serial Numbers"]')?.checked || false,
-        track_lots: document.querySelector('input[type="checkbox"][aria-label="Track Lots/Batches"]')?.checked || false,
-        track_expiry: document.querySelector('input[type="checkbox"][aria-label="Track Expiry Dates"]')?.checked || false
+        name: addFormData.name,
+        sku: useProductId ? '' : addFormData.sku,
+        product_id: useProductId ? addFormData.product_id : '',
+        description: addFormData.description,
+        category_id: addFormData.category_id,
+        base_uom_id: addFormData.base_uom_id,
+        status: addFormData.status,
+        track_serial_numbers: addFormData.track_serial_numbers,
+        track_lots: addFormData.track_lots,
+        track_expiry: addFormData.track_expiry
       };
       
       if (!formData.name || (!formData.sku && !formData.product_id)) {
@@ -402,7 +456,14 @@ const SmartProductManagement = () => {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, gap: 2, flexWrap: 'wrap' }}>
         <Typography variant="h5" component="h3" sx={{ fontWeight: 'bold' }}>Product Management</Typography>
-        {/* actions */}
+        <Button
+          variant="contained"
+          startIcon={<Add />}
+          onClick={handleAddProduct}
+          sx={{ minWidth: 140 }}
+        >
+          Add Product
+        </Button>
       </Box>
 
       {/* Search and Filters */}
@@ -723,7 +784,7 @@ const SmartProductManagement = () => {
       )}
 
       {/* Add Product Dialog */}
-      <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} maxWidth="md" fullWidth>
+      <Dialog open={addDialogOpen} onClose={handleCloseAddDialog} maxWidth="md" fullWidth>
         <DialogTitle>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Add color="primary" />
@@ -755,6 +816,8 @@ const SmartProductManagement = () => {
                 fullWidth
                 label="Product Name"
                 placeholder="Enter product name"
+                value={addFormData.name}
+                onChange={(e) => setAddFormData({...addFormData, name: e.target.value})}
                 sx={{ mb: 2 }}
               />
             </Grid>
@@ -763,6 +826,11 @@ const SmartProductManagement = () => {
                 fullWidth
                 label={useProductId ? "Product ID" : "SKU"}
                 placeholder={useProductId ? "Enter Product ID" : "Enter SKU"}
+                value={useProductId ? addFormData.product_id : addFormData.sku}
+                onChange={(e) => setAddFormData({
+                  ...addFormData, 
+                  [useProductId ? 'product_id' : 'sku']: e.target.value
+                })}
                 sx={{ mb: 2 }}
               />
             </Grid>
@@ -773,13 +841,19 @@ const SmartProductManagement = () => {
                 placeholder="Enter product description"
                 multiline
                 rows={3}
+                value={addFormData.description}
+                onChange={(e) => setAddFormData({...addFormData, description: e.target.value})}
                 sx={{ mb: 2 }}
               />
             </Grid>
             <Grid item xs={12} md={6}>
               <FormControl fullWidth sx={{ mb: 2 }}>
                 <InputLabel>Category</InputLabel>
-                <Select label="Category">
+                <Select 
+                  label="Category"
+                  value={addFormData.category_id}
+                  onChange={(e) => setAddFormData({...addFormData, category_id: e.target.value})}
+                >
                   {categoryData.map(category => (
                     <MenuItem key={category.id} value={category.id}>
                       {category.name}
@@ -791,7 +865,11 @@ const SmartProductManagement = () => {
             <Grid item xs={12} md={6}>
               <FormControl fullWidth sx={{ mb: 2 }}>
                 <InputLabel>Base UoM</InputLabel>
-                <Select label="Base UoM">
+                <Select 
+                  label="Base UoM"
+                  value={addFormData.base_uom_id}
+                  onChange={(e) => setAddFormData({...addFormData, base_uom_id: e.target.value})}
+                >
                   {(uoms || []).map(uom => (
                     <MenuItem key={uom.id} value={uom.id}>
                       {uom.code} - {uom.name}
@@ -824,7 +902,7 @@ const SmartProductManagement = () => {
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAddDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleCloseAddDialog}>Cancel</Button>
           <Button variant="contained" onClick={createNewProduct}>
             Create Product
           </Button>

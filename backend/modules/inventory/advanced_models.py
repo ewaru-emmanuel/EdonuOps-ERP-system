@@ -65,6 +65,7 @@ class UnitOfMeasure(db.Model):
     description = db.Column(db.Text)
     is_base_unit = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class UOMConversion(db.Model):
@@ -75,6 +76,7 @@ class UOMConversion(db.Model):
     to_uom_id = db.Column(db.Integer, db.ForeignKey('inventory_uom.id'), nullable=False)
     conversion_factor = db.Column(db.Float, nullable=False)
     is_active = db.Column(db.Boolean, default=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     from_uom = db.relationship('UnitOfMeasure', foreign_keys=[from_uom_id])
@@ -90,6 +92,7 @@ class ProductCategory(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     abc_class = db.Column(db.String(1))  # A, B, C for ABC analysis
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     children = db.relationship('ProductCategory', backref=db.backref('parent', remote_side=[id]))
@@ -135,6 +138,7 @@ class InventoryProduct(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     status = db.Column(db.String(20), default='active')
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -153,6 +157,7 @@ class ProductVariant(db.Model):
     variant_name = db.Column(db.String(200), nullable=False)
     attributes = db.Column(JSONType)  # {"size": "L", "color": "Red"}
     is_active = db.Column(db.Boolean, default=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     product = db.relationship('InventoryProduct', backref='variants')
@@ -168,6 +173,7 @@ class SimpleWarehouse(db.Model):
     name = db.Column(db.String(100), nullable=False)  # "Main Store", "Backroom", "Online Stock"
     description = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 # ============================================================================
@@ -184,6 +190,7 @@ class BasicLocation(db.Model):
     description = db.Column(db.Text)
     location_type = db.Column(db.String(20), default='storage')  # storage, receiving, shipping
     is_active = db.Column(db.Boolean, default=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     warehouse = db.relationship('SimpleWarehouse', backref='basic_locations')
@@ -343,6 +350,7 @@ class StockLevel(db.Model):
     # Last Updated
     last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -400,6 +408,7 @@ class InventoryTransaction(db.Model):
     
     # User tracking
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships

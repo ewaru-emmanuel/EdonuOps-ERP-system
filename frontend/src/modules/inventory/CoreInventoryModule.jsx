@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Paper, Grid, Card, CardContent,
-  useTheme, useMediaQuery, Container, Button
+  useTheme, useMediaQuery, Container, Button, Tabs, Tab
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -10,7 +10,11 @@ import {
   Assessment as AssessmentIcon,
   Settings as SettingsIcon,
   Add as AddIcon,
-  TrendingUp as TrendingUpIcon
+  TrendingUp as TrendingUpIcon,
+  Category as CategoryIcon,
+  Storage as StorageIcon,
+  SwapHoriz as TransferIcon,
+  Report as ReportIcon
 } from '@mui/icons-material';
 
 // Import core inventory components
@@ -24,7 +28,8 @@ import SmartTransfers from './components/SmartTransfers';
 // Removed apiClient to prevent authentication calls
 
 const CoreInventoryModule = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const feature = searchParams.get('feature') || 'dashboard';
   const [warehousesCount, setWarehousesCount] = useState(0);
 
@@ -41,6 +46,32 @@ const CoreInventoryModule = () => {
     };
     loadWarehouses();
   }, []);
+
+  const handleTabChange = (event, newValue) => {
+    const featureMap = {
+      0: 'dashboard',
+      1: 'products',
+      2: 'stock-levels',
+      3: 'adjustments',
+      4: 'transfers',
+      5: 'reports',
+      6: 'settings'
+    };
+    setSearchParams({ feature: featureMap[newValue] });
+  };
+
+  const getTabIndex = () => {
+    const featureMap = {
+      'dashboard': 0,
+      'products': 1,
+      'stock-levels': 2,
+      'adjustments': 3,
+      'transfers': 4,
+      'reports': 5,
+      'settings': 6
+    };
+    return featureMap[feature] || 0;
+  };
 
   const renderFeature = () => {
     switch (feature) {
@@ -65,6 +96,65 @@ const CoreInventoryModule = () => {
 
   return (
     <Box sx={{ width: '100%', height: '100%', p: 2 }}>
+      {/* Navigation Tabs */}
+      <Paper sx={{ mb: 3, borderRadius: 2 }}>
+        <Tabs
+          value={getTabIndex()}
+          onChange={handleTabChange}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{
+            '& .MuiTab-root': {
+              minHeight: 64,
+              textTransform: 'none',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+            },
+            '& .Mui-selected': {
+              color: 'primary.main',
+              fontWeight: 600,
+            },
+          }}
+        >
+          <Tab
+            icon={<DashboardIcon />}
+            label="Dashboard"
+            iconPosition="start"
+          />
+          <Tab
+            icon={<CategoryIcon />}
+            label="Products"
+            iconPosition="start"
+          />
+          <Tab
+            icon={<StorageIcon />}
+            label="Stock Levels"
+            iconPosition="start"
+          />
+          <Tab
+            icon={<SettingsIcon />}
+            label="Adjustments"
+            iconPosition="start"
+          />
+          <Tab
+            icon={<TransferIcon />}
+            label="Transfers"
+            iconPosition="start"
+          />
+          <Tab
+            icon={<ReportIcon />}
+            label="Reports"
+            iconPosition="start"
+          />
+          <Tab
+            icon={<SettingsIcon />}
+            label="Settings"
+            iconPosition="start"
+          />
+        </Tabs>
+      </Paper>
+
+      {/* Feature Content */}
       {renderFeature()}
     </Box>
   );

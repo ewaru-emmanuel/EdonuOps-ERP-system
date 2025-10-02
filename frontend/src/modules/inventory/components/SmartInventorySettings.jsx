@@ -13,7 +13,8 @@ import {
   Category as CategoryIcon,
   Straighten as UOMIcon
 } from '@mui/icons-material';
-// Removed API imports to prevent authentication calls
+import { useRealTimeData } from '../../../hooks/useRealTimeData';
+import apiClient from '../../../services/apiClient';
 
 const SmartInventorySettings = () => {
   const [openCategoryDialog, setOpenCategoryDialog] = useState(false);
@@ -31,14 +32,9 @@ const SmartInventorySettings = () => {
     auto_reorder_quantity: 50
   });
   
-  // Mock data to prevent API calls
-  const categories = [];
-  const categoriesLoading = false;
-  const refreshCategories = () => { console.log('Mock refresh categories'); };
-
-  const uoms = [];
-  const uomsLoading = false;
-  const refreshUOMs = () => { console.log('Mock refresh UOMs'); };
+  // Real-time data hooks
+  const { data: categories, loading: categoriesLoading, refresh: refreshCategories } = useRealTimeData('/api/inventory/core/categories');
+  const { data: uoms, loading: uomsLoading, refresh: refreshUOMs } = useRealTimeData('/api/inventory/core/uom');
 
   const isLoading = categoriesLoading || uomsLoading || loading;
 
@@ -84,13 +80,18 @@ const SmartInventorySettings = () => {
 
     setLoading(true);
     try {
-      // Mock API call - no authentication
-      console.log('Mock save category:', categoryForm);
+      console.log('Saving category:', categoryForm);
+      
       if (selectedItem) {
+        // Update existing category
+        const response = await apiClient.put(`/api/inventory/core/categories/${selectedItem.id}`, categoryForm);
         showSnackbar('Category updated successfully');
       } else {
+        // Create new category
+        const response = await apiClient.post('/api/inventory/core/categories', categoryForm);
         showSnackbar('Category created successfully');
       }
+      
       handleCloseDialog('category');
       refreshCategories();
     } catch (error) {
@@ -109,13 +110,18 @@ const SmartInventorySettings = () => {
 
     setLoading(true);
     try {
-      // Mock API call - no authentication
-      console.log('Mock save UOM:', uomForm);
+      console.log('Saving UOM:', uomForm);
+      
       if (selectedItem) {
+        // Update existing UOM
+        const response = await apiClient.put(`/api/inventory/core/uom/${selectedItem.id}`, uomForm);
         showSnackbar('Unit of Measure updated successfully');
       } else {
+        // Create new UOM
+        const response = await apiClient.post('/api/inventory/core/uom', uomForm);
         showSnackbar('Unit of Measure created successfully');
       }
+      
       handleCloseDialog('uom');
       refreshUOMs();
     } catch (error) {
@@ -133,8 +139,8 @@ const SmartInventorySettings = () => {
 
     setLoading(true);
     try {
-      // Mock API call - no authentication
-      console.log('Mock delete category:', categoryId);
+      console.log('Deleting category:', categoryId);
+      const response = await apiClient.delete(`/api/inventory/core/categories/${categoryId}`);
       showSnackbar('Category deleted successfully');
       refreshCategories();
     } catch (error) {
@@ -152,8 +158,8 @@ const SmartInventorySettings = () => {
 
     setLoading(true);
     try {
-      // Mock API call - no authentication
-      console.log('Mock delete UOM:', uomId);
+      console.log('Deleting UOM:', uomId);
+      const response = await apiClient.delete(`/api/inventory/core/uom/${uomId}`);
       showSnackbar('Unit of Measure deleted successfully');
       refreshUOMs();
     } catch (error) {

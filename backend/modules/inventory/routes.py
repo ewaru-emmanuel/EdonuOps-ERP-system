@@ -27,9 +27,9 @@ def get_products():
             print("Warning: No user context found for products, returning empty results")
             return jsonify([]), 200
         
-        # Filter by user - include records with no created_by for backward compatibility
+        # Filter by user - include records with no user_id for backward compatibility
         products = Product.query.filter(
-            (Product.created_by == user_id) | (Product.created_by.is_(None))
+            (Product.user_id == int(user_id)) | (Product.user_id.is_(None))
         ).all()
         return jsonify([{
             "id": product.id,
@@ -53,7 +53,15 @@ def get_products():
 def get_categories():
     """Get all categories from database"""
     try:
-        categories = Category.query.all()
+        # Get user ID from request headers
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify([]), 200
+        
+        # Filter by user - include records with no user_id for backward compatibility
+        categories = Category.query.filter(
+            (Category.user_id == int(user_id)) | (Category.user_id.is_(None))
+        ).all()
         return jsonify([{
             "id": category.id,
             "name": category.name,
@@ -69,7 +77,15 @@ def get_categories():
 def get_warehouses():
     """Get all warehouses from database"""
     try:
-        warehouses = Warehouse.query.all()
+        # Get user ID from request headers
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify([]), 200
+        
+        # Filter by user - include records with no user_id for backward compatibility
+        warehouses = Warehouse.query.filter(
+            (Warehouse.user_id == int(user_id)) | (Warehouse.user_id.is_(None))
+        ).all()
         return jsonify([{
             "id": warehouse.id,
             "name": warehouse.name,
@@ -86,7 +102,15 @@ def get_warehouses():
 def get_transactions():
     """Get all inventory transactions from database"""
     try:
-        transactions = BasicInventoryTransaction.query.all()
+        # Get user ID from request headers
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify([]), 200
+        
+        # Filter by user - include records with no user_id for backward compatibility
+        transactions = BasicInventoryTransaction.query.filter(
+            (BasicInventoryTransaction.user_id == int(user_id)) | (BasicInventoryTransaction.user_id.is_(None))
+        ).all()
         return jsonify([{
             "id": transaction.id,
             "product_id": transaction.product_id,
@@ -152,7 +176,8 @@ def create_product():
             current_cost=float(data.get('price', 0.0)),  # Use price as current_cost
             min_stock=float(data.get('min_stock', 0)),
             unit=data.get('unit', 'pcs'),
-            created_by=user_id  # Associate with current user
+            created_by=user_id,  # Associate with current user
+            user_id=user_id  # Multi-tenancy support
         )
         db.session.add(new_product)
         db.session.commit()
@@ -200,8 +225,8 @@ def update_product(product_id):
         # Get product and check ownership
         product = Product.query.get_or_404(product_id)
         
-        # Ensure user can only update their own products (or products with no created_by for backward compatibility)
-        if product.created_by is not None and product.created_by != user_id:
+        # Ensure user can only update their own products (or products with no user_id for backward compatibility)
+        if product.user_id is not None and product.user_id != int(user_id):
             return jsonify({"error": "Access denied: You can only update your own products"}), 403
         
         data = request.get_json()
@@ -259,8 +284,8 @@ def delete_product(product_id):
         # Get product and check ownership
         product = Product.query.get_or_404(product_id)
         
-        # Ensure user can only delete their own products (or products with no created_by for backward compatibility)
-        if product.created_by is not None and product.created_by != user_id:
+        # Ensure user can only delete their own products (or products with no user_id for backward compatibility)
+        if product.user_id is not None and product.user_id != int(user_id):
             return jsonify({"error": "Access denied: You can only delete your own products"}), 403
         
         db.session.delete(product)
@@ -276,10 +301,17 @@ def create_category():
     """Create a new category in database"""
     try:
         data = request.get_json()
+        
+        # Get user ID from request headers
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            user_id = 1  # Default for development
+        
         new_category = Category(
             name=data.get('name'),
             description=data.get('description'),
-            is_active=data.get('is_active', True)
+            is_active=data.get('is_active', True),
+            user_id=user_id  # Multi-tenancy support
         )
         db.session.add(new_category)
         db.session.commit()
@@ -342,11 +374,18 @@ def create_warehouse():
     """Create a new warehouse in database"""
     try:
         data = request.get_json()
+        
+        # Get user ID from request headers
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            user_id = 1  # Default for development
+        
         new_warehouse = Warehouse(
             name=data.get('name'),
             location=data.get('location'),
             capacity=data.get('capacity', 0),
-            is_active=data.get('is_active', True)
+            is_active=data.get('is_active', True),
+            user_id=user_id  # Multi-tenancy support
         )
         db.session.add(new_warehouse)
         db.session.commit()

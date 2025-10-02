@@ -94,7 +94,25 @@ def save_inventory_settings():
 def get_uom():
     """Get all units of measure"""
     try:
-        uoms = UnitOfMeasure.query.filter_by(is_active=True).all()
+        # Get user ID from request headers
+        user_id = request.headers.get('X-User-ID')
+        print(f"[UOM] Received X-User-ID header: {user_id}")
+        if not user_id:
+            print("[UOM] No user ID provided, returning empty array")
+            return jsonify([]), 200
+        
+        try:
+            user_id_int = int(user_id)
+        except (ValueError, TypeError):
+            print(f"[UOM] Invalid user ID format: {user_id}")
+            return jsonify([]), 200
+        
+        # Filter by user - include records with no user_id for backward compatibility
+        uoms = UnitOfMeasure.query.filter(
+            UnitOfMeasure.is_active == True,
+            (UnitOfMeasure.user_id == user_id_int) | (UnitOfMeasure.user_id.is_(None))
+        ).all()
+        print(f"[UOM] Found {len(uoms)} UoM records for user {user_id_int}")
         return jsonify([{
             'id': uom.id,
             'code': uom.code,
@@ -109,12 +127,18 @@ def get_uom():
 def create_uom():
     """Create new unit of measure"""
     try:
+        # Get user ID from request headers
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify({'error': 'User context required'}), 400
+        
         data = request.get_json()
         uom = UnitOfMeasure(
             code=data['code'],
             name=data['name'],
             description=data.get('description'),
-            is_base_unit=data.get('is_base_unit', False)
+            is_base_unit=data.get('is_base_unit', False),
+            user_id=user_id  # Multi-tenancy support
         )
         db.session.add(uom)
         db.session.commit()
@@ -127,7 +151,20 @@ def create_uom():
 def update_uom(uom_id):
     """Update unit of measure"""
     try:
-        uom = UnitOfMeasure.query.get_or_404(uom_id)
+        # Get user ID from request headers
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify({'error': 'User context required'}), 400
+        
+        # Check if UoM exists and belongs to user
+        uom = UnitOfMeasure.query.filter(
+            UnitOfMeasure.id == uom_id,
+            (UnitOfMeasure.user_id == int(user_id)) | (UnitOfMeasure.user_id.is_(None))
+        ).first()
+        
+        if not uom:
+            return jsonify({'error': 'UoM not found or access denied'}), 404
+        
         data = request.get_json()
         
         uom.code = data.get('code', uom.code)
@@ -145,7 +182,20 @@ def update_uom(uom_id):
 def delete_uom(uom_id):
     """Delete UoM"""
     try:
-        uom = UnitOfMeasure.query.get_or_404(uom_id)
+        # Get user ID from request headers
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify({'error': 'User context required'}), 400
+        
+        # Check if UoM exists and belongs to user
+        uom = UnitOfMeasure.query.filter(
+            UnitOfMeasure.id == uom_id,
+            (UnitOfMeasure.user_id == int(user_id)) | (UnitOfMeasure.user_id.is_(None))
+        ).first()
+        
+        if not uom:
+            return jsonify({'error': 'UoM not found or access denied'}), 404
+        
         db.session.delete(uom)
         db.session.commit()
         return jsonify({'message': 'UoM deleted successfully'}), 200
@@ -172,11 +222,17 @@ def get_uom_conversions():
 def create_uom_conversion():
     """Create new UoM conversion"""
     try:
+        # Get user ID from request headers
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify({'error': 'User context required'}), 400
+        
         data = request.get_json()
         conversion = UOMConversion(
             from_uom_id=data['from_uom_id'],
             to_uom_id=data['to_uom_id'],
-            conversion_factor=data['conversion_factor']
+            conversion_factor=data['conversion_factor'],
+            user_id=user_id  # Multi-tenancy support
         )
         db.session.add(conversion)
         db.session.commit()
@@ -190,7 +246,25 @@ def create_uom_conversion():
 def get_categories():
     """Get all product categories"""
     try:
-        categories = ProductCategory.query.filter_by(is_active=True).all()
+        # Get user ID from request headers
+        user_id = request.headers.get('X-User-ID')
+        print(f"[CATEGORIES] Received X-User-ID header: {user_id}")
+        if not user_id:
+            print("[CATEGORIES] No user ID provided, returning empty array")
+            return jsonify([]), 200
+        
+        try:
+            user_id_int = int(user_id)
+        except (ValueError, TypeError):
+            print(f"[CATEGORIES] Invalid user ID format: {user_id}")
+            return jsonify([]), 200
+        
+        # Filter by user - include records with no user_id for backward compatibility
+        categories = ProductCategory.query.filter(
+            ProductCategory.is_active == True,
+            (ProductCategory.user_id == user_id_int) | (ProductCategory.user_id.is_(None))
+        ).all()
+        print(f"[CATEGORIES] Found {len(categories)} categories for user {user_id_int}")
         return jsonify([{
             'id': cat.id,
             'name': cat.name,
@@ -205,12 +279,18 @@ def get_categories():
 def create_category():
     """Create new product category"""
     try:
+        # Get user ID from request headers
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify({'error': 'User context required'}), 400
+        
         data = request.get_json()
         category = ProductCategory(
             name=data['name'],
             description=data.get('description'),
             parent_id=data.get('parent_id'),
-            abc_class=data.get('abc_class')
+            abc_class=data.get('abc_class'),
+            user_id=user_id  # Multi-tenancy support
         )
         db.session.add(category)
         db.session.commit()
@@ -224,7 +304,20 @@ def create_category():
 def update_category(category_id):
     """Update product category"""
     try:
-        category = ProductCategory.query.get_or_404(category_id)
+        # Get user ID from request headers
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify({'error': 'User context required'}), 400
+        
+        # Check if category exists and belongs to user
+        category = ProductCategory.query.filter(
+            ProductCategory.id == category_id,
+            (ProductCategory.user_id == int(user_id)) | (ProductCategory.user_id.is_(None))
+        ).first()
+        
+        if not category:
+            return jsonify({'error': 'Category not found or access denied'}), 404
+        
         data = request.get_json()
         
         category.name = data.get('name', category.name)
@@ -243,10 +336,25 @@ def update_category(category_id):
 def delete_category(category_id):
     """Delete product category"""
     try:
-        category = ProductCategory.query.get_or_404(category_id)
+        # Get user ID from request headers
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify({'error': 'User context required'}), 400
         
-        # Check if category has products
-        products = InventoryProduct.query.filter_by(category_id=category_id).all()
+        # Check if category exists and belongs to user
+        category = ProductCategory.query.filter(
+            ProductCategory.id == category_id,
+            (ProductCategory.user_id == int(user_id)) | (ProductCategory.user_id.is_(None))
+        ).first()
+        
+        if not category:
+            return jsonify({'error': 'Category not found or access denied'}), 404
+        
+        # Check if category has products (only check user's products)
+        products = InventoryProduct.query.filter(
+            InventoryProduct.category_id == category_id,
+            (InventoryProduct.user_id == int(user_id)) | (InventoryProduct.user_id.is_(None))
+        ).all()
         if products:
             return jsonify({'error': 'Cannot delete category with existing products'}), 400
         
@@ -262,7 +370,25 @@ def delete_category(category_id):
 def get_products():
     """Get all products with variants"""
     try:
-        products = InventoryProduct.query.filter_by(is_active=True).all()
+        # Get user ID from request headers
+        user_id = request.headers.get('X-User-ID')
+        print(f"[PRODUCTS] Received X-User-ID header: {user_id}")
+        if not user_id:
+            print("[PRODUCTS] No user ID provided, returning empty array")
+            return jsonify([]), 200
+        
+        try:
+            user_id_int = int(user_id)
+        except (ValueError, TypeError):
+            print(f"[PRODUCTS] Invalid user ID format: {user_id}")
+            return jsonify([]), 200
+        
+        # Filter by user - include records with no user_id for backward compatibility
+        products = InventoryProduct.query.filter(
+            InventoryProduct.is_active == True,
+            (InventoryProduct.user_id == user_id_int) | (InventoryProduct.user_id.is_(None))
+        ).all()
+        print(f"[PRODUCTS] Found {len(products)} products for user {user_id_int}")
         result = []
         for product in products:
             # Get current stock level for this product
@@ -349,18 +475,75 @@ def get_product(product_id):
 def create_product():
     """Create new product"""
     try:
+        # Get user ID from request headers
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify({'error': 'User context required'}), 400
+        
+        try:
+            user_id_int = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID format'}), 400
+        
         data = request.get_json()
+        print(f"[PRODUCTS] Received data: {data}")
+        print(f"[PRODUCTS] User ID: {user_id} (converted to {user_id_int})")
+        
+        # Validate required fields
+        if not data.get('name'):
+            return jsonify({'error': 'Product name is required'}), 400
+        
+        if not data.get('base_uom_id'):
+            return jsonify({'error': 'Base UoM is required'}), 400
+        
+        # Check if base_uom_id exists and belongs to user
+        try:
+            base_uom_id = int(data.get('base_uom_id'))
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid base UoM ID format'}), 400
+        
+        base_uom = UnitOfMeasure.query.filter(
+            UnitOfMeasure.id == base_uom_id,
+            (UnitOfMeasure.user_id == user_id_int) | (UnitOfMeasure.user_id.is_(None))
+        ).first()
+        
+        if not base_uom:
+            print(f"[PRODUCTS] Base UoM not found: {base_uom_id} for user: {user_id}")
+            return jsonify({'error': 'Base UoM not found or access denied'}), 400
+        
+        # Check if category_id exists and belongs to user (if provided)
+        category_id = None
+        if data.get('category_id'):
+            try:
+                category_id = int(data.get('category_id'))
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid category ID format'}), 400
+            
+            category = ProductCategory.query.filter(
+                ProductCategory.id == category_id,
+                (ProductCategory.user_id == user_id_int) | (ProductCategory.user_id.is_(None))
+            ).first()
+            
+            if not category:
+                print(f"[PRODUCTS] Category not found: {category_id} for user: {user_id}")
+                return jsonify({'error': 'Category not found or access denied'}), 400
+        
+        # Handle empty strings for unique fields - convert to None
+        sku = data.get('sku') if data.get('sku') else None
+        product_id = data.get('product_id') if data.get('product_id') else None
+        print(f"[PRODUCTS] Processing unique fields - SKU: '{data.get('sku')}' -> {sku}, Product ID: '{data.get('product_id')}' -> {product_id}")
+        
         product = InventoryProduct(
-            sku=data.get('sku'),
-            product_id=data.get('product_id'),
+            sku=sku,
+            product_id=product_id,
             name=data['name'],
             description=data.get('description'),
-            category_id=data.get('category_id'),
+            category_id=category_id,
             product_type=data.get('product_type', 'standard'),
             track_serial_numbers=data.get('track_serial_numbers', False),
             track_lots=data.get('track_lots', False),
             track_expiry=data.get('track_expiry', False),
-            base_uom_id=data['base_uom_id'],
+            base_uom_id=base_uom_id,  # Use the validated integer
             purchase_uom_id=data.get('purchase_uom_id'),
             sales_uom_id=data.get('sales_uom_id'),
             cost_method=data.get('cost_method', 'FIFO'),
@@ -370,14 +553,17 @@ def create_product():
             max_stock_level=data.get('max_stock_level', 0.0),
             reorder_point=data.get('reorder_point', 0.0),
             reorder_quantity=data.get('reorder_quantity', 0.0),
-            lead_time_days=data.get('lead_time_days', 0)
+            lead_time_days=data.get('lead_time_days', 0),
+            user_id=user_id_int  # Multi-tenancy support
         )
         db.session.add(product)
         db.session.commit()
+        print(f"[PRODUCTS] Product created successfully: {product.name} (ID: {product.id})")
         return jsonify({'message': 'Product created successfully', 'id': product.id}), 201
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        print(f"[PRODUCTS] Error creating product: {str(e)}")
+        return jsonify({'error': f'Failed to create product: {str(e)}'}), 500
 
 @core_inventory_bp.route('/products/<int:product_id>', methods=['PUT'])
 def update_product(product_id):
@@ -459,9 +645,9 @@ def get_stock_levels():
             print("Warning: No user context found for stock levels, returning empty results")
             return jsonify([]), 200
         
-        # Filter by user - include records with no created_by for backward compatibility
+        # Filter by user - include records with no user_id for backward compatibility
         stock_levels = StockLevel.query.filter(
-            (StockLevel.created_by == user_id) | (StockLevel.created_by.is_(None))
+            (StockLevel.user_id == int(user_id)) | (StockLevel.user_id.is_(None))
         ).all()
         result = []
         for stock in stock_levels:
@@ -501,26 +687,36 @@ def add_stock():
             user_id = 1  # Default user for development
         
         data = request.get_json()
+        print(f"[STOCK-LEVELS] Received data: {data}")
+        print(f"[STOCK-LEVELS] User ID: {user_id}")
         
         # Validate required fields
         if not data.get('product_id') or not data.get('quantity'):
+            print(f"[STOCK-LEVELS] Validation failed - product_id: {data.get('product_id')}, quantity: {data.get('quantity')}")
             return jsonify({'error': 'Product ID and quantity are required'}), 400
         
-        product_id = data['product_id']
-        quantity = float(data['quantity'])
+        try:
+            product_id = int(data['product_id'])  # Ensure it's an integer
+            quantity = float(data['quantity'])
+        except (ValueError, TypeError) as e:
+            print(f"[STOCK-LEVELS] Invalid data types - product_id: {data.get('product_id')}, quantity: {data.get('quantity')}")
+            return jsonify({'error': 'Invalid product ID or quantity format'}), 400
         simple_warehouse_id = data.get('simple_warehouse_id', 1)  # Default simple warehouse
         cost = data.get('cost', 0.0)
         notes = data.get('notes', '')
         
         # Check if product exists and belongs to user
+        print(f"[STOCK-LEVELS] Looking for product ID: {product_id}, user_id: {user_id}")
         product = InventoryProduct.query.filter(
             and_(
                 InventoryProduct.id == product_id,
-                (InventoryProduct.created_by == user_id) | (InventoryProduct.created_by.is_(None))
+                (InventoryProduct.user_id == int(user_id)) | (InventoryProduct.user_id.is_(None))
             )
         ).first()
         if not product:
+            print(f"[STOCK-LEVELS] Product not found or access denied for product_id: {product_id}, user_id: {user_id}")
             return jsonify({'error': 'Product not found or access denied'}), 404
+        print(f"[STOCK-LEVELS] Found product: {product.name} (ID: {product.id})")
         
         # Check if stock level already exists for this product and simple warehouse
         existing_stock = StockLevel.query.filter_by(
@@ -547,7 +743,8 @@ def add_stock():
                 quantity_available=quantity,
                 unit_cost=cost,
                 last_updated=datetime.utcnow(),
-                created_by=user_id  # Associate with current user
+                created_by=user_id,  # Associate with current user
+                user_id=user_id  # Multi-tenancy support
             )
             db.session.add(stock_level)
         
@@ -562,7 +759,8 @@ def add_stock():
             reference_number='SA' + str(datetime.utcnow().strftime('%Y%m%d%H%M%S')),
             notes=notes,
             transaction_date=datetime.utcnow(),
-            created_by=user_id  # Associate with current user
+            created_by=user_id,  # Associate with current user
+            user_id=user_id  # Multi-tenancy support
         )
         db.session.add(transaction)
         

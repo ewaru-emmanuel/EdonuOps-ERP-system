@@ -14,6 +14,8 @@ import {
   CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
 import { useCurrency } from '../../../components/GlobalCurrencySettings';
+import { useRealTimeData } from '../../../hooks/useRealTimeData';
+import apiClient from '../../../services/apiClient';
 
 const SmartStockLevels = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -26,13 +28,9 @@ const SmartStockLevels = () => {
   });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   
-  // Mock data to prevent API calls
-  const stockLevels = [];
-  const loading = false;
-  const error = null;
-  const refresh = () => { console.log('Mock refresh stock levels'); };
-  
-  const products = [];
+  // Real-time data hooks
+  const { data: stockLevels, loading, error, refresh } = useRealTimeData('/api/inventory/core/stock-levels');
+  const { data: products } = useRealTimeData('/api/inventory/core/products');
   const { formatCurrency } = useCurrency();
 
   // Create a map of products for easy lookup
@@ -85,21 +83,67 @@ const SmartStockLevels = () => {
     setAddDialogOpen(true);
   };
 
-  const handleSaveStock = () => {
-    // Mock save stock level
-    console.log('Mock save stock level:', newStockLevel);
-    setSnackbar({
-      open: true,
-      message: 'Stock level added successfully!',
-      severity: 'success'
-    });
-    setAddDialogOpen(false);
-    setNewStockLevel({
-      product_id: '',
-      quantity_on_hand: 0,
-      unit_cost: 0,
-      warehouse: 'Main Warehouse'
-    });
+  const handleSaveStock = async () => {
+    try {
+      console.log('Saving stock level:', newStockLevel);
+      
+      // Validate required fields
+      if (!newStockLevel.product_id) {
+        setSnackbar({
+          open: true,
+          message: 'Please select a product',
+          severity: 'error'
+        });
+        return;
+      }
+      
+      if (newStockLevel.quantity_on_hand <= 0) {
+        setSnackbar({
+          open: true,
+          message: 'Please enter a valid quantity',
+          severity: 'error'
+        });
+        return;
+      }
+      
+      // Map frontend fields to backend expected fields
+      const stockData = {
+        product_id: newStockLevel.product_id, // Already an integer from Select
+        quantity: newStockLevel.quantity_on_hand, // Map quantity_on_hand to quantity
+        cost: newStockLevel.unit_cost, // Map unit_cost to cost
+        simple_warehouse_id: 1, // Default warehouse
+        notes: `Stock added via UI`
+      };
+      
+      console.log('Mapped stock data:', stockData);
+      
+      const response = await apiClient.post('/api/inventory/core/stock-levels', stockData);
+      
+      if (response && response.message) {
+        setSnackbar({
+          open: true,
+          message: response.message || 'Stock level added successfully!',
+          severity: 'success'
+        });
+        setAddDialogOpen(false);
+        setNewStockLevel({
+          product_id: '',
+          quantity_on_hand: 0,
+          unit_cost: 0,
+          warehouse: 'Main Warehouse'
+        });
+        refresh(); // Refresh the data
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (error) {
+      console.error('Error saving stock level:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to save stock level. Please try again.',
+        severity: 'error'
+      });
+    }
   };
 
   const handleCancelAdd = () => {
@@ -309,13 +353,20 @@ const SmartStockLevels = () => {
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Product ID"
-                value={newStockLevel.product_id}
-                onChange={(e) => setNewStockLevel({...newStockLevel, product_id: e.target.value})}
-                placeholder="Enter product ID or SKU"
-              />
+              <FormControl fullWidth>
+                <InputLabel>Product</InputLabel>
+                <Select
+                  value={newStockLevel.product_id}
+                  onChange={(e) => setNewStockLevel({...newStockLevel, product_id: e.target.value})}
+                  label="Product"
+                >
+                  {products?.map((product) => (
+                    <MenuItem key={product.id} value={product.id}>
+                      {product.sku} - {product.name}
+                    </MenuItem>
+                  )) || []}
+                </Select>
+              </FormControl>
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField

@@ -10,6 +10,7 @@ class Category(db.Model):
     parent_id = db.Column(db.Integer, db.ForeignKey('product_categories.id'))
     is_active = db.Column(db.Boolean, default=True)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Self-referential relationship
@@ -33,6 +34,7 @@ class Product(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     status = db.Column(db.String(20), default='active')  # active, inactive, discontinued
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -53,6 +55,7 @@ class BasicInventoryTransaction(db.Model):
     warehouse_id = db.Column(db.Integer, db.ForeignKey('warehouses.id'), default=1)
     notes = db.Column(db.Text)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -73,6 +76,7 @@ class StockMovement(db.Model):
     to_warehouse_id = db.Column(db.Integer, db.ForeignKey('warehouses.id'))  # For transfers
     notes = db.Column(db.Text)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -89,4 +93,5 @@ class Warehouse(db.Model):
     capacity = db.Column(db.Integer)  # Added capacity field
     is_active = db.Column(db.Boolean, default=True)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
