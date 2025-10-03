@@ -57,6 +57,8 @@ import {
   AccountBalanceWallet as BankIcon,
   BarChart as BarChartIcon,
   Security as SecurityIcon,
+  Edit as EditIcon,
+  AccountBalance as BalanceIcon,
   // CRM module icons
   People as PeopleIcon,
   Timeline as TimelineIcon,
@@ -205,6 +207,10 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
   // Define Finance module features
   const financeFeatures = [
     { name: 'Dashboard', path: '/finance?feature=dashboard', icon: <AssessmentIcon />, featureId: 'dashboard' },
+    { name: 'Business Transactions', path: '/finance?feature=business-transactions', icon: <ReceiptIcon />, featureId: 'business-transactions' },
+    { name: 'Manual Journal Entry', path: '/finance?feature=manual-journal', icon: <EditIcon />, featureId: 'manual-journal' },
+    { name: 'Trial Balance', path: '/finance?feature=trial-balance', icon: <BalanceIcon />, featureId: 'trial-balance' },
+    { name: 'Advanced Reports', path: '/finance?feature=advanced-reports', icon: <BarChartIcon />, featureId: 'advanced-reports' },
     { name: 'General Ledger', path: '/finance?feature=general-ledger', icon: <FinanceIcon />, featureId: 'general-ledger' },
     { name: 'Chart of Accounts', path: '/finance?feature=chart-of-accounts', icon: <BusinessIcon />, featureId: 'chart-of-accounts' },
     { name: 'Accounts Payable', path: '/finance?feature=accounts-payable', icon: <PaymentIcon />, featureId: 'accounts-payable' },

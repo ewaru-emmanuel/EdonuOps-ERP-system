@@ -121,6 +121,7 @@ def get_journal_entries():
             "reference": entry.reference,
             "description": entry.description,
             "status": entry.status,
+            "payment_method": entry.payment_method,
             "total_debit": float(entry.total_debit) if entry.total_debit else 0.0,
             "total_credit": float(entry.total_credit) if entry.total_credit else 0.0,
             "created_at": entry.created_at.isoformat() if entry.created_at else None,
@@ -262,7 +263,7 @@ def delete_account(account_id):
 
 @finance_bp.route('/journal-entries', methods=['POST'])
 def create_journal_entry():
-    """Create a new journal entry in database"""
+    """Create a new journal entry in database with double-entry validation"""
     try:
         data = request.get_json()
         
@@ -280,6 +281,37 @@ def create_journal_entry():
         if not user_id:
             return jsonify({"error": "User authentication required"}), 401
         
+        # CRITICAL: Validate double-entry balance
+        total_debit = float(data.get('total_debit', 0))
+        total_credit = float(data.get('total_credit', 0))
+        
+        # Check if debits equal credits (fundamental double-entry rule)
+        if abs(total_debit - total_credit) > 0.01:  # Allow for small rounding differences
+            return jsonify({
+                "error": "Double-entry validation failed",
+                "details": f"Debits (${total_debit:.2f}) must equal credits (${total_credit:.2f}). Difference: ${abs(total_debit - total_credit):.2f}",
+                "total_debit": total_debit,
+                "total_credit": total_credit,
+                "difference": abs(total_debit - total_credit)
+            }), 400
+        
+        # Check that at least one amount is greater than zero
+        if total_debit == 0 and total_credit == 0:
+            return jsonify({
+                "error": "Invalid journal entry",
+                "details": "Journal entry must have at least one non-zero debit or credit amount"
+            }), 400
+        
+        # Validate payment method
+        valid_payment_methods = ['cash', 'bank', 'wire', 'credit_card', 'check', 'digital']
+        payment_method = data.get('payment_method', 'bank')
+        if payment_method not in valid_payment_methods:
+            return jsonify({
+                "error": "Invalid payment method",
+                "details": f"Payment method must be one of: {', '.join(valid_payment_methods)}",
+                "valid_methods": valid_payment_methods
+            }), 400
+        
         # Generate unique reference if empty or not provided
         reference = data.get('reference', '').strip()
         if not reference:
@@ -291,8 +323,9 @@ def create_journal_entry():
             reference=reference,
             description=data.get('description'),
             status=data.get('status', 'draft'),
-            total_debit=data.get('total_debit', 0),
-            total_credit=data.get('total_credit', 0),
+            payment_method=payment_method,
+            total_debit=total_debit,
+            total_credit=total_credit,
             user_id=user_id  # Associate with current user
         )
         db.session.add(new_entry)
@@ -305,6 +338,7 @@ def create_journal_entry():
                 "reference": new_entry.reference,
                 "description": new_entry.description,
                 "status": new_entry.status,
+                "payment_method": new_entry.payment_method,
                 "total_debit": float(new_entry.total_debit) if new_entry.total_debit else 0.0,
                 "total_credit": float(new_entry.total_credit) if new_entry.total_credit else 0.0,
                 "created_at": new_entry.created_at.isoformat() if new_entry.created_at else None
@@ -341,6 +375,39 @@ def update_journal_entry(entry_id):
         
         data = request.get_json()
         
+        # CRITICAL: Validate double-entry balance if amounts are being updated
+        if 'total_debit' in data or 'total_credit' in data:
+            total_debit = float(data.get('total_debit', entry.total_debit))
+            total_credit = float(data.get('total_credit', entry.total_credit))
+            
+            # Check if debits equal credits (fundamental double-entry rule)
+            if abs(total_debit - total_credit) > 0.01:  # Allow for small rounding differences
+                return jsonify({
+                    "error": "Double-entry validation failed",
+                    "details": f"Debits (${total_debit:.2f}) must equal credits (${total_credit:.2f}). Difference: ${abs(total_debit - total_credit):.2f}",
+                    "total_debit": total_debit,
+                    "total_credit": total_credit,
+                    "difference": abs(total_debit - total_credit)
+                }), 400
+            
+            # Check that at least one amount is greater than zero
+            if total_debit == 0 and total_credit == 0:
+                return jsonify({
+                    "error": "Invalid journal entry",
+                    "details": "Journal entry must have at least one non-zero debit or credit amount"
+                }), 400
+        
+        # Validate payment method if being updated
+        if 'payment_method' in data:
+            valid_payment_methods = ['cash', 'bank', 'wire', 'credit_card', 'check', 'digital']
+            payment_method = data.get('payment_method')
+            if payment_method not in valid_payment_methods:
+                return jsonify({
+                    "error": "Invalid payment method",
+                    "details": f"Payment method must be one of: {', '.join(valid_payment_methods)}",
+                    "valid_methods": valid_payment_methods
+                }), 400
+        
         if data.get('entry_date'):
             entry.doc_date = datetime.fromisoformat(data.get('entry_date'))
             entry.period = datetime.fromisoformat(data.get('entry_date')).strftime('%Y-%m')
@@ -354,6 +421,7 @@ def update_journal_entry(entry_id):
         
         entry.description = data.get('description', entry.description)
         entry.status = data.get('status', entry.status)
+        entry.payment_method = data.get('payment_method', entry.payment_method)
         entry.total_debit = data.get('total_debit', entry.total_debit)
         entry.total_credit = data.get('total_credit', entry.total_credit)
         
@@ -366,6 +434,7 @@ def update_journal_entry(entry_id):
                 "reference": entry.reference,
                 "description": entry.description,
                 "status": entry.status,
+                "payment_method": entry.payment_method,
                 "total_debit": float(entry.total_debit) if entry.total_debit else 0.0,
                 "total_credit": float(entry.total_credit) if entry.total_credit else 0.0,
                 "created_at": entry.created_at.isoformat() if entry.created_at else None,

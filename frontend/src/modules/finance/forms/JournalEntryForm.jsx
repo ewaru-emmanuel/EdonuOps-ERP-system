@@ -47,6 +47,7 @@ const JournalEntryForm = ({ open, onClose, entry = null, onSave }) => {
     entity: 'main',
     currency: 'USD',
     fx_rate: 1.0,
+    payment_method: 'bank', // Default to bank payment
     lines: [
       { account_id: null, account_code: '', account_name: '', description: '', debit_amount: '', credit_amount: '', dimensions: {} },
       { account_id: null, account_code: '', account_name: '', description: '', debit_amount: '', credit_amount: '', dimensions: {} }
@@ -68,6 +69,7 @@ const JournalEntryForm = ({ open, onClose, entry = null, onSave }) => {
         entity: entry.entity || 'main',
         currency: entry.currency || 'USD',
         fx_rate: entry.fx_rate || 1.0,
+        payment_method: entry.payment_method || 'bank',
         lines: entry.lines?.length > 0 ? entry.lines.map(line => ({
           ...line,
           debit_amount: line.debit_amount || '',
@@ -435,6 +437,113 @@ const JournalEntryForm = ({ open, onClose, entry = null, onSave }) => {
                   helperText={errors.description}
                   placeholder="Brief description of the transaction..."
                 />
+              </Grid>
+              
+              {/* Payment Method Selector */}
+              <Grid item xs={12}>
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                    💳 Payment Method
+                  </Typography>
+                  
+                  {/* Payment Method Options */}
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 1 }}>
+                    {/* Cash Payment */}
+                    <Chip
+                      label="💵 Cash"
+                      clickable
+                      color={formData.payment_method === 'cash' ? 'success' : 'default'}
+                      variant={formData.payment_method === 'cash' ? 'filled' : 'outlined'}
+                      onClick={() => handleInputChange('payment_method', 'cash')}
+                      sx={{ 
+                        minWidth: 80,
+                        '&:hover': { backgroundColor: 'success.light', color: 'white' }
+                      }}
+                    />
+                    
+                    {/* Bank Transfer */}
+                    <Chip
+                      label="🏦 Bank Transfer"
+                      clickable
+                      color={formData.payment_method === 'bank' ? 'primary' : 'default'}
+                      variant={formData.payment_method === 'bank' ? 'filled' : 'outlined'}
+                      onClick={() => handleInputChange('payment_method', 'bank')}
+                      sx={{ 
+                        minWidth: 100,
+                        '&:hover': { backgroundColor: 'primary.light', color: 'white' }
+                      }}
+                    />
+                    
+                    {/* Wire Transfer */}
+                    <Chip
+                      label="⚡ Wire Transfer"
+                      clickable
+                      color={formData.payment_method === 'wire' ? 'info' : 'default'}
+                      variant={formData.payment_method === 'wire' ? 'filled' : 'outlined'}
+                      onClick={() => handleInputChange('payment_method', 'wire')}
+                      sx={{ 
+                        minWidth: 100,
+                        '&:hover': { backgroundColor: 'info.light', color: 'white' }
+                      }}
+                    />
+                    
+                    {/* Credit Card */}
+                    <Chip
+                      label="💳 Credit Card"
+                      clickable
+                      color={formData.payment_method === 'credit_card' ? 'secondary' : 'default'}
+                      variant={formData.payment_method === 'credit_card' ? 'filled' : 'outlined'}
+                      onClick={() => handleInputChange('payment_method', 'credit_card')}
+                      sx={{ 
+                        minWidth: 100,
+                        '&:hover': { backgroundColor: 'secondary.light', color: 'white' }
+                      }}
+                    />
+                    
+                    {/* Check */}
+                    <Chip
+                      label="📄 Check"
+                      clickable
+                      color={formData.payment_method === 'check' ? 'warning' : 'default'}
+                      variant={formData.payment_method === 'check' ? 'filled' : 'outlined'}
+                      onClick={() => handleInputChange('payment_method', 'check')}
+                      sx={{ 
+                        minWidth: 80,
+                        '&:hover': { backgroundColor: 'warning.light', color: 'white' }
+                      }}
+                    />
+                    
+                    {/* Digital Payment */}
+                    <Chip
+                      label="📱 Digital Payment"
+                      clickable
+                      color="default"
+                      variant={formData.payment_method === 'digital' ? 'filled' : 'outlined'}
+                      onClick={() => handleInputChange('payment_method', 'digital')}
+                      sx={{ 
+                        minWidth: 120,
+                        backgroundColor: formData.payment_method === 'digital' ? '#9c27b0' : 'transparent',
+                        color: formData.payment_method === 'digital' ? 'white' : 'inherit',
+                        borderColor: formData.payment_method === 'digital' ? '#9c27b0' : 'inherit',
+                        '&:hover': { 
+                          backgroundColor: formData.payment_method === 'digital' ? '#7b1fa2' : '#f3e5f5',
+                          color: formData.payment_method === 'digital' ? 'white' : '#9c27b0'
+                        }
+                      }}
+                    />
+                  </Box>
+                  
+                  {/* Help Text */}
+                  <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                    {formData.payment_method === 'cash' && '💡 Cash payments require physical receipt documentation and cash register reconciliation'}
+                    {formData.payment_method === 'bank' && '💡 Bank transfers provide excellent audit trail and automatic reconciliation'}
+                    {formData.payment_method === 'wire' && '💡 Wire transfers are fast and secure, ideal for large amounts and international payments'}
+                    {formData.payment_method === 'credit_card' && '💡 Credit card payments include processing fees and require merchant account reconciliation'}
+                    {formData.payment_method === 'check' && '💡 Check payments require physical deposit and bank clearing time (1-3 business days)'}
+                    {formData.payment_method === 'digital' && '💡 Digital payments (PayPal, Venmo, etc.) provide instant confirmation but may have fees'}
+                    {!['cash', 'bank', 'wire', 'credit_card', 'check', 'digital'].includes(formData.payment_method) && '💡 Select a payment method to see specific guidance and requirements'}
+                  </Typography>
+                </Box>
               </Grid>
             </Grid>
           </Paper>

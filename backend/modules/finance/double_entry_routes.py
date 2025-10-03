@@ -1,248 +1,413 @@
 """
-Double Entry Accounting API Routes
-Date: September 18, 2025
-Purpose: API endpoints to demonstrate complete double entry system
+Double-Entry Accounting API Routes
+=================================
+
+This module provides proper double-entry accounting API endpoints that work with
+JournalLines instead of the old total_debit/total_credit approach.
+
+Phase 1: Foundation - Basic double-entry operations
 """
 
 from flask import Blueprint, request, jsonify
+from app import db
+from modules.finance.models import JournalEntry, JournalLine, Account
+from modules.finance.accounting_periods import period_manager
+from modules.finance.multi_currency_journal_service import multi_currency_service
 from datetime import datetime, date
-import logging
-
-from modules.finance.double_entry_service import (
-    DoubleEntryService, demo_complete_procurement_cycle, 
-    demo_complete_sales_cycle, get_system_status
-)
-
-logger = logging.getLogger(__name__)
+from sqlalchemy import func
 
 # Create blueprint
 double_entry_bp = Blueprint('double_entry', __name__, url_prefix='/api/finance/double-entry')
 
-@double_entry_bp.route('/demo/procurement-cycle', methods=['POST'])
-def demo_procurement_cycle():
-    """
-    Demo complete procurement cycle with GR/IR clearing
-    POST /api/finance/double-entry/demo/procurement-cycle
-    """
+@double_entry_bp.route('/journal-entries', methods=['GET'])
+def get_journal_entries():
+    """Get all journal entries with their lines"""
     try:
-        data = request.get_json() or {}
-        service = DoubleEntryService()
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify({"error": "User authentication required"}), 401
         
-        # Use provided data or defaults
-        procurement_data = {
-            'item_name': data.get('item_name', 'Demo Item'),
-            'quantity': data.get('quantity', 10),
-            'unit_cost': data.get('unit_cost', 50.00),
-            'vendor_name': data.get('vendor_name', 'Demo Vendor'),
-            'po_number': data.get('po_number', f'PO-DEMO-{datetime.now().strftime("%Y%m%d%H%M")}'),
-            'invoice_number': data.get('invoice_number', f'INV-DEMO-{datetime.now().strftime("%Y%m%d%H%M")}'),
-            'payment_reference': data.get('payment_reference', f'PAY-DEMO-{datetime.now().strftime("%Y%m%d%H%M")}'),
-            'goods_received': data.get('goods_received', True),
-            'invoice_received': data.get('invoice_received', True),
-            'payment_made': data.get('payment_made', True),
-            'vendor_id': data.get('vendor_id', 1),
-            'item_id': data.get('item_id', 1),
-            'po_id': data.get('po_id', 1)
-        }
+        user_id_int = int(user_id)
         
-        result = service.process_complete_procurement_cycle(procurement_data)
+        # Get journal entries for this user
+        entries = JournalEntry.query.filter(
+            (JournalEntry.user_id == user_id_int) | (JournalEntry.user_id.is_(None))
+        ).order_by(JournalEntry.doc_date.desc()).all()
         
-        return jsonify({
-            'success': True,
-            'message': 'Procurement cycle demo completed',
-            'data': result
-        })
+        result = []
+        for entry in entries:
+            # Get journal lines for this entry
+            lines = JournalLine.query.filter_by(journal_entry_id=entry.id).all()
+            
+            # Calculate totals from lines
+            total_debits = sum(line.debit_amount for line in lines)
+            total_credits = sum(line.credit_amount for line in lines)
+            
+            entry_data = {
+                "id": entry.id,
+                "date": entry.doc_date.isoformat() if entry.doc_date else None,
+                "reference": entry.reference,
+                "description": entry.description,
+                "status": entry.status,
+                "payment_method": entry.payment_method,
+                "total_debits": float(total_debits),
+                "total_credits": float(total_credits),
+                "is_balanced": abs(total_debits - total_credits) < 0.01,
+                "created_at": entry.created_at.isoformat() if entry.created_at else None,
+                "lines": []
+            }
+            
+            # Add journal lines
+            for line in lines:
+                account = Account.query.get(line.account_id)
+                line_data = {
+                    "id": line.id,
+                    "account_id": line.account_id,
+                    "account_name": account.name if account else "Unknown Account",
+                    "account_code": account.code if account else "N/A",
+                    "description": line.description,
+                    "debit_amount": float(line.debit_amount),
+                    "credit_amount": float(line.credit_amount)
+                }
+                entry_data["lines"].append(line_data)
+            
+            result.append(entry_data)
+        
+        return jsonify(result), 200
         
     except Exception as e:
-        logger.error(f"Error in procurement cycle demo: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        print(f"Error getting journal entries: {e}")
+        return jsonify({"error": "Failed to get journal entries"}), 500
 
-@double_entry_bp.route('/demo/sales-cycle', methods=['POST'])
-def demo_sales_cycle():
-    """
-    Demo complete sales cycle
-    POST /api/finance/double-entry/demo/sales-cycle
-    """
+@double_entry_bp.route('/journal-entries', methods=['POST'])
+def create_journal_entry():
+    """Create a new journal entry with proper double-entry validation"""
     try:
-        data = request.get_json() or {}
-        service = DoubleEntryService()
+        data = request.get_json()
+        user_id = request.headers.get('X-User-ID')
         
-        # Calculate amounts
-        quantity = data.get('quantity', 20)
-        unit_cost = data.get('unit_cost', 30.00)
-        unit_price = data.get('unit_price', 50.00)
-        invoice_amount = quantity * unit_price
+        if not user_id:
+            return jsonify({"error": "User authentication required"}), 401
         
-        sales_data = {
-            'customer_name': data.get('customer_name', 'Demo Customer'),
-            'item_name': data.get('item_name', 'Demo Product'),
-            'quantity': quantity,
-            'unit_cost': unit_cost,
-            'unit_price': unit_price,
-            'invoice_amount': invoice_amount,
-            'payment_amount': invoice_amount,
-            'invoice_number': data.get('invoice_number', f'INV-SALES-{datetime.now().strftime("%Y%m%d%H%M")}'),
-            'payment_reference': data.get('payment_reference', f'PAY-SALES-{datetime.now().strftime("%Y%m%d%H%M")}'),
-            'invoice_created': data.get('invoice_created', True),
-            'inventory_sold': data.get('inventory_sold', True),
-            'payment_received': data.get('payment_received', True),
-            'customer_id': data.get('customer_id', 1),
-            'item_id': data.get('item_id', 1)
-        }
+        user_id_int = int(user_id)
         
-        result = service.process_complete_sales_cycle(sales_data)
+        # Validate required fields
+        if not data.get('description'):
+            return jsonify({"error": "Description is required"}), 400
+        
+        if not data.get('lines') or len(data['lines']) < 2:
+            return jsonify({"error": "At least 2 journal lines are required"}), 400
+        
+        # Validate journal lines
+        lines_data = []
+        
+        for line_data in data['lines']:
+            if not line_data.get('account_id'):
+                return jsonify({"error": "Account ID is required for all lines"}), 400
+            
+            debit = float(line_data.get('debit_amount', 0))
+            credit = float(line_data.get('credit_amount', 0))
+            
+            if debit < 0 or credit < 0:
+                return jsonify({"error": "Debit and credit amounts must be non-negative"}), 400
+            
+            if debit > 0 and credit > 0:
+                return jsonify({"error": "A line cannot have both debit and credit amounts"}), 400
+            
+            if debit == 0 and credit == 0:
+                return jsonify({"error": "Each line must have either a debit or credit amount"}), 400
+            
+            lines_data.append({
+                'account_id': line_data['account_id'],
+                'description': line_data.get('description', ''),
+                'debit_amount': debit,
+                'credit_amount': credit,
+                'currency': line_data.get('currency'),  # Include currency if provided
+                'cost_center_id': line_data.get('cost_center_id'),  # Include cost center if provided
+                'department_id': line_data.get('department_id'),  # Include department if provided
+                'project_id': line_data.get('project_id')  # Include project if provided
+            })
+        
+        # Create a temporary journal entry for multi-currency processing
+        entry_currency = data.get('currency', 'USD')
+        temp_entry = JournalEntry(
+            currency=entry_currency,
+            doc_date=datetime.fromisoformat(data.get('date', datetime.now().isoformat())).date()
+        )
+        
+        # Process multi-currency and validate balance in functional currency
+        currency_result = multi_currency_service.process_journal_entry_currency(temp_entry, lines_data)
+        
+        if not currency_result['success']:
+            return jsonify({
+                "error": "Multi-currency processing failed",
+                "details": currency_result['error']
+            }), 400
+        
+        # Validate double-entry balance in functional currency
+        if not currency_result['is_balanced']:
+            return jsonify({
+                "error": "Double-entry validation failed",
+                "details": f"Total debits (${currency_result['total_functional_debits']:.2f}) must equal total credits (${currency_result['total_functional_credits']:.2f}) in base currency ({currency_result['base_currency']})",
+                "total_debits": currency_result['total_functional_debits'],
+                "total_credits": currency_result['total_functional_credits'],
+                "difference": abs(currency_result['total_functional_debits'] - currency_result['total_functional_credits']),
+                "base_currency": currency_result['base_currency']
+            }), 400
+        
+        # Create journal entry
+        entry_date = datetime.fromisoformat(data.get('date', datetime.now().isoformat())).date()
+        reference = data.get('reference', f"JE-{datetime.now().strftime('%Y%m%d%H%M%S')}")
+        
+        # Validate accounting period
+        is_valid, message, period = period_manager.validate_transaction_date(entry_date, user_id_int)
+        if not is_valid:
+            return jsonify({
+                "error": "Accounting period validation failed",
+                "details": message,
+                "transaction_date": entry_date.isoformat()
+            }), 400
+        
+        # Check if entry is backdated
+        is_backdated = entry_date < date.today()
+        backdate_reason = data.get('backdate_reason') if is_backdated else None
+        
+        journal_entry = JournalEntry(
+            period=entry_date.strftime('%Y-%m'),
+            doc_date=entry_date,
+            reference=reference,
+            description=data['description'],
+            status=data.get('status', 'draft'),
+            payment_method=data.get('payment_method', 'bank'),
+            currency=data.get('currency', 'USD'),  # Add currency to journal entry
+            accounting_period_id=period.id,
+            is_backdated=is_backdated,
+            backdate_reason=backdate_reason,
+            user_id=user_id_int,
+            created_by=user_id_int
+        )
+        
+        db.session.add(journal_entry)
+        db.session.flush()  # Get the ID
+        
+        # Create journal lines with multi-currency data (already processed above)
+        for line_data in currency_result['processed_lines']:
+            journal_line = JournalLine(
+                journal_entry_id=journal_entry.id,
+                account_id=line_data['account_id'],
+                description=line_data['description'],
+                debit_amount=line_data['debit_amount'],
+                credit_amount=line_data['credit_amount'],
+                currency=line_data['currency'],
+                exchange_rate=line_data['exchange_rate'],
+                functional_debit_amount=line_data['functional_debit_amount'],
+                functional_credit_amount=line_data['functional_credit_amount'],
+                cost_center_id=line_data.get('cost_center_id'),
+                department_id=line_data.get('department_id'),
+                project_id=line_data.get('project_id')
+            )
+            db.session.add(journal_line)
+        
+        db.session.commit()
         
         return jsonify({
-            'success': True,
-            'message': 'Sales cycle demo completed',
-            'data': result
-        })
+            "message": "Journal entry created successfully",
+            "entry_id": journal_entry.id,
+            "reference": journal_entry.reference,
+            "total_debits": total_debits,
+            "total_credits": total_credits,
+            "currency": journal_entry.currency,
+            "base_currency": currency_result['base_currency'],
+            "total_functional_debits": currency_result['total_functional_debits'],
+            "total_functional_credits": currency_result['total_functional_credits'],
+            "is_balanced": currency_result['is_balanced']
+        }), 201
         
     except Exception as e:
-        logger.error(f"Error in sales cycle demo: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        db.session.rollback()
+        print(f"Error creating journal entry: {e}")
+        return jsonify({"error": "Failed to create journal entry"}), 500
 
-@double_entry_bp.route('/posting-rules', methods=['GET'])
-def get_posting_rules():
-    """
-    Get all configured posting rules
-    GET /api/finance/double-entry/posting-rules
-    """
+@double_entry_bp.route('/accounts', methods=['GET'])
+def get_accounts():
+    """Get chart of accounts"""
     try:
-        service = DoubleEntryService()
-        rules = service.get_posting_rules_summary()
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify({"error": "User authentication required"}), 401
         
-        return jsonify({
-            'success': True,
-            'data': rules
-        })
+        user_id_int = int(user_id)
+        
+        accounts = Account.query.filter(
+            (Account.user_id == user_id_int) | (Account.user_id.is_(None))
+        ).order_by(Account.code).all()
+        
+        result = []
+        for account in accounts:
+            account_data = {
+                "id": account.id,
+                "code": account.code,
+                "name": account.name,
+                "type": account.type,
+                "balance": float(account.balance) if account.balance else 0.0,
+                "is_active": account.is_active
+            }
+            result.append(account_data)
+        
+        return jsonify(result), 200
         
     except Exception as e:
-        logger.error(f"Error getting posting rules: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        print(f"Error getting accounts: {e}")
+        return jsonify({"error": "Failed to get accounts"}), 500
 
 @double_entry_bp.route('/trial-balance', methods=['GET'])
 def get_trial_balance():
-    """
-    Get trial balance as of a specific date
-    GET /api/finance/double-entry/trial-balance?as_of_date=2025-09-18
-    """
+    """Get trial balance report"""
     try:
-        # Get date parameter
-        as_of_date_str = request.args.get('as_of_date')
-        as_of_date = None
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify({"error": "User authentication required"}), 401
         
-        if as_of_date_str:
-            as_of_date = datetime.strptime(as_of_date_str, '%Y-%m-%d').date()
+        user_id_int = int(user_id)
         
-        service = DoubleEntryService()
-        trial_balance = service.get_trial_balance(as_of_date)
+        # Get all accounts for this user
+        accounts = Account.query.filter(
+            (Account.user_id == user_id_int) | (Account.user_id.is_(None))
+        ).all()
         
-        return jsonify({
-            'success': True,
-            'data': trial_balance
-        })
+        trial_balance = []
+        total_debits = 0
+        total_credits = 0
         
-    except ValueError as e:
-        return jsonify({
-            'success': False,
-            'error': f'Invalid date format. Use YYYY-MM-DD: {str(e)}'
-        }), 400
-    except Exception as e:
-        logger.error(f"Error getting trial balance: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@double_entry_bp.route('/system-validation', methods=['GET'])
-def validate_system():
-    """
-    Validate system integrity
-    GET /api/finance/double-entry/system-validation
-    """
-    try:
-        service = DoubleEntryService()
-        validation = service.validate_system_integrity()
-        
-        return jsonify({
-            'success': True,
-            'data': validation
-        })
-        
-    except Exception as e:
-        logger.error(f"Error validating system: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@double_entry_bp.route('/system-status', methods=['GET'])
-def get_complete_system_status():
-    """
-    Get complete system status including rules, trial balance, and validation
-    GET /api/finance/double-entry/system-status
-    """
-    try:
-        status = get_system_status()
+        for account in accounts:
+            # Calculate account balance from journal lines
+            debit_total = db.session.query(func.sum(JournalLine.debit_amount)).join(JournalEntry).filter(
+                JournalLine.account_id == account.id,
+                (JournalEntry.user_id == user_id_int) | (JournalEntry.user_id.is_(None))
+            ).scalar() or 0
+            
+            credit_total = db.session.query(func.sum(JournalLine.credit_amount)).join(JournalEntry).filter(
+                JournalLine.account_id == account.id,
+                (JournalEntry.user_id == user_id_int) | (JournalEntry.user_id.is_(None))
+            ).scalar() or 0
+            
+            # Determine normal balance
+            if account.type in ['asset', 'expense']:
+                # Normal debit balance
+                balance = debit_total - credit_total
+                normal_side = 'debit'
+            else:
+                # Normal credit balance (liability, equity, revenue)
+                balance = credit_total - debit_total
+                normal_side = 'credit'
+            
+            if abs(balance) > 0.01:  # Only include accounts with balances
+                # For trial balance, we show the actual debit/credit amounts, not the balance
+                debit_balance = float(debit_total) if debit_total > 0 else 0.0
+                credit_balance = float(credit_total) if credit_total > 0 else 0.0
+                
+                trial_balance.append({
+                    "account_code": account.code,
+                    "account_name": account.name,
+                    "account_type": account.type,
+                    "debit_balance": debit_balance,
+                    "credit_balance": credit_balance,
+                    "normal_side": normal_side
+                })
+                
+                # Add to totals
+                total_debits += debit_total
+                total_credits += credit_total
         
         return jsonify({
-            'success': True,
-            'message': 'Complete double entry system status',
-            'data': status,
-            'timestamp': datetime.now().isoformat()
-        })
+            "trial_balance": trial_balance,
+            "total_debits": float(total_debits),
+            "total_credits": float(total_credits),
+            "is_balanced": abs(total_debits - total_credits) < 0.01,
+            "difference": float(abs(total_debits - total_credits))
+        }), 200
         
     except Exception as e:
-        logger.error(f"Error getting system status: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        print(f"Error getting trial balance: {e}")
+        return jsonify({"error": "Failed to get trial balance"}), 500
 
-@double_entry_bp.route('/quick-demo', methods=['POST'])
-def quick_demo():
-    """
-    Quick demo of both procurement and sales cycles
-    POST /api/finance/double-entry/quick-demo
-    """
+@double_entry_bp.route('/journal-entries/<int:entry_id>/currency-summary', methods=['GET'])
+def get_journal_entry_currency_summary(entry_id):
+    """Get currency summary for a journal entry"""
     try:
-        # Run both demos
-        procurement_result = demo_complete_procurement_cycle()
-        sales_result = demo_complete_sales_cycle()
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify({"error": "User authentication required"}), 401
         
-        # Get updated system status
-        system_status = get_system_status()
+        user_id_int = int(user_id)
         
-        return jsonify({
-            'success': True,
-            'message': 'Quick demo completed - both procurement and sales cycles',
-            'data': {
-                'procurement_cycle': procurement_result,
-                'sales_cycle': sales_result,
-                'system_status': system_status
-            },
-            'summary': {
-                'procurement_entries': len(procurement_result.get('journal_entries', [])),
-                'sales_entries': len(sales_result.get('journal_entries', [])),
-                'total_entries': len(procurement_result.get('journal_entries', [])) + len(sales_result.get('journal_entries', [])),
-                'system_balanced': system_status.get('trial_balance', {}).get('totals', {}).get('is_balanced', False)
-            }
-        })
+        # Verify entry belongs to user
+        entry = JournalEntry.query.filter_by(id=entry_id, user_id=user_id_int).first()
+        if not entry:
+            return jsonify({"error": "Journal entry not found"}), 404
+        
+        # Get currency summary
+        summary = multi_currency_service.get_currency_summary(entry_id)
+        
+        if 'error' in summary:
+            return jsonify({"error": summary['error']}), 500
+        
+        return jsonify(summary), 200
         
     except Exception as e:
-        logger.error(f"Error in quick demo: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"error": f"Failed to get currency summary: {str(e)}"}), 500
 
+@double_entry_bp.route('/validate-multi-currency', methods=['POST'])
+def validate_multi_currency_entry():
+    """Validate multi-currency journal entry"""
+    try:
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify({"error": "User authentication required"}), 401
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Request data is required"}), 400
+        
+        lines_data = data.get('lines', [])
+        entry_currency = data.get('currency', 'USD')
+        
+        if not lines_data:
+            return jsonify({"error": "Journal lines are required"}), 400
+        
+        # Validate multi-currency entry
+        validation_result = multi_currency_service.validate_multi_currency_entry(lines_data, entry_currency)
+        
+        return jsonify(validation_result), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"Failed to validate multi-currency entry: {str(e)}"}), 500
+
+@double_entry_bp.route('/convert-currency', methods=['POST'])
+def convert_currency():
+    """Convert amount between currencies"""
+    try:
+        user_id = request.headers.get('X-User-ID')
+        if not user_id:
+            return jsonify({"error": "User authentication required"}), 401
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Request data is required"}), 400
+        
+        amount = float(data.get('amount', 0))
+        from_currency = data.get('from_currency', 'USD')
+        to_currency = data.get('to_currency', 'USD')
+        rate_date = data.get('rate_date')
+        
+        if rate_date:
+            from datetime import datetime
+            rate_date = datetime.fromisoformat(rate_date).date()
+        
+        # Convert currency
+        conversion_result = multi_currency_service.convert_amount(amount, from_currency, to_currency, rate_date)
+        
+        return jsonify(conversion_result), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"Failed to convert currency: {str(e)}"}), 500

@@ -242,10 +242,42 @@ def get_daily_inventory_balances(date_str=None):
         limit = request.args.get('limit', 100, type=int)
         offset = request.args.get('offset', 0, type=int)
         
-        # Build query
-        query = DailyInventoryBalance.query.filter_by(cycle_date=cycle_date)
+        # Get user ID from request headers for multi-tenancy
+        user_id = request.headers.get('X-User-ID')
+        print(f"[INVENTORY DAILY CYCLE] Received X-User-ID header: {user_id}")
         
-        if product_id:
+        if not user_id:
+            print("[INVENTORY DAILY CYCLE] No user ID provided, returning empty balances")
+            return jsonify({
+                'success': True,
+                'data': [],
+                'summary': {
+                    'cycle_date': cycle_date.isoformat(),
+                    'total_products': 0,
+                    'total_inventory_value': 0.0,
+                    'total_quantity_on_hand': 0.0
+                }
+            }), 200
+        
+        try:
+            user_id_int = int(user_id)
+        except (ValueError, TypeError):
+            print(f"[INVENTORY DAILY CYCLE] Invalid user ID format: {user_id}")
+            return jsonify({'success': False, 'error': 'Invalid user ID format'}), 400
+        
+        # Get user's product IDs for multi-tenancy
+        from modules.inventory.advanced_models import InventoryProduct
+        user_product_ids = [p.id for p in InventoryProduct.query.filter(
+            (InventoryProduct.user_id == user_id_int) | (InventoryProduct.user_id.is_(None))
+        ).all()]
+        
+        # Build query with multi-tenancy
+        query = DailyInventoryBalance.query.filter(
+            DailyInventoryBalance.cycle_date == cycle_date,
+            DailyInventoryBalance.product_id.in_(user_product_ids)
+        )
+        
+        if product_id and product_id in user_product_ids:
             query = query.filter(DailyInventoryBalance.product_id == product_id)
         if warehouse_id:
             query = query.filter(DailyInventoryBalance.simple_warehouse_id == warehouse_id)
@@ -322,6 +354,27 @@ def get_daily_inventory_summary(date_str=None):
             cycle_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         else:
             cycle_date = date.today()
+        
+        # Get user ID from request headers for multi-tenancy
+        user_id = request.headers.get('X-User-ID')
+        print(f"[INVENTORY DAILY CYCLE SUMMARY] Received X-User-ID header: {user_id}")
+        
+        if not user_id:
+            print("[INVENTORY DAILY CYCLE SUMMARY] No user ID provided, returning empty summary")
+            return jsonify({
+                'success': False,
+                'message': f'No inventory cycle found for {cycle_date}',
+                'data': {
+                    'cycle_date': cycle_date.isoformat(),
+                    'status': 'not_found'
+                }
+            })
+        
+        try:
+            user_id_int = int(user_id)
+        except (ValueError, TypeError):
+            print(f"[INVENTORY DAILY CYCLE SUMMARY] Invalid user ID format: {user_id}")
+            return jsonify({'success': False, 'error': 'Invalid user ID format'}), 400
         
         # Get cycle status
         cycle_status = DailyInventoryCycleStatus.get_cycle_status(cycle_date)

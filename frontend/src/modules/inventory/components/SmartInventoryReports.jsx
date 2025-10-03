@@ -19,7 +19,7 @@ import {
   GetApp, Share, Print, Visibility as VisibilityIcon, Edit as EditIcon, Download as DownloadIcon, Inventory, Store, LocalShipping, Category, Warehouse
 } from '@mui/icons-material';
 import { useCurrency } from '../../../components/GlobalCurrencySettings';
-// Removed useRealTimeData to prevent authentication calls
+import { useRealTimeData } from '../../../hooks/useRealTimeData';
 
 const SmartInventoryReports = ({ isMobile, isTablet }) => {
   const theme = useTheme();
@@ -36,31 +36,23 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
   const [viewPeriod, setViewPeriod] = useState('daily'); // daily, weekly, monthly
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-  // Data hooks - inventory specific
-  // Mock data to prevent API calls
-  const inventoryKpiData = [];
-  const kpiLoading = false;
-  const kpiError = null;
+  // Debug: Check current user context
+  const currentUserId = localStorage.getItem('userId');
+  const currentUserEmail = localStorage.getItem('userEmail');
+  console.log('🔍 Inventory Reports - Current User Context:', {
+    userId: currentUserId,
+    userEmail: currentUserEmail
+  });
+
+  // Data hooks - inventory specific - REAL API CALLS
+  const { data: inventoryKpiData, loading: kpiLoading, error: kpiError } = useRealTimeData('/api/inventory/core/reports/kpis');
+  const { data: stockLevelsData, loading: stockLoading, error: stockError } = useRealTimeData('/api/inventory/core/reports/stock-levels');
+  const { data: trendsData, loading: trendsLoading, error: trendsError } = useRealTimeData('/api/inventory/core/reports/trends');
   
-  const stockLevelsData = [];
-  const stockLoading = false;
-  const stockError = null;
-  
-  const trendsData = [];
-  const trendsLoading = false;
-  const trendsError = null;
-  
-  const dailyCycleData = [];
-  const cycleLoading = false;
-  const cycleError = null;
-  
-  const dailyBalancesData = [];
-  const balancesLoading = false;
-  const balancesError = null;
-  
-  const cycleHistoryData = [];
-  const historyLoading = false;
-  const historyError = null;
+  // Daily cycle data - REAL API CALLS
+  const { data: dailyCycleSummary, loading: cycleLoading, error: cycleError } = useRealTimeData('/api/inventory/daily-cycle/summary');
+  const { data: dailyBalancesData, loading: balancesLoading, error: balancesError } = useRealTimeData('/api/inventory/daily-cycle/balances');
+  const { data: cycleHistoryData, loading: historyLoading, error: historyError } = useRealTimeData('/api/inventory/daily-cycle/history?start_date=2025-09-01&end_date=2025-10-02');
   
   const procurementData = [];
   const procurementLoading = false;
@@ -70,63 +62,111 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
   const salesLoading = false;
   const salesError = null;
 
-  // Calculate comprehensive inventory metrics (similar to finance module)
+  // Calculate comprehensive inventory metrics from REAL API DATA including daily cycles
   const metrics = useMemo(() => {
-    if (!inventoryKpiData || !stockLevelsData || !dailyCycleData) return {};
-
-    const today = new Date().toISOString().split('T')[0];
-    const todayCycle = dailyCycleData?.data || {};
+    console.log('📊 Inventory Reports - Processing real API data:', {
+      inventoryKpiData,
+      stockLevelsData,
+      dailyCycleSummary,
+      dailyBalancesData,
+      kpiLoading,
+      stockLoading,
+      cycleLoading
+    });
     
-    // Basic KPIs
-    const totalProducts = inventoryKpiData?.kpis?.total_products || 0;
-    const totalStockValue = inventoryKpiData?.kpis?.total_stock_value || 0;
-    const lowStockItems = inventoryKpiData?.kpis?.low_stock_items || 0;
+    console.log('📊 Raw API responses:', {
+      inventoryKpiDataRaw: inventoryKpiData,
+      stockLevelsDataRaw: stockLevelsData,
+      dailyCycleSummaryRaw: dailyCycleSummary,
+      dailyBalancesDataRaw: dailyBalancesData
+    });
+
+    // Use real API data
+    const kpiData = inventoryKpiData?.data || {};
+    const stockData = stockLevelsData?.data || []; // Fixed: was looking for report_data, should be data
+    const cycleData = dailyCycleSummary?.data || {};
+    const balancesData = dailyBalancesData?.data?.balances || [];
+    
+    console.log('📊 Processed data structures:', {
+      kpiData,
+      stockData,
+      cycleData,
+      balancesData
+    });
+    
+    // Basic KPIs from API
+    const totalProducts = kpiData.total_products || 0;
+    const totalStockValue = kpiData.total_stock_value || 0;
+    const lowStockItems = kpiData.low_stock_items || 0;
+    const outOfStockItems = kpiData.out_of_stock_items || 0;
+    const averageStockLevel = kpiData.average_stock_level || 0;
+    
+    console.log('📊 Extracted KPI values:', {
+      totalProducts,
+      totalStockValue,
+      lowStockItems,
+      outOfStockItems,
+      averageStockLevel
+    });
+    
+    // Calculate total quantity from stock data
+    const totalQuantityOnHand = stockData.reduce((sum, item) => sum + (item.quantity_on_hand || 0), 0);
     
     // Daily cycle metrics
-    const totalQuantityOnHand = todayCycle?.metrics?.total_quantity_on_hand || 0;
-    const totalInventoryValue = todayCycle?.metrics?.total_inventory_value || 0;
-    const totalTransactions = todayCycle?.metrics?.total_transactions || 0;
-    const totalReceipts = todayCycle?.metrics?.total_receipts || 0;
-    const totalIssues = todayCycle?.metrics?.total_issues || 0;
-    const totalAdjustments = todayCycle?.metrics?.total_adjustments || 0;
+    const totalReceipts = balancesData.reduce((sum, balance) => sum + (balance.quantity_received || 0), 0);
+    const totalIssues = balancesData.reduce((sum, balance) => sum + (balance.quantity_issued || 0), 0);
+    const totalAdjustments = balancesData.reduce((sum, balance) => sum + (balance.quantity_adjusted || 0), 0);
+    const netMovement = totalReceipts - totalIssues;
     
-    // Calculate turnover and velocity
-    const inventoryTurnover = totalIssues > 0 && totalInventoryValue > 0 ? 
-      (totalIssues * 365) / totalInventoryValue : 0;
+    // Calculate inventory turnover using daily cycle data
+    const inventoryTurnover = totalStockValue > 0 ? (totalIssues * 365) / totalStockValue : 0;
     const daysInInventory = inventoryTurnover > 0 ? 365 / inventoryTurnover : 0;
     
-    // Stock accuracy and health
-    const stockAccuracy = totalAdjustments > 0 && totalQuantityOnHand > 0 ?
-      ((totalQuantityOnHand - Math.abs(totalAdjustments)) / totalQuantityOnHand) * 100 : 100;
+    // Stock accuracy from adjustments
+    const stockAccuracy = totalQuantityOnHand > 0 ? 
+      Math.max(0, ((totalQuantityOnHand - Math.abs(totalAdjustments)) / totalQuantityOnHand) * 100) : 100;
     
-    // Movement ratios
+    // Movement ratios from real data
     const receiptToIssueRatio = totalIssues > 0 ? totalReceipts / totalIssues : 0;
-    const adjustmentRate = totalQuantityOnHand > 0 ? 
-      (Math.abs(totalAdjustments) / totalQuantityOnHand) * 100 : 0;
+    const adjustmentRate = totalQuantityOnHand > 0 ? (Math.abs(totalAdjustments) / totalQuantityOnHand) * 100 : 0;
     
-    return {
-      // Basic metrics
+    console.log('📊 Calculated metrics with daily cycle data:', {
       totalProducts,
       totalStockValue,
       lowStockItems,
       totalQuantityOnHand,
-      totalInventoryValue,
-      totalTransactions,
-      
-      // Movement metrics
       totalReceipts,
       totalIssues,
       totalAdjustments,
-      netMovement: totalReceipts - totalIssues,
+      inventoryTurnover,
+      daysInInventory,
+      stockAccuracy
+    });
+    
+    return {
+      // INVENTORY METRICS (not cash values)
+      totalProducts,
+      totalStockValue,
+      lowStockItems,
+      outOfStockItems,
+      totalQuantityOnHand,
+      totalInventoryValue: totalStockValue,
+      averageStockLevel,
       
-      // Performance metrics
+      // INVENTORY MOVEMENTS (quantities, not cash)
+      totalReceipts,
+      totalIssues,
+      totalAdjustments,
+      netMovement,
+      
+      // INVENTORY PERFORMANCE METRICS
       inventoryTurnover: Number(inventoryTurnover.toFixed(2)),
       daysInInventory: Number(daysInInventory.toFixed(0)),
       stockAccuracy: Number(stockAccuracy.toFixed(1)),
       receiptToIssueRatio: Number(receiptToIssueRatio.toFixed(2)),
       adjustmentRate: Number(adjustmentRate.toFixed(2)),
       
-      // Health indicators
+      // INVENTORY HEALTH INDICATORS
       stockHealthScore: stockAccuracy > 95 ? 'Excellent' : 
                        stockAccuracy > 90 ? 'Good' : 
                        stockAccuracy > 85 ? 'Fair' : 'Poor',
@@ -134,13 +174,36 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
                      inventoryTurnover > 6 ? 'Good' :
                      inventoryTurnover > 3 ? 'Fair' : 'Poor',
     };
-  }, [inventoryKpiData, stockLevelsData, dailyCycleData]);
+  }, [inventoryKpiData, stockLevelsData, dailyCycleSummary, dailyBalancesData]);
 
-  // Daily inventory data processing (similar to finance daily cash data)
+  // Daily inventory data processing from REAL CYCLE HISTORY DATA
   const dailyInventoryData = useMemo(() => {
-    if (!cycleHistoryData?.data?.cycles) return [];
+    const cycles = cycleHistoryData?.data?.cycles || [];
+    
+    if (!cycles.length) {
+      // If no cycle data, create mock data for today
+      const today = new Date().toISOString().split('T')[0];
+      return [{
+        date: today,
+        dateLabel: new Date(today).toLocaleDateString('en-US', { 
+          month: 'numeric', day: 'numeric', year: 'numeric' 
+        }),
+        isToday: true,
+        openingValue: 0,
+        closingValue: 0,
+        totalQuantity: 0,
+        totalProducts: 0,
+        status: 'No Data',
+        movements: {
+          receipts: 0,
+          issues: 0,
+          adjustments: 0,
+          transfers: 0
+        }
+      }];
+    }
 
-    return cycleHistoryData.data.cycles.slice(0, 7).map(cycle => ({
+    return cycles.slice(0, 7).map(cycle => ({
       date: cycle.cycle_date,
       dateLabel: new Date(cycle.cycle_date).toLocaleDateString('en-US', { 
         month: 'numeric', day: 'numeric', year: 'numeric' 
@@ -160,28 +223,68 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
     }));
   }, [cycleHistoryData]);
 
-  // Top products by value (similar to finance account analysis)
+  // Top products by value from REAL STOCK DATA - CONSOLIDATED
   const topProductsData = useMemo(() => {
-    if (!dailyBalancesData?.data?.balances) return [];
+    const stockData = stockLevelsData?.data || []; // Fixed: was looking for report_data, should be data
+    
+    if (!stockData.length) return [];
 
-    return dailyBalancesData.data.balances
-      .filter(balance => balance.closing_total_value > 0)
-      .sort((a, b) => b.closing_total_value - a.closing_total_value)
-      .slice(0, 10)
-      .map(balance => ({
-        productId: balance.product_id,
-        productName: balance.product_name || `Product ${balance.product_id}`,
-        sku: balance.product_sku || 'N/A',
-        quantity: balance.closing_quantity,
-        unitCost: balance.closing_unit_cost,
-        totalValue: balance.closing_total_value,
-        netChange: balance.net_value_change,
-        warehouse: balance.warehouse_name || 'Main',
-        costMethod: balance.cost_method || 'FIFO'
-      }));
-  }, [dailyBalancesData]);
+    // Consolidate duplicate products by product_id
+    const consolidatedProducts = {};
+    
+    stockData.forEach(item => {
+      const productId = item.product_id;
+      
+      if (!consolidatedProducts[productId]) {
+        // First occurrence of this product
+        consolidatedProducts[productId] = {
+          productId: item.product_id,
+          productName: item.product_name || `Product ${item.product_id}`,
+          sku: item.sku || 'N/A',
+          quantity: item.quantity_on_hand || 0,
+          unitCost: item.unit_cost || 0,
+          totalValue: item.total_value || 0,
+          netChange: 0, // Would need historical data
+          warehouse: item.warehouse_name || 'Main',
+          costMethod: item.cost_method || 'FIFO',
+          category: item.category || 'Unknown'
+        };
+      } else {
+        // Consolidate with existing product
+        const existing = consolidatedProducts[productId];
+        existing.quantity += (item.quantity_on_hand || 0);
+        existing.totalValue += (item.total_value || 0);
+        // Recalculate unit cost as weighted average
+        existing.unitCost = existing.totalValue / existing.quantity;
+      }
+    });
 
-  const loading = kpiLoading || stockLoading || trendsLoading || cycleLoading;
+    // Convert to array and sort by total value
+    return Object.values(consolidatedProducts)
+      .filter(item => item.totalValue > 0)
+      .sort((a, b) => b.totalValue - a.totalValue)
+      .slice(0, 10);
+  }, [stockLevelsData]);
+
+  const loading = kpiLoading || stockLoading || trendsLoading || cycleLoading || balancesLoading || historyLoading;
+  const hasError = kpiError || stockError || trendsError || cycleError || balancesError || historyError;
+
+  if (hasError) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
+          Error loading inventory reports: {kpiError || stockError || trendsError}
+        </Alert>
+        <Button
+          variant="contained"
+          startIcon={<Refresh />}
+          onClick={() => window.location.reload()}
+        >
+          Retry
+        </Button>
+      </Box>
+    );
+  }
 
   if (loading) {
     return (
@@ -235,11 +338,11 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box>
                   <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                    ${metrics.totalInventoryValue?.toLocaleString() || '0'}
+                    {metrics.totalProducts || '0'}
                   </Typography>
-                  <Typography variant="body2">Total Inventory Value</Typography>
+                  <Typography variant="body2">Total Products</Typography>
                   <Typography variant="caption">
-                    📊 REAL-TIME DATA
+                    📦 INVENTORY ITEMS
                   </Typography>
                 </Box>
                 <Inventory sx={{ fontSize: 40, opacity: 0.7 }} />
@@ -256,9 +359,9 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
                   <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
                     {metrics.totalQuantityOnHand?.toLocaleString() || '0'}
                   </Typography>
-                  <Typography variant="body2">Total Quantity On Hand</Typography>
+                  <Typography variant="body2">Total Stock Units</Typography>
                   <Typography variant="caption">
-                    Units: {metrics.totalProducts || 0} Products
+                    📦 {metrics.totalProducts || 0} Products
                   </Typography>
                 </Box>
                 <Store sx={{ fontSize: 40, opacity: 0.7 }} />
@@ -273,14 +376,14 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box>
                   <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                    {metrics.inventoryTurnover || '0.0'}x
+                    {metrics.lowStockItems || '0'}
                   </Typography>
-                  <Typography variant="body2">Inventory Turnover</Typography>
+                  <Typography variant="body2">Low Stock Items</Typography>
                   <Typography variant="caption">
-                    {metrics.daysInInventory || 0} Days in Inventory
+                    ⚠️ Need Reorder
                   </Typography>
                 </Box>
-                <TrendingUp sx={{ fontSize: 40, opacity: 0.7 }} />
+                <Warning sx={{ fontSize: 40, opacity: 0.7 }} />
               </Box>
             </CardContent>
           </Card>
@@ -292,39 +395,39 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box>
                   <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                    {metrics.stockAccuracy || '0.0'}%
+                    {metrics.outOfStockItems || '0'}
                   </Typography>
-                  <Typography variant="body2">Stock Accuracy</Typography>
+                  <Typography variant="body2">Out of Stock</Typography>
                   <Typography variant="caption">
-                    {metrics.stockHealthScore || 'Unknown'} Health
+                    🚫 Zero Inventory
                   </Typography>
                 </Box>
-                <CheckCircle sx={{ fontSize: 40, opacity: 0.7 }} />
+                <Error sx={{ fontSize: 40, opacity: 0.7 }} />
               </Box>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
 
-      {/* Daily Inventory Summary (like Finance Daily Cash Flow) */}
+      {/* Daily Inventory Summary - STOCK MOVEMENTS */}
       <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
-        Daily Inventory Summary
+        Daily Stock Movements
       </Typography>
       <Card sx={{ mb: 4 }}>
         <CardContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Daily inventory balances from inventory cycle system • CALCULATED indicates real-time data
+            Daily inventory stock movements and quantities • Shows actual inventory items, not cash values
           </Typography>
           <TableContainer>
             <Table size="small">
               <TableHead>
                 <TableRow>
                   <TableCell>Date</TableCell>
-                  <TableCell align="right">Opening Value</TableCell>
-                  <TableCell align="right">Receipts</TableCell>
-                  <TableCell align="right">Issues</TableCell>
-                  <TableCell align="right">Adjustments</TableCell>
-                  <TableCell align="right">Closing Value</TableCell>
+                  <TableCell align="right">Opening Stock</TableCell>
+                  <TableCell align="right">Stock Received</TableCell>
+                  <TableCell align="right">Stock Issued</TableCell>
+                  <TableCell align="right">Stock Adjusted</TableCell>
+                  <TableCell align="right">Closing Stock</TableCell>
                   <TableCell align="right">Net Change</TableCell>
                   <TableCell>Status</TableCell>
                 </TableRow>
@@ -333,29 +436,25 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
                 {dailyInventoryData.map((day, index) => (
                   <TableRow key={day.date} sx={{ bgcolor: day.isToday ? theme.palette.action.selected : 'inherit' }}>
                     <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {day.dateLabel}
-                        {day.isToday && <Chip label="Today" size="small" color="primary" />}
-                        <Chip label="CALCULATED" size="small" variant="outlined" />
-                      </Box>
+                      {day.dateLabel}
                     </TableCell>
-                    <TableCell align="right">${day.openingValue.toLocaleString()}</TableCell>
+                    <TableCell align="right">{day.totalQuantity?.toLocaleString() || '0'} units</TableCell>
                     <TableCell align="right" sx={{ color: theme.palette.success.main }}>
-                      +${day.movements.receipts.toLocaleString()}
+                      +{day.movements.receipts.toLocaleString()} units
                     </TableCell>
                     <TableCell align="right" sx={{ color: theme.palette.error.main }}>
-                      -${day.movements.issues.toLocaleString()}
+                      -{day.movements.issues.toLocaleString()} units
                     </TableCell>
                     <TableCell align="right" sx={{ color: theme.palette.warning.main }}>
-                      ${day.movements.adjustments.toLocaleString()}
+                      {day.movements.adjustments.toLocaleString()} units
                     </TableCell>
                     <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                      ${day.closingValue.toLocaleString()}
+                      {day.totalQuantity?.toLocaleString() || '0'} units
                     </TableCell>
                     <TableCell align="right" sx={{ 
-                      color: (day.closingValue - day.openingValue) >= 0 ? theme.palette.success.main : theme.palette.error.main 
+                      color: (day.movements.receipts - day.movements.issues) >= 0 ? theme.palette.success.main : theme.palette.error.main 
                     }}>
-                      {(day.closingValue - day.openingValue) >= 0 ? '+' : ''}${(day.closingValue - day.openingValue).toLocaleString()}
+                      {(day.movements.receipts - day.movements.issues) >= 0 ? '+' : ''}{(day.movements.receipts - day.movements.issues).toLocaleString()} units
                     </TableCell>
                     <TableCell>
                       <Chip 
@@ -372,14 +471,14 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
         </CardContent>
       </Card>
 
-      {/* Top Products Analysis (like Finance Account Analysis) */}
+      {/* Current Inventory Items */}
       <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
-        Top Products by Value
+        Current Inventory Items
       </Typography>
       <Card sx={{ mb: 4 }}>
         <CardContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            CALCULATED from daily inventory balances
+            Real inventory items with current stock levels and quantities
           </Typography>
           <TableContainer>
             <Table>
@@ -387,12 +486,12 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
                 <TableRow>
                   <TableCell>Product</TableCell>
                   <TableCell>SKU</TableCell>
-                  <TableCell align="right">Quantity</TableCell>
+                  <TableCell align="right">Stock Quantity</TableCell>
                   <TableCell align="right">Unit Cost</TableCell>
                   <TableCell align="right">Total Value</TableCell>
-                  <TableCell align="right">Net Change</TableCell>
-                  <TableCell>Cost Method</TableCell>
-                  <TableCell>Location</TableCell>
+                  <TableCell align="right">Reorder Point</TableCell>
+                  <TableCell>Category</TableCell>
+                  <TableCell>Status</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -409,20 +508,30 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
                       </Box>
                     </TableCell>
                     <TableCell>{product.sku}</TableCell>
-                    <TableCell align="right">{product.quantity.toLocaleString()}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                      {product.quantity.toLocaleString()} units
+                    </TableCell>
                     <TableCell align="right">{formatCurrency(product.unitCost)}</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 'bold' }}>
                       {formatCurrency(product.totalValue)}
                     </TableCell>
-                    <TableCell align="right" sx={{ 
-                      color: product.netChange >= 0 ? theme.palette.success.main : theme.palette.error.main 
-                    }}>
-                      {product.netChange >= 0 ? '+' : ''}{formatCurrency(product.netChange)}
+                    <TableCell align="right">
+                      {product.quantity <= 10 ? (
+                        <Chip label="Low Stock" size="small" color="warning" />
+                      ) : (
+                        <Chip label="OK" size="small" color="success" />
+                      )}
                     </TableCell>
                     <TableCell>
-                      <Chip label={product.costMethod} size="small" variant="outlined" />
+                      <Chip label={product.category} size="small" variant="outlined" />
                     </TableCell>
-                    <TableCell>{product.warehouse}</TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={product.quantity > 0 ? "In Stock" : "Out of Stock"} 
+                        size="small" 
+                        color={product.quantity > 0 ? "success" : "error"} 
+                      />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -431,9 +540,9 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
         </CardContent>
       </Card>
 
-      {/* Inventory Performance Ratios (like Finance Key Ratios) */}
+      {/* Inventory Performance Metrics */}
       <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
-        Inventory Performance Ratios
+        Inventory Performance Metrics
       </Typography>
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>
@@ -442,17 +551,10 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
               <Typography variant="h4" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
                 {metrics.inventoryTurnover}x
               </Typography>
-              <Typography variant="body2">Inventory Turnover</Typography>
-              <Chip 
-                label={metrics.turnoverHealth} 
-                size="small" 
-                color={
-                  metrics.turnoverHealth === 'Excellent' ? 'success' :
-                  metrics.turnoverHealth === 'Good' ? 'info' :
-                  metrics.turnoverHealth === 'Fair' ? 'warning' : 'error'
-                }
-                sx={{ mt: 1 }}
-              />
+              <Typography variant="body2">Stock Turnover Rate</Typography>
+              <Typography variant="caption" color="text.secondary">
+                How often inventory is sold
+              </Typography>
             </CardContent>
           </Card>
         </Grid>
@@ -463,7 +565,7 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
               <Typography variant="h4" sx={{ fontWeight: 'bold', color: theme.palette.success.main }}>
                 {metrics.daysInInventory}
               </Typography>
-              <Typography variant="body2">Days in Inventory</Typography>
+              <Typography variant="body2">Days in Stock</Typography>
               <Typography variant="caption" color="text.secondary">
                 Average holding period
               </Typography>
@@ -475,11 +577,11 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h4" sx={{ fontWeight: 'bold', color: theme.palette.info.main }}>
-                {metrics.receiptToIssueRatio}
+                {metrics.stockAccuracy}%
               </Typography>
-              <Typography variant="body2">Receipt/Issue Ratio</Typography>
+              <Typography variant="body2">Stock Accuracy</Typography>
               <Typography variant="caption" color="text.secondary">
-                Replenishment balance
+                Physical vs system count
               </Typography>
             </CardContent>
           </Card>
@@ -489,11 +591,11 @@ const SmartInventoryReports = ({ isMobile, isTablet }) => {
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h4" sx={{ fontWeight: 'bold', color: theme.palette.warning.main }}>
-                {metrics.adjustmentRate}%
+                {metrics.averageStockLevel}
               </Typography>
-              <Typography variant="body2">Adjustment Rate</Typography>
+              <Typography variant="body2">Avg Stock Level</Typography>
               <Typography variant="caption" color="text.secondary">
-                Inventory accuracy impact
+                Average units per product
               </Typography>
             </CardContent>
           </Card>

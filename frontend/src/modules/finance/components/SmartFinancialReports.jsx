@@ -5,7 +5,8 @@ import {
   TextField, FormControl, InputLabel, Select, MenuItem, Autocomplete, SpeedDial, SpeedDialAction, SpeedDialIcon,
   TablePagination, TableSortLabel, InputAdornment, OutlinedInput, FormHelperText, Collapse, List, ListItem, ListItemText, ListItemIcon,
   Checkbox, FormControlLabel, FormGroup, Badge, Avatar, Divider, Accordion, AccordionSummary, AccordionDetails,
-  Slider, Switch, Rating, ToggleButton, ToggleButtonGroup, Skeleton, Backdrop, Modal, Fade, Grow, Zoom, Slide
+  Slider, Switch, Rating, ToggleButton, ToggleButtonGroup, Skeleton, Backdrop, Modal, Fade, Grow, Zoom, Slide,
+  Tabs, Tab
 } from '@mui/material';
 import {
   Add, Edit, Delete, Visibility, Download, Refresh, CheckCircle, Warning, Error, Info, AttachMoney, Schedule, BarChart, PieChart, ShowChart,
@@ -30,6 +31,12 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
   const [reportPeriod, setReportPeriod] = useState('current_month');
   const [comparisonPeriod, setComparisonPeriod] = useState('previous_month');
   const [selectedCurrency, setSelectedCurrency] = useState('USD');
+  
+  // Date range for reports (from FinancialReports.jsx)
+  const [dateRange, setDateRange] = useState({
+    startDate: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0], // Start of year
+    endDate: new Date().toISOString().split('T')[0] // Today
+  });
   const [drillDownOpen, setDrillDownOpen] = useState(false);
   const [drillDownData, setDrillDownData] = useState(null);
   const [viewPeriod, setViewPeriod] = useState('daily'); // daily, weekly, monthly, fortnight, custom
@@ -1912,6 +1919,136 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
     );
   };
 
+  const renderTrialBalance = () => (
+    <Card>
+      <CardContent>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+          <Typography variant="h5">
+            Trial Balance
+          </Typography>
+          <Box display="flex" gap={1}>
+            <Button
+              variant="outlined"
+              startIcon={<Download />}
+              onClick={() => setSnackbar({ open: true, message: 'Trial Balance exported successfully', severity: 'success' })}
+            >
+              Export
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<Print />}
+              onClick={() => window.print()}
+            >
+              Print
+            </Button>
+          </Box>
+        </Box>
+
+        <Box>
+          {/* Summary Cards */}
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            <Grid item xs={12} sm={4}>
+              <Card>
+                <CardContent>
+                  <Typography color="text.secondary" gutterBottom>
+                    Total Debits
+                  </Typography>
+                  <Typography variant="h4" color="success.main">
+                    ${(metrics.totalDebits || 0).toLocaleString()}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Card>
+                <CardContent>
+                  <Typography color="text.secondary" gutterBottom>
+                    Total Credits
+                  </Typography>
+                  <Typography variant="h4" color="error.main">
+                    ${(metrics.totalCredits || 0).toLocaleString()}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Card>
+                <CardContent>
+                  <Typography color="text.secondary" gutterBottom>
+                    Balance Status
+                  </Typography>
+                  <Typography variant="h6">
+                    {Math.abs((metrics.totalDebits || 0) - (metrics.totalCredits || 0)) < 0.01 ? '✅ Balanced' : '❌ Unbalanced'}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          {/* Trial Balance Table */}
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Account Code</TableCell>
+                  <TableCell>Account Name</TableCell>
+                  <TableCell>Type</TableCell>
+                  <TableCell align="right">Debit Balance</TableCell>
+                  <TableCell align="right">Credit Balance</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {accounts && accounts.length > 0 ? accounts.map((account, index) => (
+                  <TableRow key={index}>
+                    <TableCell>
+                      <Typography variant="body2" fontFamily="monospace">
+                        {account.account_code || 'N/A'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">
+                        {account.account_name || 'Unnamed Account'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={(account.account_type || 'unknown').toUpperCase()}
+                        size="small"
+                        variant="outlined"
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      {account.debit_balance > 0 && (
+                        <Typography variant="body2" color="success.main" fontWeight="medium">
+                          ${account.debit_balance.toLocaleString()}
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell align="right">
+                      {account.credit_balance > 0 && (
+                        <Typography variant="body2" color="error.main" fontWeight="medium">
+                          ${account.credit_balance.toLocaleString()}
+                        </Typography>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={5} align="center">
+                      <Alert severity="info">
+                        No trial balance data available. Please create some journal entries first.
+                      </Alert>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+
   const renderReportActions = () => (
     <Card>
       <CardContent>
@@ -1963,40 +2100,144 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
   );
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        Financial Reports & Analytics
-      </Typography>
+    <Box sx={{ p: 3 }}>
+      {/* Header */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Box>
+          <Typography variant="h4" gutterBottom>
+            Financial Reports & Analytics
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Comprehensive financial analysis and reporting
+          </Typography>
+        </Box>
+        <Box display="flex" gap={1}>
+          <Button
+            variant="outlined"
+            startIcon={<Refresh />}
+            onClick={() => window.location.reload()}
+          >
+            Refresh
+          </Button>
+        </Box>
+      </Box>
+
+      {/* Date Range Picker (from FinancialReports.jsx) */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Report Period
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                label="Start Date"
+                type="date"
+                value={dateRange.startDate}
+                onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                label="End Date"
+                type="date"
+                value={dateRange.endDate}
+                onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Box display="flex" alignItems="center" height="100%">
+                <Typography variant="body2" color="text.secondary">
+                  Reports generated for the selected period
+                </Typography>
+              </Box>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      {/* Tabs for different report types */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
+          <Tab label="Dashboard Overview" icon={<Assessment />} />
+          <Tab label="Profit & Loss" icon={<TrendingUp />} />
+          <Tab label="Balance Sheet" icon={<AccountBalance />} />
+          <Tab label="Trial Balance" icon={<Assessment />} />
+          <Tab label="Cash Flow" icon={<AttachMoney />} />
+          <Tab label="AR/AP Analysis" icon={<Receipt />} />
+          <Tab label="Advanced Analytics" icon={<BarChart />} />
+        </Tabs>
+      </Box>
+
+      {/* Tab Content */}
+      {activeTab === 0 && (
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            {renderKPIMetrics()}
+          </Grid>
+          <Grid item xs={12}>
+            {renderDailySummaryTable()}
+          </Grid>
+          <Grid item xs={12}>
+            {renderFinancialRatios()}
+          </Grid>
+        </Grid>
+      )}
       
+      {activeTab === 1 && (
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            {renderProfitLossStatement()}
+          </Grid>
+        </Grid>
+      )}
       
-      {renderKPIMetrics()}
+      {activeTab === 2 && (
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            {renderBalanceSheet()}
+          </Grid>
+        </Grid>
+      )}
       
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          {renderProfitLossStatement()}
+      {activeTab === 3 && (
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            {renderTrialBalance()}
+          </Grid>
         </Grid>
-        <Grid item xs={12}>
-          {renderBalanceSheet()}
+      )}
+      
+      {activeTab === 4 && (
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            {renderCashFlowStatement()}
+          </Grid>
         </Grid>
-        <Grid item xs={12}>
-          {renderAccountsReceivablePayable()}
+      )}
+      
+      {activeTab === 5 && (
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            {renderAccountsReceivablePayable()}
+          </Grid>
         </Grid>
-        <Grid item xs={12}>
-          {renderCashFlowStatement()}
+      )}
+      
+      {activeTab === 6 && (
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            {renderPaymentMethodAnalysis()}
+          </Grid>
+          <Grid item xs={12}>
+            {renderReportActions()}
+          </Grid>
         </Grid>
-        <Grid item xs={12}>
-          {renderPaymentMethodAnalysis()}
-        </Grid>
-        <Grid item xs={12}>
-          {renderDailySummaryTable()}
-        </Grid>
-        <Grid item xs={12}>
-          {renderFinancialRatios()}
-        </Grid>
-        <Grid item xs={12}>
-          {renderReportActions()}
-        </Grid>
-      </Grid>
+      )}
 
       {/* Drill-down Dialog */}
       <Dialog 

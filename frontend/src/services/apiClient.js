@@ -34,12 +34,20 @@ class ApiClient {
     const token = this.getAuthToken();
     const user = this.getUserContext();
     
-    return {
+    const headers = {
       ...this.defaultHeaders,
       ...(token && { 'Authorization': `Bearer ${token}` }),
       ...(user && { 'X-User-ID': user.id || user.user_id || '1' }),
       ...customHeaders
     };
+    
+    console.log('🔍 API Client Headers:', {
+      userId: user?.id || user?.user_id,
+      xUserId: headers['X-User-ID'],
+      hasToken: !!token
+    });
+    
+    return headers;
   }
 
   // Get user context - use just the user ID from localStorage

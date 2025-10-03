@@ -1244,35 +1244,75 @@ def create_warehouse_location():
 def get_inventory_kpis():
     """Get inventory KPIs for reports"""
     try:
-        # Get basic KPIs
-        total_products = InventoryProduct.query.count()
-        total_stock_levels = StockLevel.query.count()
+        # Get user ID from request headers
+        user_id = request.headers.get('X-User-ID')
+        print(f"[INVENTORY KPIs] Received X-User-ID header: {user_id}")
+        if not user_id:
+            print("[INVENTORY KPIs] No user ID provided, returning empty KPIs")
+            return jsonify({
+                'success': True,
+                'data': {
+                    'total_products': 0,
+                    'total_stock_levels': 0,
+                    'low_stock_items': 0,
+                    'out_of_stock_items': 0,
+                    'total_stock_value': 0.0,
+                    'average_stock_level': 0.0,
+                    'category_breakdown': []
+                }
+            }), 200
+        
+        try:
+            user_id_int = int(user_id)
+        except (ValueError, TypeError):
+            print(f"[INVENTORY KPIs] Invalid user ID format: {user_id}")
+            return jsonify({'success': False, 'error': 'Invalid user ID format'}), 400
+        
+        # Get basic KPIs - FILTER BY USER
+        total_products = InventoryProduct.query.filter(
+            (InventoryProduct.user_id == user_id_int) | (InventoryProduct.user_id.is_(None))
+        ).count()
+        
+        # Get stock levels for user's products
+        user_product_ids = [p.id for p in InventoryProduct.query.filter(
+            (InventoryProduct.user_id == user_id_int) | (InventoryProduct.user_id.is_(None))
+        ).all()]
+        
+        total_stock_levels = StockLevel.query.filter(
+            StockLevel.product_id.in_(user_product_ids)
+        ).count()
         
         # Get low stock items
         low_stock_items = db.session.query(StockLevel).join(InventoryProduct).filter(
+            StockLevel.product_id.in_(user_product_ids),
             StockLevel.quantity_on_hand <= InventoryProduct.reorder_point
         ).count()
         
         # Get out of stock items
         out_of_stock_items = StockLevel.query.filter(
+            StockLevel.product_id.in_(user_product_ids),
             StockLevel.quantity_on_hand <= 0
         ).count()
         
         # Get total stock value
         total_value = db.session.query(
             func.sum(StockLevel.quantity_on_hand * StockLevel.unit_cost)
-        ).scalar() or 0
+        ).filter(StockLevel.product_id.in_(user_product_ids)).scalar() or 0
         
         # Get average stock level
         avg_stock = db.session.query(
             func.avg(StockLevel.quantity_on_hand)
-        ).scalar() or 0
+        ).filter(StockLevel.product_id.in_(user_product_ids)).scalar() or 0
         
         # Get products by category
         category_counts = db.session.query(
             ProductCategory.name,
             func.count(InventoryProduct.id)
-        ).join(InventoryProduct).group_by(ProductCategory.name).all()
+        ).join(InventoryProduct).filter(
+            (InventoryProduct.user_id == user_id_int) | (InventoryProduct.user_id.is_(None))
+        ).group_by(ProductCategory.name).all()
+        
+        print(f"[INVENTORY KPIs] Found {total_products} products, {total_stock_levels} stock levels for user {user_id_int}")
         
         return jsonify({
             'success': True,
@@ -1287,6 +1327,7 @@ def get_inventory_kpis():
             }
         })
     except Exception as e:
+        print(f"[INVENTORY KPIs] Error: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @core_inventory_bp.route('/reports/stock-levels', methods=['GET'])

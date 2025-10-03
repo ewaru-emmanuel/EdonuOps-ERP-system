@@ -41,7 +41,18 @@ export const useRealTimeData = (endpoint, autoPoll = true, pollInterval = 5000) 
       
       const result = await apiClient.get(endpoint);
       console.log(`Raw API response for ${endpoint}:`, result);
-      const processedData = Array.isArray(result) ? result : [result];
+      
+      // Handle different response structures
+      let processedData;
+      if (Array.isArray(result)) {
+        processedData = result;
+      } else if (result && typeof result === 'object') {
+        // For object responses, return the object directly
+        processedData = result;
+      } else {
+        processedData = [result];
+      }
+      
       console.log(`Processed data for ${endpoint}:`, processedData);
       setData(processedData);
     } catch (err) {

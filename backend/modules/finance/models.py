@@ -38,14 +38,22 @@ class Account(db.Model):
 class JournalEntry(db.Model):
     __tablename__ = 'journal_entries'
     id = db.Column(db.Integer, primary_key=True)
-    period = db.Column(db.String(7), nullable=False)  # YYYY-MM format
+    period = db.Column(db.String(7), nullable=False)  # YYYY-MM format (legacy)
     doc_date = db.Column(db.Date, nullable=False)
     reference = db.Column(db.String(50), unique=True, nullable=False)
     description = db.Column(db.String(200), nullable=False)
     status = db.Column(db.String(20), default='draft')  # draft, posted, cancelled
     currency = db.Column(db.String(3), default='USD')
+    payment_method = db.Column(db.String(20), default='bank')  # bank, cash, wire, credit_card, check, digital
     total_debit = db.Column(db.Float, default=0.0)
     total_credit = db.Column(db.Float, default=0.0)
+    
+    # Accounting Period Integration
+    accounting_period_id = db.Column(db.Integer, db.ForeignKey('accounting_periods.id'))
+    is_backdated = db.Column(db.Boolean, default=False)
+    period_locked = db.Column(db.Boolean, default=False)
+    backdate_reason = db.Column(db.String(200))
+    
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -62,6 +70,18 @@ class JournalLine(db.Model):
     description = db.Column(db.String(200))
     debit_amount = db.Column(db.Float, default=0.0)
     credit_amount = db.Column(db.Float, default=0.0)
+    
+    # Multi-Currency Support
+    currency = db.Column(db.String(3), default='USD')
+    exchange_rate = db.Column(db.Float, default=1.0)
+    functional_debit_amount = db.Column(db.Float, default=0.0)  # Amount in base currency
+    functional_credit_amount = db.Column(db.Float, default=0.0)  # Amount in base currency
+    
+    # Cost Center, Department, and Project Tracking
+    cost_center_id = db.Column(db.Integer, db.ForeignKey('cost_centers.id'))
+    department_id = db.Column(db.Integer, db.ForeignKey('departments.id'))
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'))
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
