@@ -69,6 +69,43 @@ def get_transaction_template(template_id):
             "error": "Failed to get transaction template"
         }), 500
 
+@transaction_bp.route('/test', methods=['GET'])
+def test_transaction_endpoint():
+    """Test endpoint to verify routing works"""
+    return jsonify({
+        "success": True,
+        "message": "Transaction endpoint is working",
+        "templates_available": list(transaction_manager.templates.keys())
+    }), 200
+
+@transaction_bp.route('/debug-create', methods=['POST'])
+def debug_create_transaction():
+    """Debug version of create transaction"""
+    try:
+        print("DEBUG: Debug create endpoint called")
+        data = request.get_json()
+        user_id = request.headers.get('X-User-ID')
+        
+        print(f"DEBUG: Data received: {data}")
+        print(f"DEBUG: User ID: {user_id}")
+        
+        return jsonify({
+            "success": True,
+            "message": "Debug endpoint working",
+            "data_received": data,
+            "user_id": user_id
+        }), 200
+        
+    except Exception as e:
+        print(f"DEBUG: Exception in debug endpoint: {e}")
+        import traceback
+        print(f"DEBUG: Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
 @transaction_bp.route('/create', methods=['POST'])
 def create_transaction():
     """Create a transaction using a template"""
@@ -76,9 +113,16 @@ def create_transaction():
         data = request.get_json()
         user_id = request.headers.get('X-User-ID')
         
+        print(f"DEBUG: Request JSON payload: {data}")
+        print(f"DEBUG: Data type: {type(data)}")
+        print(f"DEBUG: Data is None: {data is None}")
+        if data:
+            print(f"DEBUG: Data keys: {list(data.keys())}")
+        print(f"DEBUG: Creating transaction with data: {data}, user_id: {user_id}")
         logger.info(f"Creating transaction with data: {data}, user_id: {user_id}")
         
         if not user_id:
+            print("DEBUG: No user_id provided")
             return jsonify({
                 "success": False,
                 "error": "User authentication required"
@@ -87,15 +131,22 @@ def create_transaction():
         user_id_int = int(user_id)
         template_id = data.get('template_id')
         
+        print(f"DEBUG: Template ID: {template_id}")
+        
         if not template_id:
+            print("DEBUG: No template_id provided")
             return jsonify({
                 "success": False,
                 "error": "Template ID is required"
             }), 400
         
         # Validate required fields
+        print(f"DEBUG: Getting template: {template_id}")
         template = transaction_manager.get_template(template_id)
+        print(f"DEBUG: Template found: {template is not None}")
+        
         if not template:
+            print(f"DEBUG: Template '{template_id}' not found")
             return jsonify({
                 "success": False,
                 "error": f"Template '{template_id}' not found"
@@ -112,10 +163,15 @@ def create_transaction():
             }), 400
         
         logger.info(f"Creating transaction with template {template_id} for user {user_id_int}")
+        print(f"DEBUG: About to create transaction with template {template_id} for user {user_id_int}")
+        print(f"DEBUG: Data passed to create_transaction: {data}")
         
         # Create the transaction
-        result = transaction_manager.create_transaction(template_id, user_id_int, **data)
+        # Remove template_id from data since it's passed as first argument
+        transaction_data = {k: v for k, v in data.items() if k != 'template_id'}
+        result = transaction_manager.create_transaction(template_id, user_id_int, **transaction_data)
         
+        print(f"DEBUG: Transaction created successfully: {result}")
         logger.info(f"Transaction created successfully: {result}")
         
         return jsonify({
@@ -131,6 +187,11 @@ def create_transaction():
         }), 201
         
     except ValueError as e:
+        db.session.rollback()
+        print(f"DEBUG: ValueError in create_transaction: {e}")
+        print(f"DEBUG: Exception type: {type(e)}")
+        import traceback
+        print(f"DEBUG: Traceback: {traceback.format_exc()}")
         logger.error(f"ValueError in create_transaction: {e}")
         return jsonify({
             "success": False,
@@ -138,14 +199,19 @@ def create_transaction():
         }), 400
         
     except Exception as e:
-        db.session.rollback()
-        logger.error(f"Error creating transaction: {e}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return jsonify({
-            "success": False,
-            "error": "Failed to create transaction"
-        }), 500
+            db.session.rollback()
+            print(f"DEBUG: Exception in create_transaction: {e}")
+            print(f"DEBUG: Exception type: {type(e)}")
+            import traceback
+            print(f"DEBUG: Traceback: {traceback.format_exc()}")
+            logger.error(f"Error creating transaction: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return jsonify({
+                "success": False,
+                "error": f"Failed to create transaction: {str(e)}",
+                "error_type": str(type(e).__name__),
+                "traceback": traceback.format_exc()
+            }), 500
 
 @transaction_bp.route('/examples', methods=['GET'])
 def get_transaction_examples():

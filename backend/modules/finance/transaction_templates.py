@@ -55,9 +55,14 @@ class TransactionTemplate:
     def validate_input(self, **kwargs) -> bool:
         """Validate input parameters"""
         required_fields = self.get_required_fields()
+        print("DEBUG: Incoming kwargs:", kwargs)
+        print("DEBUG: Required fields:", required_fields)
         for field in required_fields:
-            if field not in kwargs:
+            print(f"DEBUG: Checking field '{field}': present={field in kwargs}, value={kwargs.get(field)}, type={type(kwargs.get(field))}")
+            if field not in kwargs or kwargs[field] is None:
+                print(f"DEBUG: Missing or None field: {field}")
                 return False
+        print("DEBUG: All validation checks passed")
         return True
     
     def _get_account_by_code(self, code: str) -> Optional[Account]:
@@ -340,11 +345,19 @@ class SimpleTransactionTemplate(TransactionTemplate):
             manager=manager
         )
     
-    def create_journal_entry(self, amount: float, description: str, account_id: int, is_debit: bool, **kwargs) -> Dict:
+    def create_journal_entry(self, **kwargs) -> Dict:
         """Create a simple journal entry with auto-balancing"""
-        print(f"DEBUG: create_journal_entry called with amount={amount}, description={description}, account_id={account_id}, is_debit={is_debit}")
+        print(f"DEBUG: create_journal_entry called with kwargs: {kwargs}")
         
-        if not self.validate_input(amount=amount, description=description, account_id=account_id):
+        # Extract required parameters
+        amount = kwargs.get('amount')
+        description = kwargs.get('description')
+        account_id = kwargs.get('account_id')
+        is_debit = kwargs.get('is_debit')
+        
+        print(f"DEBUG: Extracted parameters - amount={amount}, description={description}, account_id={account_id}, is_debit={is_debit}")
+        
+        if not self.validate_input(**kwargs):
             print("DEBUG: Validation failed")
             raise ValueError("Invalid input parameters")
         
@@ -356,7 +369,7 @@ class SimpleTransactionTemplate(TransactionTemplate):
             print(f"DEBUG: Primary account with ID {account_id} not found")
             raise ValueError("Primary account not found")
         
-        print(f"DEBUG: Primary account found: {primary_account.account_name}")
+        print(f"DEBUG: Primary account found: {primary_account.name}")
         
         # Determine the balancing account based on account type
         balancing_account = self._get_balancing_account(primary_account, is_debit)
@@ -410,16 +423,16 @@ class SimpleTransactionTemplate(TransactionTemplate):
     
     def _get_balancing_account(self, primary_account: Account, is_debit: bool) -> Optional[Account]:
         """Get the appropriate balancing account based on the primary account type"""
-        account_type = primary_account.account_type.lower()
+        account_type = primary_account.type.lower()
         
         # Try to get cash account first (1000), then bank account (1100)
         cash_account = self._get_account_by_code("1000")
         bank_account = self._get_account_by_code("1100")
         
         # Log for debugging
-        print(f"DEBUG: Looking for balancing account for {primary_account.account_name} (type: {account_type})")
-        print(f"DEBUG: Cash account (1000): {cash_account.account_name if cash_account else 'Not found'}")
-        print(f"DEBUG: Bank account (1100): {bank_account.account_name if bank_account else 'Not found'}")
+        print(f"DEBUG: Looking for balancing account for {primary_account.name} (type: {account_type})")
+        print(f"DEBUG: Cash account (1000): {cash_account.name if cash_account else 'Not found'}")
+        print(f"DEBUG: Bank account (1100): {bank_account.name if bank_account else 'Not found'}")
         
         # Return cash account if available, otherwise bank account
         return cash_account or bank_account
@@ -511,7 +524,7 @@ class TransactionTemplateManager:
     
     def _get_account_by_code(self, code: str) -> Optional[Account]:
         """Helper method to get account by code"""
-        return Account.query.filter_by(account_code=code).first()
+        return Account.query.filter_by(code=code).first()
 
 # Global instance
 transaction_manager = TransactionTemplateManager()

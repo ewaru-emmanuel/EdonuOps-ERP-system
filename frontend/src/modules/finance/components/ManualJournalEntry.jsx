@@ -178,6 +178,9 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null }) => {
         line.account_id && ((line.debit_amount || 0) > 0 || (line.credit_amount || 0) > 0)
       );
       
+      console.log('🔍 All journal lines:', journalLines);
+      console.log('🔍 Valid line found:', validLine);
+      
       if (!validLine) {
         throw new Error('No valid transaction found');
       }
@@ -186,18 +189,34 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null }) => {
       const amount = validLine.debit_amount || validLine.credit_amount;
       const isDebit = validLine.debit_amount > 0;
       
-      // Create a simple business transaction
+      console.log('🔍 Transaction details:', {
+        amount,
+        isDebit,
+        account_id: validLine.account_id,
+        description: validLine.description
+      });
+      
+      // Use the transaction templates API for proper auto-balancing
+      // This creates proper double-entry with separate journal lines
       const transactionData = {
         template_id: 'simple_transaction',
         amount: amount,
         description: formData.description || validLine.description,
-        account_id: validLine.account_id,
+        account_id: parseInt(validLine.account_id), // Ensure account_id is an integer
         is_debit: isDebit,
         date: formData.date,
         reference: formData.reference || `JE-${Date.now()}`,
         status: formData.status,
         payment_method: formData.payment_method
       };
+
+      console.log('🔍 Frontend sending transaction data:', transactionData);
+      console.log('🔍 Data types:', {
+        amount: typeof amount,
+        description: typeof transactionData.description,
+        account_id: typeof transactionData.account_id,
+        is_debit: typeof transactionData.is_debit
+      });
 
       let response;
       if (editEntry) {

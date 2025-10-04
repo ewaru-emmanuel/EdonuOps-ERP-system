@@ -12,7 +12,23 @@ def init_db():
     db.create_all()
 
 def drop_db():
-    """Drop all database tables"""
+    """Drop all database tables - DANGER: This will delete ALL data!"""
+    import os
+    import sys
+    
+    # Safety check - only allow in development
+    if os.getenv('FLASK_ENV') == 'production':
+        raise RuntimeError("Cannot drop database in production environment!")
+    
+    # Additional safety check
+    response = input("⚠️  WARNING: This will delete ALL data! Type 'DELETE_ALL_DATA' to confirm: ")
+    if response != 'DELETE_ALL_DATA':
+        print("Operation cancelled.")
+        return False
+    
+    print("🗑️  Dropping all database tables...")
     db.drop_all()
+    print("✅ All tables dropped.")
+    return True
 
 
