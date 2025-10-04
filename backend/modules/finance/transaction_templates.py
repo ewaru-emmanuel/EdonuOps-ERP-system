@@ -493,6 +493,8 @@ class TransactionTemplateManager:
             description=journal_data["description"],
             status=status,
             payment_method=journal_data["payment_method"],
+            total_debit=journal_data["total_debits"],
+            total_credit=journal_data["total_credits"],
             user_id=user_id,
             created_by=user_id
         )

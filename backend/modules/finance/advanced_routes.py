@@ -1901,16 +1901,31 @@ def get_accounts():
     """Get all accounts from database - Legacy route"""
     try:
         accounts = ChartOfAccounts.query.filter_by(is_active=True).all()
-        return jsonify([{
-            "id": acc.id,
-            "code": acc.account_code,
-            "name": acc.account_name,
-            "type": acc.account_type,
-            "balance": 0.0,  # Will be calculated from GL entries
-            "parent_id": acc.parent_account_id,
-            "is_active": acc.is_active,
-            "created_at": acc.created_at.isoformat() if acc.created_at else None
-        } for acc in accounts]), 200
+        result = []
+        for acc in accounts:
+            # Calculate balance from journal lines
+            from sqlalchemy import func
+            from modules.finance.models import JournalLine, JournalEntry
+            
+            balance_result = db.session.query(
+                func.coalesce(func.sum(JournalLine.debit_amount), 0) - 
+                func.coalesce(func.sum(JournalLine.credit_amount), 0)
+            ).join(JournalEntry).filter(
+                JournalLine.account_id == acc.id
+            ).scalar() or 0.0
+            
+            result.append({
+                "id": acc.id,
+                "code": acc.account_code,
+                "name": acc.account_name,
+                "type": acc.account_type,
+                "balance": float(balance_result),
+                "parent_id": acc.parent_account_id,
+                "is_active": acc.is_active,
+                "created_at": acc.created_at.isoformat() if acc.created_at else None
+            })
+        
+        return jsonify(result), 200
     except Exception as e:
         print(f"Error fetching accounts: {e}")
         return jsonify({"error": "Failed to fetch accounts"}), 500

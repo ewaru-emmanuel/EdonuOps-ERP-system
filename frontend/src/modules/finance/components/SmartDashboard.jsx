@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Grid, Card, CardContent, Button, IconButton, Chip, Avatar, Badge, Tooltip, Alert, LinearProgress, Skeleton,
   Dialog, DialogTitle, DialogContent, DialogActions, List, ListItem, ListItemText, ListItemIcon, Divider, SpeedDial, SpeedDialAction, SpeedDialIcon
@@ -10,15 +11,18 @@ import {
   Add, Edit, Visibility, Delete, MoreVert, ExpandMore, ExpandLess, PlayArrow, Pause, Stop
 } from '@mui/icons-material';
 import { useFinanceData } from '../hooks/useFinanceData';
+import ManualJournalEntry from './ManualJournalEntry';
 
 const SmartDashboard = ({ isMobile, isTablet }) => {
+  const navigate = useNavigate();
   const [selectedPeriod, setSelectedPeriod] = useState('current');
   const [refreshKey, setRefreshKey] = useState(0);
   const [insightsOpen, setInsightsOpen] = useState(false);
+  const [manualEntryOpen, setManualEntryOpen] = useState(false);
 
   // Real-time data hooks - using real API calls
-  const { data: generalLedger, loading: glLoading } = useFinanceData('journal-entries');
-  const { data: accounts, loading: accountsLoading } = useFinanceData('accounts');
+  const { data: generalLedger, loading: glLoading } = useFinanceData('double-entry/journal-entries');
+  const { data: accounts, loading: accountsLoading } = useFinanceData('double-entry/accounts');
   
   // Placeholder data for endpoints not yet implemented
   const accountsPayable = [];
@@ -42,33 +46,44 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
 
   // Calculate real-time metrics from accounts table
   const metrics = useMemo(() => {
-    // Calculate from Chart of Accounts balances
+    // Universal double-entry accounting formulas for unlimited users
+    // These formulas handle the correct sign conventions for all account types
+    
+    // ASSETS: Debit accounts (should be positive)
+    // If negative, it means there's an error in the data or unusual transaction
     const totalAssets = accounts?.filter(acc => acc.type === 'asset')
-      .reduce((sum, acc) => sum + (acc.balance || 0), 0) || 0;
+      .reduce((sum, acc) => sum + Math.abs(acc.balance || 0), 0) || 0;
     
+    // LIABILITIES: Credit accounts (should be positive when displayed)
+    // In double-entry, they're negative, but we show them as positive
     const totalLiabilities = accounts?.filter(acc => acc.type === 'liability')
-      .reduce((sum, acc) => sum + (acc.balance || 0), 0) || 0;
+      .reduce((sum, acc) => sum + Math.abs(acc.balance || 0), 0) || 0;
     
+    // EQUITY: Credit accounts (should be positive when displayed)
+    // In double-entry, they're negative, but we show them as positive
     const totalEquity = accounts?.filter(acc => acc.type === 'equity')
-      .reduce((sum, acc) => sum + (acc.balance || 0), 0) || 0;
+      .reduce((sum, acc) => sum + Math.abs(acc.balance || 0), 0) || 0;
     
+    // REVENUE: Credit accounts (negative in double-entry, positive when displayed)
+    // Net Income = Revenue - Expenses = |Revenue| - |Expenses|
     const totalRevenue = accounts?.filter(acc => acc.type === 'revenue')
-      .reduce((sum, acc) => sum + (acc.balance || 0), 0) || 0;
+      .reduce((sum, acc) => sum + Math.abs(acc.balance || 0), 0) || 0;
     
+    // EXPENSES: Debit accounts (positive in double-entry)
     const totalExpenses = accounts?.filter(acc => acc.type === 'expense')
-      .reduce((sum, acc) => sum + (acc.balance || 0), 0) || 0;
+      .reduce((sum, acc) => sum + Math.abs(acc.balance || 0), 0) || 0;
     
     const netIncome = totalRevenue - totalExpenses;
 
-    // Accounts Receivable (from accounts table)
-    const totalAccountsReceivable = accounts?.find(acc => acc.code === '1100')?.balance || 0;
+    // Accounts Receivable (from accounts table) - Asset account, should be positive
+    const totalAccountsReceivable = Math.abs(accounts?.find(acc => acc.code === '1100')?.balance || 0);
     
-    // Accounts Payable (from accounts table)
+    // Accounts Payable (from accounts table) - Liability account, should be positive
     const totalAccountsPayable = accounts?.filter(acc => acc.type === 'liability' && acc.name?.toLowerCase().includes('payable'))
-      .reduce((sum, acc) => sum + (acc.balance || 0), 0) || 0;
+      .reduce((sum, acc) => sum + Math.abs(acc.balance || 0), 0) || 0;
 
-    // Bank account balances - sum of all cash and bank accounts
-    const totalBankBalance = bankAccounts?.reduce((sum, account) => sum + (account.balance || 0), 0) || 0;
+    // Bank account balances - sum of all cash and bank accounts (asset accounts, should be positive)
+    const totalBankBalance = bankAccounts?.reduce((sum, account) => sum + Math.abs(account.balance || 0), 0) || 0;
     const activeBankAccounts = bankAccounts?.length || 0;
     const depositAccounts = bankAccounts?.length || 0;
     const withdrawalAccounts = bankAccounts?.length || 0;
@@ -77,11 +92,112 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
     const paymentMethodCount = paymentMethods?.filter(method => method.is_active !== false).length || 0;
     const activePaymentMethods = paymentMethods?.filter(method => method.is_active !== false) || [];
 
-    // Calculate trends from historical data (will be enhanced with real historical data)
-    const previousRevenue = 0; // Will be calculated from historical GL data
-    const previousExpenses = 0; // Will be calculated from historical GL data
-    const revenueGrowth = 0; // Will be calculated when historical data is available
-    const expenseGrowth = 0; // Will be calculated when historical data is available
+    // Calculate comprehensive cash flow from journal entries
+    // Cash Flow = Cash Inflows - Cash Outflows
+    // Cash Inflows: Revenue transactions, AR collections, cash receipts
+    // Cash Outflows: Expense transactions, AP payments, cash payments
+    
+    // Get cash accounts (typically account codes 1000-1999 for assets)
+    const cashAccounts = accounts?.filter(acc => 
+      acc.type === 'asset' && 
+      (acc.code?.startsWith('1') || acc.name?.toLowerCase().includes('cash') || acc.name?.toLowerCase().includes('bank'))
+    ) || [];
+    
+    // Calculate cash inflows (debits to cash accounts = money coming in)
+    // Journal entries have a 'lines' array, each line has account_id, debit_amount, credit_amount
+    const cashInflows = generalLedger?.reduce((total, entry) => {
+      if (entry.lines && Array.isArray(entry.lines)) {
+        return total + entry.lines
+          .filter(line => cashAccounts.some(cashAcc => cashAcc.id === line.account_id) && line.debit_amount > 0)
+          .reduce((sum, line) => sum + Math.abs(line.debit_amount || 0), 0);
+      }
+      return total;
+    }, 0) || 0;
+    
+    // Calculate cash outflows (credits to cash accounts = money going out)
+    const cashOutflows = generalLedger?.reduce((total, entry) => {
+      if (entry.lines && Array.isArray(entry.lines)) {
+        return total + entry.lines
+          .filter(line => cashAccounts.some(cashAcc => cashAcc.id === line.account_id) && line.credit_amount > 0)
+          .reduce((sum, line) => sum + Math.abs(line.credit_amount || 0), 0);
+      }
+      return total;
+    }, 0) || 0;
+    
+    // Net cash flow from operations
+    const netCashFlow = cashInflows - cashOutflows;
+
+    // Calculate trends from historical data using journal entries
+    const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM format
+    const lastMonth = new Date();
+    lastMonth.setMonth(lastMonth.getMonth() - 1);
+    const lastMonthStr = lastMonth.toISOString().slice(0, 7);
+    
+    // Calculate current month revenue and expenses
+    // For revenue: use credit amounts (negative in our system, so take absolute value)
+    // For expenses: use debit amounts (positive in our system)
+    const currentMonthRevenue = generalLedger?.reduce((total, entry) => {
+      if (entry.lines && Array.isArray(entry.lines) && entry.date?.startsWith(currentMonth)) {
+        return total + entry.lines
+          .filter(line => accounts?.find(acc => acc.id === line.account_id)?.type === 'revenue')
+          .reduce((sum, line) => sum + Math.abs(line.credit_amount || 0), 0);
+      }
+      return total;
+    }, 0) || 0;
+    
+    const currentMonthExpenses = generalLedger?.reduce((total, entry) => {
+      if (entry.lines && Array.isArray(entry.lines) && entry.date?.startsWith(currentMonth)) {
+        return total + entry.lines
+          .filter(line => accounts?.find(acc => acc.id === line.account_id)?.type === 'expense')
+          .reduce((sum, line) => sum + Math.abs(line.debit_amount || 0), 0);
+      }
+      return total;
+    }, 0) || 0;
+    
+    // Calculate last month revenue and expenses
+    const lastMonthRevenue = generalLedger?.reduce((total, entry) => {
+      if (entry.lines && Array.isArray(entry.lines) && entry.date?.startsWith(lastMonthStr)) {
+        return total + entry.lines
+          .filter(line => accounts?.find(acc => acc.id === line.account_id)?.type === 'revenue')
+          .reduce((sum, line) => sum + Math.abs(line.credit_amount || 0), 0);
+      }
+      return total;
+    }, 0) || 0;
+    
+    const lastMonthExpenses = generalLedger?.reduce((total, entry) => {
+      if (entry.lines && Array.isArray(entry.lines) && entry.date?.startsWith(lastMonthStr)) {
+        return total + entry.lines
+          .filter(line => accounts?.find(acc => acc.id === line.account_id)?.type === 'expense')
+          .reduce((sum, line) => sum + Math.abs(line.debit_amount || 0), 0);
+      }
+      return total;
+    }, 0) || 0;
+    
+    // Calculate growth percentages
+    const revenueGrowth = lastMonthRevenue > 0 ? ((currentMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 : 0;
+    const expenseGrowth = lastMonthExpenses > 0 ? ((currentMonthExpenses - lastMonthExpenses) / lastMonthExpenses) * 100 : 0;
+    
+    // Calculate asset growth (comparing current vs last month total assets)
+    // For assets: debit increases, credit decreases
+    const currentMonthAssets = generalLedger?.reduce((total, entry) => {
+      if (entry.lines && Array.isArray(entry.lines) && entry.date?.startsWith(currentMonth)) {
+        return total + entry.lines
+          .filter(line => accounts?.find(acc => acc.id === line.account_id)?.type === 'asset')
+          .reduce((sum, line) => sum + Math.abs(line.debit_amount || 0) - Math.abs(line.credit_amount || 0), 0);
+      }
+      return total;
+    }, 0) || 0;
+    
+    const lastMonthAssets = generalLedger?.reduce((total, entry) => {
+      if (entry.lines && Array.isArray(entry.lines) && entry.date?.startsWith(lastMonthStr)) {
+        return total + entry.lines
+          .filter(line => accounts?.find(acc => acc.id === line.account_id)?.type === 'asset')
+          .reduce((sum, line) => sum + Math.abs(line.debit_amount || 0) - Math.abs(line.credit_amount || 0), 0);
+      }
+      return total;
+    }, 0) || 0;
+    
+    const assetGrowth = lastMonthAssets > 0 ? ((currentMonthAssets - lastMonthAssets) / lastMonthAssets) * 100 : 0;
 
     const result = {
       totalAssets,
@@ -94,7 +210,11 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
       accountsPayable: totalAccountsPayable,
       revenueGrowth,
       expenseGrowth,
-      cashFlow: totalAccountsReceivable - totalAccountsPayable,
+      assetGrowth,
+      // Comprehensive cash flow from journal entries
+      cashFlow: netCashFlow,
+      cashInflows,
+      cashOutflows,
       overdueInvoices: accountsReceivable?.filter(ar => ar.status === 'overdue').length || 0,
       pendingApprovals: accountsPayable?.filter(ap => ap.approval_status === 'pending').length || 0,
       // Bank account metrics
@@ -184,30 +304,25 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
         {/* Total Assets */}
         <Grid item xs={12} sm={6} md={3}>
           <Card sx={{ 
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: 'white',
-            position: 'relative',
-            overflow: 'hidden'
+            backgroundColor: 'white',
+            border: '1px solid rgba(0, 0, 0, 0.12)',
+            borderRadius: 2,
+            boxShadow: 'none'
           }}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                    Total Assets
-                  </Typography>
-                  <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 'bold' }}>
-                    ${metrics.totalAssets.toLocaleString()}
-                  </Typography>
-                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                    +2.5% from last month
-                  </Typography>
-                </Box>
-                <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 56, height: 56 }}>
-                  <AccountBalance sx={{ fontSize: 28 }} />
-                </Avatar>
+            <CardContent sx={{ p: 3 }}>
+              <Box>
+                <Typography variant="body2" color="text.primary" sx={{ mb: 1, fontWeight: 500 }}>
+                  Total Assets
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'text.primary', mb: 1 }}>
+                  ${metrics.totalAssets.toLocaleString()}
+                </Typography>
+                <Typography variant="caption" color={metrics.assetGrowth >= 0 ? "success.main" : "error.main"}>
+                  {metrics.assetGrowth > 0 ? '+' : ''}{metrics.assetGrowth.toFixed(1)}% from last month
+                </Typography>
               </Box>
               {assetsLoading && (
-                <LinearProgress sx={{ mt: 2, bgcolor: 'rgba(255,255,255,0.2)', '& .MuiLinearProgress-bar': { bgcolor: 'white' } }} />
+                <LinearProgress sx={{ mt: 2 }} />
               )}
             </CardContent>
           </Card>
@@ -216,31 +331,25 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
         {/* Net Income */}
         <Grid item xs={12} sm={6} md={3}>
           <Card sx={{ 
-            background: metrics.netIncome >= 0 
-              ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
-              : 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-            color: 'white',
-            position: 'relative'
+            backgroundColor: 'white',
+            border: '1px solid rgba(0, 0, 0, 0.12)',
+            borderRadius: 2,
+            boxShadow: 'none'
           }}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                    Net Income
-                  </Typography>
-                  <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 'bold' }}>
-                    ${metrics.netIncome.toLocaleString()}
-                  </Typography>
-                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                    {metrics.revenueGrowth > 0 ? '+' : ''}{metrics.revenueGrowth.toFixed(1)}% revenue growth
-                  </Typography>
-                </Box>
-                <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 56, height: 56 }}>
-                  {metrics.netIncome >= 0 ? <TrendingUp sx={{ fontSize: 28 }} /> : <TrendingDown sx={{ fontSize: 28 }} />}
-                </Avatar>
+            <CardContent sx={{ p: 3 }}>
+              <Box>
+                <Typography variant="body2" color="text.primary" sx={{ mb: 1, fontWeight: 500 }}>
+                  Net Income
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'text.primary', mb: 1 }}>
+                  ${metrics.netIncome.toLocaleString()}
+                </Typography>
+                <Typography variant="caption" color={metrics.revenueGrowth >= 0 ? "success.main" : "error.main"}>
+                  {metrics.revenueGrowth > 0 ? '+' : ''}{metrics.revenueGrowth.toFixed(1)}% revenue growth
+                </Typography>
               </Box>
               {glLoading && (
-                <LinearProgress sx={{ mt: 2, bgcolor: 'rgba(255,255,255,0.2)', '& .MuiLinearProgress-bar': { bgcolor: 'white' } }} />
+                <LinearProgress sx={{ mt: 2 }} />
               )}
             </CardContent>
           </Card>
@@ -249,29 +358,22 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
         {/* Accounts Receivable */}
         <Grid item xs={12} sm={6} md={3}>
           <Card sx={{ 
-            background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-            position: 'relative'
+            backgroundColor: 'white',
+            border: '1px solid rgba(0, 0, 0, 0.12)',
+            borderRadius: 2,
+            boxShadow: 'none'
           }}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    Accounts Receivable
-                  </Typography>
-                  <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 'bold' }}>
-                    ${metrics.accountsReceivable.toLocaleString()}
-                  </Typography>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <Chip 
-                      label={`${metrics.overdueInvoices} overdue`} 
-                      size="small" 
-                      color={metrics.overdueInvoices > 0 ? 'error' : 'success'}
-                    />
-                  </Box>
-                </Box>
-                <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56 }}>
-                  <Receipt sx={{ fontSize: 28 }} />
-                </Avatar>
+            <CardContent sx={{ p: 3 }}>
+              <Box>
+                <Typography variant="body2" color="text.primary" sx={{ mb: 1, fontWeight: 500 }}>
+                  Accounts Receivable
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'text.primary', mb: 1 }}>
+                  ${metrics.accountsReceivable.toLocaleString()}
+                </Typography>
+                <Typography variant="caption" color={metrics.overdueInvoices > 0 ? "error.main" : "success.main"}>
+                  {metrics.overdueInvoices} overdue
+                </Typography>
               </Box>
               {arLoading && <LinearProgress sx={{ mt: 2 }} />}
             </CardContent>
@@ -281,29 +383,22 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
         {/* Accounts Payable */}
         <Grid item xs={12} sm={6} md={3}>
           <Card sx={{ 
-            background: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
-            position: 'relative'
+            backgroundColor: 'white',
+            border: '1px solid rgba(0, 0, 0, 0.12)',
+            borderRadius: 2,
+            boxShadow: 'none'
           }}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    Accounts Payable
-                  </Typography>
-                  <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 'bold' }}>
-                    ${metrics.accountsPayable.toLocaleString()}
-                  </Typography>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <Chip 
-                      label={`${metrics.pendingApprovals} pending`} 
-                      size="small" 
-                      color={metrics.pendingApprovals > 0 ? 'warning' : 'success'}
-                    />
-                  </Box>
-                </Box>
-                <Avatar sx={{ bgcolor: 'warning.main', width: 56, height: 56 }}>
-                  <Payment sx={{ fontSize: 28 }} />
-                </Avatar>
+            <CardContent sx={{ p: 3 }}>
+              <Box>
+                <Typography variant="body2" color="text.primary" sx={{ mb: 1, fontWeight: 500 }}>
+                  Accounts Payable
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'text.primary', mb: 1 }}>
+                  ${metrics.accountsPayable.toLocaleString()}
+                </Typography>
+                <Typography variant="caption" color={metrics.pendingApprovals > 0 ? "warning.main" : "success.main"}>
+                  {metrics.pendingApprovals} pending
+                </Typography>
               </Box>
               {apLoading && <LinearProgress sx={{ mt: 2 }} />}
             </CardContent>
@@ -316,30 +411,25 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
         {/* Total Bank Balance */}
         <Grid item xs={12} sm={6} md={3}>
           <Card sx={{ 
-            background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
-            color: 'white',
-            position: 'relative',
-            overflow: 'hidden'
+            backgroundColor: 'white',
+            border: '1px solid rgba(0, 0, 0, 0.12)',
+            borderRadius: 2,
+            boxShadow: 'none'
           }}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                    Bank Balance
-                  </Typography>
-                  <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 'bold' }}>
-                    ${metrics.totalBankBalance.toLocaleString()}
-                  </Typography>
-                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                    {metrics.activeBankAccounts} active accounts
-                  </Typography>
-                </Box>
-                <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 56, height: 56 }}>
-                  <AccountBalanceWallet sx={{ fontSize: 28 }} />
-                </Avatar>
+            <CardContent sx={{ p: 3 }}>
+              <Box>
+                <Typography variant="body2" color="text.primary" sx={{ mb: 1, fontWeight: 500 }}>
+                  Bank Balance
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'text.primary', mb: 1 }}>
+                  ${metrics.totalBankBalance.toLocaleString()}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {metrics.activeBankAccounts} {metrics.activeBankAccounts === 1 ? 'active account' : 'active accounts'}
+                </Typography>
               </Box>
               {bankAccountsLoading && (
-                <LinearProgress sx={{ mt: 2, bgcolor: 'rgba(255,255,255,0.2)', '& .MuiLinearProgress-bar': { bgcolor: 'white' } }} />
+                <LinearProgress sx={{ mt: 2 }} />
               )}
             </CardContent>
           </Card>
@@ -348,30 +438,25 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
         {/* Deposit Accounts */}
         <Grid item xs={12} sm={6} md={3}>
           <Card sx={{ 
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: 'white',
-            position: 'relative',
-            overflow: 'hidden'
+            backgroundColor: 'white',
+            border: '1px solid rgba(0, 0, 0, 0.12)',
+            borderRadius: 2,
+            boxShadow: 'none'
           }}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                    Deposit Accounts
-                  </Typography>
-                  <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 'bold' }}>
-                    {metrics.depositAccounts}
-                  </Typography>
-                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                    Can receive payments
-                  </Typography>
-                </Box>
-                <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 56, height: 56 }}>
-                  <Receipt sx={{ fontSize: 28 }} />
-                </Avatar>
+            <CardContent sx={{ p: 3 }}>
+              <Box>
+                <Typography variant="body2" color="text.primary" sx={{ mb: 1, fontWeight: 500 }}>
+                  Deposit Accounts
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'text.primary', mb: 1 }}>
+                  {metrics.depositAccounts}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {metrics.depositAccounts > 0 ? 'Can receive payments' : 'No deposit accounts'}
+                </Typography>
               </Box>
               {bankAccountsLoading && (
-                <LinearProgress sx={{ mt: 2, bgcolor: 'rgba(255,255,255,0.2)', '& .MuiLinearProgress-bar': { bgcolor: 'white' } }} />
+                <LinearProgress sx={{ mt: 2 }} />
               )}
             </CardContent>
           </Card>
@@ -380,30 +465,25 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
         {/* Payment Methods */}
         <Grid item xs={12} sm={6} md={3}>
           <Card sx={{ 
-            background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-            color: 'white',
-            position: 'relative',
-            overflow: 'hidden'
+            backgroundColor: 'white',
+            border: '1px solid rgba(0, 0, 0, 0.12)',
+            borderRadius: 2,
+            boxShadow: 'none'
           }}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                    Payment Methods
-                  </Typography>
-                  <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 'bold' }}>
-                    {metrics.paymentMethodCount}
-                  </Typography>
-                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                    Available options
-                  </Typography>
-                </Box>
-                <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 56, height: 56 }}>
-                  <Payment sx={{ fontSize: 28 }} />
-                </Avatar>
+            <CardContent sx={{ p: 3 }}>
+              <Box>
+                <Typography variant="body2" color="text.primary" sx={{ mb: 1, fontWeight: 500 }}>
+                  Payment Methods
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'text.primary', mb: 1 }}>
+                  {metrics.paymentMethodCount}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {metrics.paymentMethodCount > 0 ? 'Available options' : 'No payment methods'}
+                </Typography>
               </Box>
               {paymentMethodsLoading && (
-                <LinearProgress sx={{ mt: 2, bgcolor: 'rgba(255,255,255,0.2)', '& .MuiLinearProgress-bar': { bgcolor: 'white' } }} />
+                <LinearProgress sx={{ mt: 2 }} />
               )}
             </CardContent>
           </Card>
@@ -412,30 +492,25 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
         {/* Withdrawal Accounts */}
         <Grid item xs={12} sm={6} md={3}>
           <Card sx={{ 
-            background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-            color: 'white',
-            position: 'relative',
-            overflow: 'hidden'
+            backgroundColor: 'white',
+            border: '1px solid rgba(0, 0, 0, 0.12)',
+            borderRadius: 2,
+            boxShadow: 'none'
           }}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                    Withdrawal Accounts
-                  </Typography>
-                  <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 'bold' }}>
-                    {metrics.withdrawalAccounts}
-                  </Typography>
-                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                    Can make payments
-                  </Typography>
-                </Box>
-                <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 56, height: 56 }}>
-                  <AttachMoney sx={{ fontSize: 28 }} />
-                </Avatar>
+            <CardContent sx={{ p: 3 }}>
+              <Box>
+                <Typography variant="body2" color="text.primary" sx={{ mb: 1, fontWeight: 500 }}>
+                  Withdrawal Accounts
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'text.primary', mb: 1 }}>
+                  {metrics.withdrawalAccounts}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {metrics.withdrawalAccounts > 0 ? 'Can make payments' : 'No withdrawal accounts'}
+                </Typography>
               </Box>
               {bankAccountsLoading && (
-                <LinearProgress sx={{ mt: 2, bgcolor: 'rgba(255,255,255,0.2)', '& .MuiLinearProgress-bar': { bgcolor: 'white' } }} />
+                <LinearProgress sx={{ mt: 2 }} />
               )}
             </CardContent>
           </Card>
@@ -508,6 +583,7 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
                   startIcon={<Add />}
                   fullWidth
                   sx={{ justifyContent: 'flex-start' }}
+                  onClick={() => setManualEntryOpen(true)}
                 >
                   New Journal Entry
                 </Button>
@@ -516,6 +592,7 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
                   startIcon={<Receipt />}
                   fullWidth
                   sx={{ justifyContent: 'flex-start' }}
+                  onClick={() => navigate('/finance?feature=accounts-receivable')}
                 >
                   Create Invoice
                 </Button>
@@ -524,6 +601,7 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
                   startIcon={<Payment />}
                   fullWidth
                   sx={{ justifyContent: 'flex-start' }}
+                  onClick={() => navigate('/finance?feature=accounts-payable')}
                 >
                   Record Bill
                 </Button>
@@ -532,6 +610,7 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
                   startIcon={<Assessment />}
                   fullWidth
                   sx={{ justifyContent: 'flex-start' }}
+                  onClick={() => navigate('/finance?feature=reports')}
                 >
                   Generate Report
                 </Button>
@@ -550,7 +629,7 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
           <Grid container spacing={2}>
             <Grid item xs={12} md={4}>
               <Box textAlign="center">
-                <Typography variant="h4" color="success.main" gutterBottom>
+                <Typography variant="h4" color={metrics.cashFlow >= 0 ? "success.main" : "error.main"} gutterBottom>
                   ${metrics.cashFlow.toLocaleString()}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -561,20 +640,20 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
             <Grid item xs={12} md={4}>
               <Box textAlign="center">
                 <Typography variant="h6" color="info.main" gutterBottom>
-                  ${metrics.accountsReceivable.toLocaleString()}
+                  ${metrics.cashInflows.toLocaleString()}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Cash In (AR)
+                  Cash Inflows
                 </Typography>
               </Box>
             </Grid>
             <Grid item xs={12} md={4}>
               <Box textAlign="center">
                 <Typography variant="h6" color="warning.main" gutterBottom>
-                  ${metrics.accountsPayable.toLocaleString()}
+                  ${metrics.cashOutflows.toLocaleString()}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Cash Out (AP)
+                  Cash Outflows
                 </Typography>
               </Box>
             </Grid>
@@ -608,17 +687,19 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
                 <TrendingUp color="success" />
               </ListItemIcon>
               <ListItemText
-                primary="Revenue Optimization Opportunity"
-                secondary="Your Q4 revenue shows 15% growth potential based on historical patterns"
+                primary="Revenue Analysis"
+                secondary={`Current revenue: $${metrics.totalRevenue.toLocaleString()}. ${metrics.revenueGrowth > 0 ? `Growing at ${metrics.revenueGrowth.toFixed(1)}%` : 'Consider revenue optimization strategies'}`}
               />
             </ListItem>
             <ListItem>
               <ListItemIcon>
-                <Warning color="warning" />
+                <Warning color={metrics.cashFlow < 0 ? "error" : "warning"} />
               </ListItemIcon>
               <ListItemText
-                primary="Cash Flow Alert"
-                secondary="Consider delaying AP payments by 15 days to improve cash position"
+                primary="Cash Flow Status"
+                secondary={metrics.cashFlow < 0 ? 
+                  `Negative cash flow: $${Math.abs(metrics.cashFlow).toLocaleString()}. Consider reducing expenses or increasing collections` :
+                  `Positive cash flow: $${metrics.cashFlow.toLocaleString()}. Good financial position`}
               />
             </ListItem>
             <ListItem>
@@ -626,8 +707,8 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
                 <Info color="info" />
               </ListItemIcon>
               <ListItemText
-                primary="Budget Variance"
-                secondary="Marketing spend is 12% under budget - opportunity for Q4 campaigns"
+                primary="Financial Health"
+                secondary={`Total assets: $${metrics.totalAssets.toLocaleString()}, Net income: $${metrics.netIncome.toLocaleString()}. ${metrics.netIncome > 0 ? 'Profitable operations' : 'Review expense management'}`}
               />
             </ListItem>
           </List>
@@ -654,24 +735,34 @@ const SmartDashboard = ({ isMobile, isTablet }) => {
         <SpeedDialAction
           icon={<Add />}
           tooltipTitle="New Entry"
-          onClick={() => {}}
+          onClick={() => setManualEntryOpen(true)}
         />
         <SpeedDialAction
           icon={<Receipt />}
           tooltipTitle="Create Invoice"
-          onClick={() => {}}
+          onClick={() => navigate('/finance?feature=accounts-receivable')}
         />
         <SpeedDialAction
           icon={<Payment />}
           tooltipTitle="Record Bill"
-          onClick={() => {}}
+          onClick={() => navigate('/finance?feature=accounts-payable')}
         />
         <SpeedDialAction
           icon={<Assessment />}
           tooltipTitle="Generate Report"
-          onClick={() => {}}
+          onClick={() => navigate('/finance?feature=reports')}
         />
       </SpeedDial>
+
+      {/* Manual Journal Entry Dialog */}
+      <ManualJournalEntry
+        open={manualEntryOpen}
+        onClose={() => setManualEntryOpen(false)}
+        onSuccess={() => {
+          setManualEntryOpen(false);
+          setRefreshKey(prev => prev + 1); // Refresh data
+        }}
+      />
     </Box>
   );
 };

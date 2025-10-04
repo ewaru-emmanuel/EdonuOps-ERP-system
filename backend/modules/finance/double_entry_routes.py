@@ -172,6 +172,10 @@ def create_journal_entry():
         is_backdated = entry_date < date.today()
         backdate_reason = data.get('backdate_reason') if is_backdated else None
         
+        # Calculate totals from processed lines
+        total_debits = sum(line['functional_debit_amount'] for line in currency_result['processed_lines'])
+        total_credits = sum(line['functional_credit_amount'] for line in currency_result['processed_lines'])
+        
         journal_entry = JournalEntry(
             period=entry_date.strftime('%Y-%m'),
             doc_date=entry_date,
@@ -180,6 +184,8 @@ def create_journal_entry():
             status=data.get('status', 'draft'),
             payment_method=data.get('payment_method', 'bank'),
             currency=data.get('currency', 'USD'),  # Add currency to journal entry
+            total_debit=total_debits,
+            total_credit=total_credits,
             accounting_period_id=period.id,
             is_backdated=is_backdated,
             backdate_reason=backdate_reason,
@@ -244,12 +250,22 @@ def get_accounts():
         
         result = []
         for account in accounts:
+            # Calculate balance from journal lines for this user
+            from sqlalchemy import func
+            balance_result = db.session.query(
+                func.coalesce(func.sum(JournalLine.debit_amount), 0) - 
+                func.coalesce(func.sum(JournalLine.credit_amount), 0)
+            ).join(JournalEntry).filter(
+                JournalLine.account_id == account.id,
+                (JournalEntry.user_id == user_id_int) | (JournalEntry.user_id.is_(None))
+            ).scalar() or 0.0
+            
             account_data = {
                 "id": account.id,
                 "code": account.code,
                 "name": account.name,
                 "type": account.type,
-                "balance": float(account.balance) if account.balance else 0.0,
+                "balance": float(balance_result),
                 "is_active": account.is_active
             }
             result.append(account_data)
