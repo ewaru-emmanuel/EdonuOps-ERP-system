@@ -34,17 +34,29 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null }) => {
     if (open) {
       loadAccounts();
       if (editEntry) {
-        loadEditData();
+        // Wait a bit for accounts to load before loading edit data
+        setTimeout(() => {
+          loadEditData();
+        }, 100);
       } else {
         resetForm();
       }
     }
   }, [open, editEntry]);
 
+  // Also load edit data when accounts are loaded
+  useEffect(() => {
+    if (open && editEntry && accounts.length > 0) {
+      loadEditData();
+    }
+  }, [accounts, open, editEntry]);
+
   const loadAccounts = async () => {
     try {
       const response = await apiClient.get('/api/finance/double-entry/accounts');
+      console.log('🔍 Accounts API response:', response);
       if (Array.isArray(response)) {
+        console.log('🔍 Setting accounts:', response);
         setAccounts(response);
       }
     } catch (error) {
@@ -59,22 +71,41 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null }) => {
 
   const loadEditData = () => {
     if (editEntry) {
+      console.log('🔍 Loading edit data for entry:', editEntry);
+      console.log('🔍 Available accounts:', accounts);
+      
       setFormData({
-        date: editEntry.date ? editEntry.date.split('T')[0] : new Date().toISOString().split('T')[0],
+        date: editEntry.entry_date ? editEntry.entry_date.split('T')[0] : 
+              editEntry.date ? editEntry.date.split('T')[0] : 
+              new Date().toISOString().split('T')[0],
         reference: editEntry.reference || '',
         description: editEntry.description || '',
         status: editEntry.status || 'draft',
         payment_method: editEntry.payment_method || 'bank'
       });
       
+      // Handle different entry structures
       if (editEntry.lines && editEntry.lines.length > 0) {
+        // New structure with lines array
         const lines = editEntry.lines.map((line, index) => ({
           id: index + 1,
-          account_id: line.account_id,
+          account_id: parseInt(line.account_id) || line.account_id, // Ensure it's a number
           description: line.description || '',
           debit_amount: line.debit_amount || 0,
           credit_amount: line.credit_amount || 0
         }));
+        console.log('🔍 Processed lines for editing:', lines);
+        setJournalLines(lines);
+      } else if (editEntry.debit_amount !== undefined || editEntry.credit_amount !== undefined) {
+        // General Ledger structure - create a single line
+        const lines = [{
+          id: 1,
+          account_id: parseInt(editEntry.account_id) || editEntry.account_id || '', // Ensure it's a number
+          description: editEntry.description || '',
+          debit_amount: editEntry.debit_amount || 0,
+          credit_amount: editEntry.credit_amount || 0
+        }];
+        console.log('🔍 Processed single line for editing:', lines);
         setJournalLines(lines);
       }
     }

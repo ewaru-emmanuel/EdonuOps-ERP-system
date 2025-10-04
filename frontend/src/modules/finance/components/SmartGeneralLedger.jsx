@@ -9,7 +9,7 @@ import {
   Add, Edit, Delete, Visibility, Download, Refresh, CheckCircle, Warning, Error, Info, AttachMoney, Schedule, BarChart, PieChart, ShowChart,
   TrendingUp, TrendingDown, AccountBalance, Receipt, Payment, Business, Assessment, LocalTaxi, AccountBalanceWallet,
   Security, Lock, Notifications, Settings, FilterList, Search, Timeline, CurrencyExchange, Audit, Compliance,
-  MoreVert, ExpandMore, ExpandLess, PlayArrow, Pause, Stop, Save, Cancel, AutoAwesome, Psychology, Lightbulb
+  MoreVert, ExpandMore, ExpandLess, PlayArrow, Pause, Stop, Save, Cancel, AutoAwesome, Psychology, Lightbulb, Close
 } from '@mui/icons-material';
 import { useCoA } from '../context/CoAContext';
 import { useCurrency } from '../../../components/GlobalCurrencySettings';
@@ -30,8 +30,6 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
     status: '',
     amount: ''
   });
-  const [editingRow, setEditingRow] = useState(null);
-  const [editData, setEditData] = useState({});
   const [aiSuggestions, setAiSuggestions] = useState([]);
   const [showAiDialog, setShowAiDialog] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
@@ -47,6 +45,7 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState(null);
+  const [editEntry, setEditEntry] = useState(null);
   const [manualJournalOpen, setManualJournalOpen] = useState(false);
   const [formData, setFormData] = useState({
     account_id: null,
@@ -212,11 +211,14 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
   const remove = async (id) => {
     try {
       console.log('Deleting GL entry via API:', id);
-      const response = await apiClient.delete(`/api/finance/journal-entries/${id}`);
+      // Extract entry_id from the composite ID (format: "entryId-lineId")
+      const entryId = id.includes('-') ? id.split('-')[0] : id;
+      
+      const response = await apiClient.delete(`/api/finance/double-entry/journal-entries/${entryId}`);
       console.log('Delete API response:', response);
       
-      // Remove from local state
-      setGeneralLedger(prev => prev.filter(entry => entry.id !== id));
+      // Remove all lines for this entry from local state
+      setGeneralLedger(prev => prev.filter(entry => entry.entry_id !== entryId));
       return true;
     } catch (error) {
       console.error('Error deleting journal entry:', error);
@@ -227,7 +229,7 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
   const refresh = async () => { 
     try {
       console.log('Loading GL entries from API');
-      const response = await apiClient.get('/api/finance/journal-entries');
+      const response = await apiClient.get('/api/finance/double-entry/journal-entries');
       console.log('API response for loading entries:', response);
       console.log('Response type:', typeof response);
       console.log('Response.data type:', typeof response.data);
@@ -265,19 +267,51 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
       console.log('Final data array:', dataArray);
       console.log('Data array length:', dataArray.length);
       
-      const entries = dataArray.map(entry => ({
-        id: entry.id,
-        entry_date: entry.entry_date,
-        reference: entry.reference,
-        description: entry.description,
-        status: entry.status,
-        debit_amount: entry.total_debit,
-        credit_amount: entry.total_credit,
-        account_id: null, // Backend doesn't store individual account_id per entry
-        account_name: 'Database Entry', // Placeholder since backend doesn't have this field
-        created_at: entry.created_at,
-        updated_at: entry.created_at
-      }));
+      // Flatten journal entries into individual journal lines for General Ledger display
+      const entries = [];
+      dataArray.forEach(entry => {
+        if (entry.lines && entry.lines.length > 0) {
+          // Process each journal line as a separate General Ledger entry
+          entry.lines.forEach(line => {
+            entries.push({
+              id: `${entry.id}-${line.id}`, // Unique ID combining entry and line
+              entry_id: entry.id, // Keep reference to original entry
+              line_id: line.id,
+              entry_date: entry.date,
+              reference: entry.reference,
+              description: line.description || entry.description,
+              status: entry.status,
+              debit_amount: line.debit_amount,
+              credit_amount: line.credit_amount,
+              account_id: line.account_id,
+              account_name: line.account_name,
+              account_code: line.account_code,
+              created_at: entry.created_at,
+              updated_at: entry.updated_at,
+              payment_method: entry.payment_method
+            });
+          });
+        } else {
+          // Fallback for entries without lines (shouldn't happen in proper double-entry)
+          entries.push({
+            id: entry.id,
+            entry_id: entry.id,
+            line_id: null,
+            entry_date: entry.date,
+            reference: entry.reference,
+            description: entry.description,
+            status: entry.status,
+            debit_amount: entry.total_debits || 0,
+            credit_amount: entry.total_credits || 0,
+            account_id: null,
+            account_name: 'Database Entry',
+            account_code: 'N/A',
+            created_at: entry.created_at,
+            updated_at: entry.updated_at,
+            payment_method: entry.payment_method
+          });
+        }
+      });
       
       console.log('Processed entries for display:', entries);
       setGeneralLedger(entries);
@@ -490,20 +524,6 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
     }
   };
 
-  // Handle edit
-  const handleEdit = (entry) => {
-    setSelectedEntry(entry);
-    setFormData({
-      account_id: entry.account_id || null,
-      entry_date: entry.entry_date ? entry.entry_date.split('T')[0] : '',
-      description: entry.description || '',
-      debit_amount: entry.debit_amount || '',
-      credit_amount: entry.credit_amount || '',
-      reference: entry.reference || '',
-      status: entry.status || 'posted'
-    });
-    setEditDialogOpen(true);
-  };
 
   // Handle delete
   const handleDelete = async (id) => {
@@ -713,35 +733,6 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
     });
   };
 
-  // Handle inline editing save
-  const handleSave = async () => {
-    try {
-      // Validate double-entry bookkeeping
-      if (editData.debit_amount > 0 && editData.credit_amount > 0) {
-        setSnackbar({ open: true, message: 'Cannot have both debit and credit amounts', severity: 'error' });
-        return;
-      }
-      
-      if (editData.debit_amount === 0 && editData.credit_amount === 0) {
-        setSnackbar({ open: true, message: 'Must have either debit or credit amount', severity: 'error' });
-        return;
-      }
-      
-      // Update the entry
-      await update(editingRow, editData);
-      setSnackbar({ open: true, message: 'Journal entry updated successfully', severity: 'success' });
-      setEditingRow(null);
-      setEditData({});
-    } catch (error) {
-      setSnackbar({ open: true, message: `Error updating entry: ${error.message}`, severity: 'error' });
-    }
-  };
-
-  // Handle inline editing cancel
-  const handleCancel = () => {
-    setEditingRow(null);
-    setEditData({});
-  };
 
   const handleSort = (property) => {
     const isAsc = orderBy === property && order === 'asc';
@@ -819,56 +810,6 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
         </Box>
       </Box>
 
-      {/* Quick Workflow Actions */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Quick Workflow Actions
-          </Typography>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6} md={3}>
-              <Button
-                variant="outlined"
-                fullWidth
-                startIcon={<Receipt />}
-                onClick={() => {}}
-              >
-                Record Sale
-              </Button>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Button
-                variant="outlined"
-                fullWidth
-                startIcon={<Payment />}
-                onClick={() => {}}
-              >
-                Record Purchase
-              </Button>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Button
-                variant="outlined"
-                fullWidth
-                startIcon={<AccountBalance />}
-                onClick={() => {}}
-              >
-                Bank Reconciliation
-              </Button>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Button
-                variant="outlined"
-                fullWidth
-                startIcon={<LocalTaxi />}
-                onClick={() => {}}
-              >
-                Tax Entry
-              </Button>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
 
       {/* Real-time Trial Balance */}
       <Card sx={{ mb: 3 }}>
@@ -1061,138 +1002,63 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
               </TableHead>
               <TableBody>
                 {paginatedData.map((entry, index) => (
-                  <TableRow key={entry.id || `entry-${index}`} hover>
+                  <TableRow 
+                    key={entry.id || `entry-${index}`} 
+                    hover 
+                    onClick={() => setSelectedEntry(entry)}
+                    sx={{ cursor: 'pointer' }}
+                  >
                     <TableCell>
                       {entry.entry_date ? new Date(entry.entry_date).toLocaleDateString() : ''}
                     </TableCell>
                     <TableCell>
-                      {editingRow === entry.id ? (
-                        <TextField
-                          value={editData.reference}
-                          onChange={(e) => setEditData({ ...editData, reference: e.target.value })}
-                          size="small"
-                          fullWidth
-                        />
-                      ) : (
-                        entry.reference || ''
-                      )}
+                      {entry.reference || ''}
                     </TableCell>
                     <TableCell>
-                      {editingRow === entry.id ? (
-                        <Autocomplete
-                          options={chartOfAccounts || []}
-                          getOptionLabel={(option) => option.name}
-                          value={chartOfAccounts?.find(acc => acc.id === editData.account_id) || null}
-                          onChange={(e, value) => setEditData({ ...editData, account_id: value?.id || null })}
-                          renderInput={(params) => (
-                            <TextField {...params} size="small" />
-                          )}
-                          size="small"
-                          isOptionEqualToValue={(option, value) => option.id === value?.id}
-                        />
-                      ) : (
-                        entry.account_name || ''
-                      )}
+                      {entry.account_name || ''}
                     </TableCell>
                     <TableCell>
-                      {editingRow === entry.id ? (
-                        <TextField
-                          value={editData.description}
-                          onChange={(e) => setEditData({ ...editData, description: e.target.value })}
-                          size="small"
-                          fullWidth
-                        />
-                      ) : (
-                        entry.description || ''
-                      )}
+                      {entry.description || ''}
                     </TableCell>
                     <TableCell align="right">
-                      {editingRow === entry.id ? (
-                        <TextField
-                          type="number"
-                          value={editData.debit_amount}
-                          onChange={(e) => setEditData({ ...editData, debit_amount: parseFloat(e.target.value) || 0 })}
-                          size="small"
-                          InputProps={{
-                            startAdornment: <InputAdornment position="start">$</InputAdornment>,
-                          }}
-                        />
-                      ) : (
-                        `$${entry.debit_amount || 0}`
-                      )}
+                      {formatCurrency(entry.debit_amount || 0)}
                     </TableCell>
                     <TableCell align="right">
-                      {editingRow === entry.id ? (
-                        <TextField
-                          type="number"
-                          value={editData.credit_amount}
-                          onChange={(e) => setEditData({ ...editData, credit_amount: parseFloat(e.target.value) || 0 })}
-                          size="small"
-                          InputProps={{
-                            startAdornment: <InputAdornment position="start">$</InputAdornment>,
-                          }}
-                        />
-                      ) : (
-                        `$${entry.credit_amount || 0}`
-                      )}
+                      {formatCurrency(entry.credit_amount || 0)}
                     </TableCell>
                     <TableCell>
-                      {editingRow === entry.id ? (
-                        <FormControl size="small" fullWidth>
-                          <Select
-                            value={editData.status}
-                            onChange={(e) => setEditData({ ...editData, status: e.target.value })}
-                          >
-                            <MenuItem value="draft">Draft</MenuItem>
-                            <MenuItem value="posted">Posted</MenuItem>
-                            <MenuItem value="void">Void</MenuItem>
-                          </Select>
-                        </FormControl>
-                      ) : (
-                        <Chip
-                          label={entry.status || 'draft'}
-                          color={entry.status === 'posted' ? 'success' : entry.status === 'void' ? 'error' : 'warning'}
-                          size="small"
-                        />
-                      )}
+                      <Chip
+                        label={entry.status || 'draft'}
+                        color={entry.status === 'posted' ? 'success' : entry.status === 'void' ? 'error' : 'warning'}
+                        size="small"
+                      />
                     </TableCell>
                     <TableCell>
-                      {editingRow === entry.id ? (
-                        <Box display="flex" gap={1}>
-                          <Tooltip title="Save">
-                            <IconButton onClick={handleSave} color="success" size="small">
-                              <Save />
+                      <Box display="flex" gap={1}>
+                        <PermissionGuard permission="finance.journal.update" showFallback={false}>
+                          <Tooltip title="Edit">
+                            <IconButton onClick={(e) => {
+                              e.stopPropagation(); // Prevent row click
+                              // For editing, we need to get the full journal entry, not just the line
+                              // The entry object already contains the line data, so we can use it directly
+                              setEditEntry(entry);
+                              setManualJournalOpen(true);
+                            }} size="small">
+                              <Edit />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title="Cancel">
-                            <IconButton onClick={handleCancel} color="error" size="small">
-                              <Cancel />
+                        </PermissionGuard>
+                        <PermissionGuard permission="finance.journal.delete" showFallback={false}>
+                          <Tooltip title="Delete">
+                            <IconButton color="error" size="small" onClick={(e) => {
+                              e.stopPropagation(); // Prevent row click
+                              handleDelete(entry.id);
+                            }}>
+                              <Delete />
                             </IconButton>
                           </Tooltip>
-                        </Box>
-                      ) : (
-                        <Box display="flex" gap={1}>
-                          <Tooltip title="View Details">
-                            <IconButton size="small">
-                              <Visibility />
-                            </IconButton>
-                          </Tooltip>
-                          <PermissionGuard permission="finance.journal.update" showFallback={false}>
-                            <Tooltip title="Edit">
-                              <IconButton onClick={() => handleEdit(entry)} size="small">
-                                <Edit />
-                              </IconButton>
-                            </Tooltip>
-                          </PermissionGuard>
-                          <PermissionGuard permission="finance.journal.delete" showFallback={false}>
-                            <Tooltip title="Delete">
-                              <IconButton color="error" size="small" onClick={() => handleDelete(entry.id)}>
-                                <Delete />
-                              </IconButton>
-                            </Tooltip>
-                          </PermissionGuard>
-                        </Box>
-                      )}
+                        </PermissionGuard>
+                      </Box>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1512,12 +1378,110 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
       {/* Manual Journal Entry Dialog */}
       <ManualJournalEntry
         open={manualJournalOpen}
-        onClose={() => setManualJournalOpen(false)}
+        onClose={() => {
+          setManualJournalOpen(false);
+          setEditEntry(null); // Clear edit entry when closing
+        }}
         onSuccess={() => {
           setManualJournalOpen(false);
+          setEditEntry(null); // Clear edit entry on success
           refresh(); // Refresh the general ledger data
         }}
+        editEntry={editEntry}
       />
+
+      {/* Entry Details Dialog */}
+      <Dialog
+        open={!!selectedEntry}
+        onClose={() => setSelectedEntry(null)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Journal Entry Details
+          <IconButton
+            onClick={() => setSelectedEntry(null)}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {selectedEntry && (
+            <Box sx={{ mt: 2 }}>
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Reference</Typography>
+                  <Typography variant="body1">{selectedEntry.reference}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Date</Typography>
+                  <Typography variant="body1">
+                    {selectedEntry.entry_date ? new Date(selectedEntry.entry_date).toLocaleDateString() : ''}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary">Description</Typography>
+                  <Typography variant="body1">{selectedEntry.description}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Status</Typography>
+                  <Chip 
+                    label={selectedEntry.status} 
+                    color={selectedEntry.status === 'posted' ? 'success' : 'default'}
+                    size="small"
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Account</Typography>
+                  <Typography variant="body1">{selectedEntry.account_name || 'Database Entry'}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Debit Amount</Typography>
+                  <Typography variant="body1" color="success.main">
+                    {formatCurrency(selectedEntry.debit_amount || 0)}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Credit Amount</Typography>
+                  <Typography variant="body1" color="error.main">
+                    {formatCurrency(selectedEntry.credit_amount || 0)}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Created</Typography>
+                  <Typography variant="body1">
+                    {selectedEntry.created_at ? new Date(selectedEntry.created_at).toLocaleString() : ''}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Updated</Typography>
+                  <Typography variant="body1">
+                    {selectedEntry.updated_at ? new Date(selectedEntry.updated_at).toLocaleString() : ''}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSelectedEntry(null)}>Close</Button>
+          <PermissionGuard permission="finance.journal.update" showFallback={false}>
+            <Button 
+              variant="contained" 
+              onClick={() => {
+                // For editing, we need to get the full journal entry, not just the line
+                // The selectedEntry object already contains the line data, so we can use it directly
+                setEditEntry(selectedEntry);
+                setSelectedEntry(null);
+                setManualJournalOpen(true);
+              }}
+            >
+              Edit Entry
+            </Button>
+          </PermissionGuard>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
