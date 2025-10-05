@@ -147,10 +147,23 @@ def rollback_accounting_periods():
             db.engine.execute("ALTER TABLE journal_entries DROP COLUMN IF EXISTS period_locked")
             db.engine.execute("ALTER TABLE journal_entries DROP COLUMN IF EXISTS backdate_reason")
             
+            # CRITICAL SAFETY: Create backup before destructive operation
+            print("🔄 Creating backup before rollback...")
+            backup_file = f"database_backup_before_rollback_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+            try:
+                import shutil
+                shutil.copy2('edonuops.db', backup_file)
+                print(f"✅ Backup created: {backup_file}")
+            except Exception as e:
+                print(f"❌ Backup failed: {e}")
+                print("🚨 ABORTING: Cannot proceed without backup!")
+                return False
+            
             # Drop the tables
             db.drop_all()
             
             print("✅ Rollback completed successfully!")
+            print(f"💾 Backup available at: {backup_file}")
             
         except Exception as e:
             print(f"❌ Rollback failed: {e}")

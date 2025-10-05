@@ -24,7 +24,7 @@ class AuditLogFilter(db.Model):
     description = db.Column(db.Text)
     filter_criteria = db.Column(JSON)  # JSON structure for filter criteria
     is_active = db.Column(db.Boolean, default=True)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

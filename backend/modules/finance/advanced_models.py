@@ -38,7 +38,8 @@ class GeneralLedgerEntry(db.Model):
     status = db.Column(db.String(20), default='posted')  # draft, posted, void
     journal_type = db.Column(db.String(50))  # manual, system, recurring
     fiscal_period = db.Column(db.String(10))  # YYYY-MM
-    created_by = db.Column(db.String(100))
+    created_by = db.Column(db.String(100))  # Keep for backward compatibility
+    user_id = db.Column(db.Integer)  # Standardized user identification
     approved_by = db.Column(db.String(100))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -72,7 +73,7 @@ class PostingRule(db.Model):
     company_id = db.Column(db.Integer)  # For multi-company support
     business_unit = db.Column(db.String(50))  # For different BU rules
     is_active = db.Column(db.Boolean, default=True)
-    created_by = db.Column(db.String(100))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -105,7 +106,7 @@ class JournalHeader(db.Model):
     approval_status = db.Column(db.String(20), default='pending')  # pending, approved, rejected
     
     # User metadata
-    created_by = db.Column(db.String(100))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     posted_by = db.Column(db.String(100))
     approved_by = db.Column(db.String(100))
     reversed_by = db.Column(db.String(100))
@@ -169,7 +170,7 @@ class AccountsPayable(db.Model):
     actual_payment_amount = db.Column(db.Float)  # Amount actually paid (may differ from total)
     payment_notes = db.Column(db.Text)
     
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
+    user_id = db.Column(db.Integer)  # Standardized user identification)  # User isolation
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -210,7 +211,7 @@ class AccountsReceivable(db.Model):
     net_amount_received = db.Column(db.Float)  # Amount after processing fees
     payment_notes = db.Column(db.Text)
     
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
+    user_id = db.Column(db.Integer)  # Standardized user identification)  # User isolation
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -317,7 +318,7 @@ class BankReconciliation(db.Model):
     reconciled_by = db.Column(db.String(100))
     reconciled_at = db.Column(db.DateTime)
     notes = db.Column(db.Text)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
+    user_id = db.Column(db.Integer)  # Standardized user identification)  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -334,7 +335,7 @@ class APPayment(db.Model):
     payment_reference = db.Column(db.String(50))
     bank_account = db.Column(db.String(50))
     status = db.Column(db.String(20), default='pending')  # pending, processed, cleared, void
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
+    user_id = db.Column(db.Integer)  # Standardized user identification)  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -350,7 +351,7 @@ class ARPayment(db.Model):
     payment_reference = db.Column(db.String(50))
     bank_account = db.Column(db.String(50))
     status = db.Column(db.String(20), default='pending')  # pending, processed, cleared, void
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
+    user_id = db.Column(db.Integer)  # Standardized user identification)  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -369,7 +370,7 @@ class FinanceVendor(db.Model):
     payment_terms = db.Column(db.String(50))
     credit_limit = db.Column(db.Float)
     status = db.Column(db.String(20), default='active')
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
+    user_id = db.Column(db.Integer)  # Standardized user identification)  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -387,7 +388,7 @@ class FinanceCustomer(db.Model):
     payment_terms = db.Column(db.String(50))
     credit_limit = db.Column(db.Float)
     status = db.Column(db.String(20), default='active')
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
+    user_id = db.Column(db.Integer)  # Standardized user identification)  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

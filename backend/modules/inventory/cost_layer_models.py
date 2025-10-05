@@ -55,7 +55,7 @@ class InventoryCostLayer(db.Model):
     # Audit fields
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = db.Column(db.String(100))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     
     # Relationships
     product = db.relationship('InventoryProduct', backref='cost_layers')
@@ -167,7 +167,7 @@ class CostLayerTransaction(db.Model):
     
     # Audit
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    created_by = db.Column(db.String(100))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     
     # Relationships
     cost_layer = db.relationship('InventoryCostLayer', backref='depletion_transactions')

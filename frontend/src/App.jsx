@@ -260,34 +260,20 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
     { name: 'Analytics', path: '/procurement?feature=analytics', icon: <BarChartIcon />, featureId: 'analytics' }
   ];
 
-  // Fallback: Check localStorage directly if hook data is not available
-  const getFallbackSelectedModules = () => {
-    try {
-      // Try to get from visitor session data first
-      const visitorData = localStorage.getItem('edonuops_visitor_data');
-      if (visitorData) {
-        const parsed = JSON.parse(visitorData);
-        const preferences = parsed.user_preferences;
-        if (preferences && preferences.selectedModules) {
-          return preferences.selectedModules;
-        }
-      }
-      
-      // Fallback: If we have business profile, assume basic modules are enabled
-      const businessProfile = localStorage.getItem('edonuops_business_profile');
-      if (businessProfile) {
-        return ['financials', 'inventory'];
-      }
-    } catch (error) {
-      console.error('Error reading localStorage:', error);
-    }
-    return [];
-  };
+  // No localStorage fallback - strictly database-driven
 
   // Use ONLY hook data from backend - no localStorage fallback
   // This ensures sidebar matches dashboard exactly
   const effectiveSelectedModules = selectedModules; // Only use backend data
   const effectiveHasPreferences = hasPreferences; // Only use backend data
+  
+  // Debug: Log sidebar module sync
+  console.log('🔗 Sidebar Module Sync Debug:', {
+    selectedModules,
+    effectiveSelectedModules,
+    hasPreferences,
+    moduleCount: effectiveSelectedModules.length
+  });
   
 
   // Filter navigation links based on permissions and user's selected modules
@@ -300,9 +286,10 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
       return false;
     }
     
-    // ALWAYS show modules if user has access (don't hide based on preferences loading state)
-    // The preferences are just for customization, not for hiding modules
-    return true;
+    // Only show modules that user has selected
+    const isSelected = effectiveSelectedModules.includes(link.moduleId);
+    console.log(`🔗 Sidebar Filter: ${link.moduleId} - ${isSelected ? 'SHOW' : 'HIDE'} (selected: ${effectiveSelectedModules.join(', ')})`);
+    return isSelected;
   });
 
 

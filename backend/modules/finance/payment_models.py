@@ -32,7 +32,7 @@ class PaymentMethod(db.Model):
     # Audit fields
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = db.Column(db.String(100))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     
     def __repr__(self):
         return f'<PaymentMethod {self.code}: {self.name}>'
@@ -91,7 +91,7 @@ class BankAccount(db.Model):
     # Audit fields
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = db.Column(db.String(100))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     
     # Relationships
     gl_account = db.relationship('ChartOfAccounts', backref='bank_accounts')
@@ -164,7 +164,7 @@ class PaymentTransaction(db.Model):
     # Audit fields
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = db.Column(db.String(100))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     
     # Relationships
     payment_method = db.relationship('PaymentMethod', backref='transactions')
@@ -215,7 +215,7 @@ class ExchangeRate(db.Model):
     
     # Audit fields
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    created_by = db.Column(db.String(100))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     
     # Indexes for performance
     __table_args__ = (
@@ -329,7 +329,7 @@ class PartialPayment(db.Model):
     # Audit fields
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = db.Column(db.String(100))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     
     # Relationships
     payment_method = db.relationship('PaymentMethod', backref='partial_payments')
@@ -402,7 +402,7 @@ class BankTransaction(db.Model):
     
     # Audit
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    created_by = db.Column(db.String(100))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     
     # Relationships
     bank_account = db.relationship('BankAccount', backref='bank_transactions')
@@ -441,7 +441,7 @@ class ReconciliationSession(db.Model):
     # Notes and audit
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    created_by = db.Column(db.String(100))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     
     # Relationships
     bank_account = db.relationship('BankAccount', backref='reconciliation_sessions')

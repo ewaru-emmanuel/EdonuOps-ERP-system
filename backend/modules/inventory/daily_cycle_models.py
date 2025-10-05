@@ -77,7 +77,7 @@ class DailyInventoryBalance(db.Model):
     # Audit fields
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = db.Column(db.String(100))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     
     # Relationships
     product = db.relationship('InventoryProduct', backref='daily_balances')
@@ -283,7 +283,7 @@ class InventoryAdjustmentEntry(db.Model):
     supporting_documents = db.Column(JSON)  # JSON array of document references
     
     # Audit trail
-    created_by = db.Column(db.String(100), nullable=False)
+    user_id = db.Column(db.Integer)  # Standardized user identification, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

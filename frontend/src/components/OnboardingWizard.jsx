@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box, Container, Typography, Button, Stepper, Step, StepLabel,
   Card, CardContent, Grid, TextField, FormControl, InputLabel,
@@ -25,14 +25,8 @@ const OnboardingWizard = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  // Form data
-  const initialProfile = () => {
-    try {
-      const raw = localStorage.getItem('edonuops_business_profile');
-      return raw ? JSON.parse(raw) : null;
-    } catch { return null; }
-  };
-  const [businessProfile, setBusinessProfile] = useState(initialProfile() || {
+  // Form data - start empty, load from database
+  const [businessProfile, setBusinessProfile] = useState({
     companyName: '',
     industry: '',
     employeeCount: '',
@@ -40,8 +34,67 @@ const OnboardingWizard = () => {
     challenges: []
   });
 
-  const [selectedModules, setSelectedModules] = useState(['financials', 'inventory', 'crm', 'procurement']);
+  const [selectedModules, setSelectedModules] = useState([]);
   const [selectedCoATemplate, setSelectedCoATemplate] = useState('retail');
+  const [isLoadingData, setIsLoadingData] = useState(true);
+  
+  // Load existing user data from database (only on first load)
+  const loadExistingData = async () => {
+    if (!isAuthenticated || !user) {
+      setIsLoadingData(false);
+      return;
+    }
+
+    try {
+      console.log('🔄 Loading existing user data from database...');
+      
+      // Load user modules from backend
+      const modulesResponse = await apiClient.get('/api/dashboard/modules/user');
+      const userModules = Array.isArray(modulesResponse) ? modulesResponse : [];
+      const moduleIds = userModules.map(module => module.id);
+      
+      console.log('📊 Found modules in database:', moduleIds);
+      
+      // Set modules from database (this only runs once on mount)
+      setSelectedModules(moduleIds);
+      console.log('✅ Pre-filled modules from database:', moduleIds);
+      
+      // Load business profile from database
+      let profileResponse = null;
+      try {
+        profileResponse = await databaseFirstPersistence.loadUserData(user.id, 'business_profile');
+        if (profileResponse) {
+          setBusinessProfile(profileResponse);
+          console.log('✅ Loaded business profile from database');
+        }
+      } catch (e) {
+        console.log('No business profile in database');
+      }
+      
+      // Load COA template from database
+      let coaResponse = null;
+      try {
+        coaResponse = await databaseFirstPersistence.loadUserData(user.id, 'coa_template');
+        if (coaResponse) {
+          setSelectedCoATemplate(coaResponse);
+          console.log('✅ Loaded COA template from database');
+        }
+      } catch (e) {
+        console.log('No COA template in database');
+      }
+      
+      console.log('✅ Data loaded from database:', {
+        modules: moduleIds,
+        hasProfile: !!profileResponse,
+        coaTemplate: coaResponse || 'retail'
+      });
+      
+    } catch (error) {
+      console.error('❌ Error loading data from database:', error);
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
   
   // Team Setup state
   const [organizationSetup, setOrganizationSetup] = useState({
@@ -75,10 +128,7 @@ const OnboardingWizard = () => {
     'Activation'
   ];
 
-  // Persist profile as user types
-  const persistProfile = (next) => {
-    try { localStorage.setItem('edonuops_business_profile', JSON.stringify(next)); } catch {}
-  };
+  // No need to persist to localStorage - everything goes to database
 
   const industries = [
     'Technology', 'Manufacturing', 'Retail', 'Healthcare', 'Finance',
@@ -106,7 +156,7 @@ const OnboardingWizard = () => {
 
   const modules = [
     {
-      id: 'financials',
+      id: 'finance',
       name: 'Financials',
       icon: <AccountBalance sx={{ fontSize: 40, color: 'primary.main' }} />,
       description: 'Complete financial management suite',
@@ -192,6 +242,13 @@ const OnboardingWizard = () => {
     );
   };
 
+  // Load existing data only once when component mounts
+  useEffect(() => {
+    if (isAuthenticated && user && isLoadingData) {
+      loadExistingData();
+    }
+  }, [isAuthenticated, user]); // Only depend on auth state, not selectedModules
+
   const handleActivation = async () => {
     setLoading(true);
     try {
@@ -218,7 +275,7 @@ const OnboardingWizard = () => {
         },
         
         // Module Selection
-        selectedModules: selectedModules.includes('financials') && !selectedModules.includes('procurement')
+        selectedModules: selectedModules.includes('finance') && !selectedModules.includes('procurement')
           ? [...selectedModules, 'procurement']
           : selectedModules,
         
@@ -262,41 +319,36 @@ const OnboardingWizard = () => {
       console.log('🔧 Activating selected modules in backend...');
       try {
         for (const moduleId of onboardingData.selectedModules) {
-          await apiClient.post('/api/dashboard/modules/activate', {
-            module_id: moduleId,
-            permissions: {
-              can_view: true,
-              can_edit: true,
-              can_delete: false
-            }
-          });
-          console.log(`✅ Module ${moduleId} activated for user ${userId}`);
+          try {
+            await apiClient.post('/api/dashboard/modules/activate', {
+              module_id: moduleId,
+              permissions: {
+                can_view: true,
+                can_edit: true,
+                can_delete: false
+              }
+            });
+            console.log(`✅ Module ${moduleId} activated for user ${userId}`);
+          } catch (moduleError) {
+            // Module might already be activated, that's okay
+            console.log(`ℹ️ Module ${moduleId} might already be activated:`, moduleError.message);
+          }
         }
       } catch (error) {
         console.warn('⚠️ Could not activate modules in backend:', error);
       }
       
-      // Save to localStorage for compatibility (caching only)
-      console.log('💾 Updating localStorage cache for compatibility...');
-      try {
-        localStorage.setItem('edonuops_business_profile', JSON.stringify(onboardingData.businessProfile));
-        localStorage.setItem('edonuops_coa_template', onboardingData.coaTemplate);
-        localStorage.setItem('edonuops_user_preferences', JSON.stringify({
-          selected_modules: onboardingData.selectedModules,
-          businessProfile: onboardingData.businessProfile,
-          coaTemplate: onboardingData.coaTemplate
-        }));
-        localStorage.setItem('edonuops_organization_setup', JSON.stringify(onboardingData.organizationSetup));
-        localStorage.setItem('adminSettings_userPermissions', JSON.stringify(onboardingData.organizationSetup.userPermissions));
-      } catch (error) {
-        console.warn('⚠️ Could not update localStorage cache:', error);
-      }
+      // No localStorage needed - everything is in database
+      console.log('✅ All data saved to database - no localStorage needed');
       
       // Simulate account activation
       console.log('⏳ Finalizing activation...');
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       console.log('🎉 Onboarding completed successfully!');
+      
+      // Force refresh of user preferences from database
+      console.log('🔄 User preferences will refresh from database on next load');
       
       // Show success message
       alert('🎉 Welcome to EdonuOps! Your personalized dashboard has been configured with your selected modules and team settings. All data has been saved to your secure database.');
@@ -327,7 +379,7 @@ const OnboardingWizard = () => {
             fullWidth
             label="Company Name"
             value={businessProfile.companyName}
-            onChange={(e) => setBusinessProfile(prev => { const next = { ...prev, companyName: e.target.value }; persistProfile(next); return next; })}
+            onChange={(e) => setBusinessProfile(prev => ({ ...prev, companyName: e.target.value }))}
             required
           />
         </Grid>
@@ -336,7 +388,7 @@ const OnboardingWizard = () => {
             <InputLabel>Industry</InputLabel>
             <Select
               value={businessProfile.industry}
-              onChange={(e) => setBusinessProfile(prev => { const next = { ...prev, industry: e.target.value }; persistProfile(next); return next; })}
+              onChange={(e) => setBusinessProfile(prev => ({ ...prev, industry: e.target.value }))}
               label="Industry"
             >
               {industries.map((industry) => (
@@ -350,7 +402,7 @@ const OnboardingWizard = () => {
             <InputLabel>Number of Employees</InputLabel>
             <Select
               value={businessProfile.employeeCount}
-              onChange={(e) => setBusinessProfile(prev => { const next = { ...prev, employeeCount: e.target.value }; persistProfile(next); return next; })}
+              onChange={(e) => setBusinessProfile(prev => ({ ...prev, employeeCount: e.target.value }))}
               label="Number of Employees"
             >
               {employeeRanges.map((range) => (
@@ -364,7 +416,7 @@ const OnboardingWizard = () => {
             <InputLabel>Annual Revenue</InputLabel>
             <Select
               value={businessProfile.annualRevenue}
-              onChange={(e) => setBusinessProfile(prev => { const next = { ...prev, annualRevenue: e.target.value }; persistProfile(next); return next; })}
+              onChange={(e) => setBusinessProfile(prev => ({ ...prev, annualRevenue: e.target.value }))}
               label="Annual Revenue"
             >
               {revenueRanges.map((range) => (
@@ -387,9 +439,9 @@ const OnboardingWizard = () => {
                         checked={businessProfile.challenges.includes(challenge)}
                         onChange={(e) => {
                           if (e.target.checked) {
-                            setBusinessProfile(prev => { const next = { ...prev, challenges: [...prev.challenges, challenge] }; persistProfile(next); return next; });
+                            setBusinessProfile(prev => ({ ...prev, challenges: [...prev.challenges, challenge] }));
                           } else {
-                            setBusinessProfile(prev => { const next = { ...prev, challenges: prev.challenges.filter(c => c !== challenge) }; persistProfile(next); return next; });
+                            setBusinessProfile(prev => ({ ...prev, challenges: prev.challenges.filter(c => c !== challenge) }));
                           }
                         }}
                       />
@@ -408,11 +460,22 @@ const OnboardingWizard = () => {
   const renderModuleSelection = () => (
     <Box>
       <Typography variant="h4" component="h2" sx={{ fontWeight: 'bold', mb: 3 }}>
-        What would you like to manage with EdonuOps?
+        {selectedModules.length > 0 ? 'Update Your Module Selection' : 'What would you like to manage with EdonuOps?'}
       </Typography>
       <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        Select the modules that match your business needs.
+        {selectedModules.length > 0 
+          ? `You currently have ${selectedModules.length} modules selected: ${selectedModules.join(', ')}. Check/uncheck modules to modify your selection.`
+          : 'Select the modules that match your business needs.'
+        }
       </Typography>
+      
+      {selectedModules.length > 0 && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          <Typography variant="body2">
+            <strong>Current Selection:</strong> {selectedModules.length} modules selected
+          </Typography>
+        </Alert>
+      )}
       
       <Grid container spacing={3}>
         {modules.map((module) => (
@@ -729,16 +792,36 @@ const OnboardingWizard = () => {
     }
   };
 
+  // Show loading state while loading data
+  if (isLoadingData) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Box sx={{ maxWidth: 800, mx: 'auto', textAlign: 'center' }}>
+          <Typography variant="h4" sx={{ mb: 2 }}>
+            Loading Your Settings...
+          </Typography>
+          <LinearProgress sx={{ mb: 2 }} />
+          <Typography variant="body2" color="text.secondary">
+            Loading your current module selection from database
+          </Typography>
+        </Box>
+      </Container>
+    );
+  }
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Box sx={{ maxWidth: 800, mx: 'auto' }}>
         {/* Header */}
         <Box sx={{ textAlign: 'center', mb: 4 }}>
           <Typography variant="h3" component="h1" sx={{ fontWeight: 'bold', mb: 2 }}>
-            Welcome to EdonuOps!
+            {selectedModules.length > 0 ? 'Edit Your Module Selection' : 'Welcome to EdonuOps!'}
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Let's get your business set up in just a few minutes
+            {selectedModules.length > 0 
+              ? `You currently have ${selectedModules.length} modules selected. Modify your selection below.`
+              : 'Let\'s get your business set up in just a few minutes'
+            }
           </Typography>
         </Box>
 

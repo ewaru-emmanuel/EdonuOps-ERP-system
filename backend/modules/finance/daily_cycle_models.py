@@ -47,7 +47,7 @@ class DailyBalance(db.Model):
     # Audit fields
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = db.Column(db.String(100))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     
     # Relationships
     account = db.relationship('ChartOfAccounts', backref='daily_balances')
@@ -240,7 +240,7 @@ class AdjustmentEntry(db.Model):
     # Audit fields
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = db.Column(db.String(100), nullable=False)
+    user_id = db.Column(db.Integer)  # Standardized user identification, nullable=False)
     
     # Relationships
     account = db.relationship('ChartOfAccounts', backref='adjustment_entries')

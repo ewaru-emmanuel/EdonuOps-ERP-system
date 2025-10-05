@@ -1,6 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 
+// Global cache to prevent multiple simultaneous API calls
+let globalCache = {
+  data: null,
+  loading: false,
+  promise: null,
+  timestamp: 0,
+  CACHE_DURATION: 30000 // 30 seconds
+};
+
 export const useUserPreferences = () => {
   const [userPreferences, setUserPreferences] = useState(null);
   const [selectedModules, setSelectedModules] = useState([]);
@@ -9,13 +18,37 @@ export const useUserPreferences = () => {
 
   const { isAuthenticated, user } = useAuth();
 
-  // Load preferences from backend
-  const loadUserPreferences = useCallback(async () => {
+  // Load preferences from backend with proper state management
+  const loadUserPreferences = useCallback(async (forceRefresh = false) => {
     if (!isAuthenticated || !user) {
       setIsLoading(false);
       return;
     }
 
+    // Check global cache first
+    const now = Date.now();
+    if (!forceRefresh && globalCache.data && (now - globalCache.timestamp) < globalCache.CACHE_DURATION) {
+      console.log('📦 Using cached user preferences');
+      setSelectedModules(globalCache.data.selectedModules || []);
+      return;
+    }
+
+    // Prevent multiple simultaneous calls globally
+    if (globalCache.loading) {
+      console.log('🔄 Global loading in progress, waiting...');
+      if (globalCache.promise) {
+        try {
+          const result = await globalCache.promise;
+          setSelectedModules(result.selectedModules || []);
+        } catch (error) {
+          console.error('Error waiting for global cache:', error);
+        }
+      }
+      return;
+    }
+
+    // Set global loading state
+    globalCache.loading = true;
     setIsLoading(true);
     setError(null);
 
@@ -35,9 +68,14 @@ export const useUserPreferences = () => {
         userEmail: userEmail
       });
       
+      // No caching - always fetch fresh data from database
+      console.log('🔄 Fetching fresh data from database...');
+      
       // Get user modules from backend
       console.log('🌐 Making API call to /api/dashboard/modules/user');
-      const response = await apiClient.get('/api/dashboard/modules/user');
+      const apiPromise = apiClient.get('/api/dashboard/modules/user');
+      globalCache.promise = apiPromise;
+      const response = await apiPromise;
       console.log('🌐 API Response:', {
         response,
         isArray: Array.isArray(response),
@@ -58,49 +96,50 @@ export const useUserPreferences = () => {
       
       const preferences = {
         selected_modules: moduleIds,
-        modules: userModules
+        modules: userModules,
+        lastUpdated: Date.now(),
+        source: 'backend'
       };
       
+      // No caching - data is always fresh from database
+      
       console.log('🔧 Loading preferences from backend:', preferences);
+      console.log('🎯 Setting selectedModules to:', moduleIds);
       setUserPreferences(preferences);
       setSelectedModules(moduleIds);
       setIsLoading(false);
       
-      // If no modules found, show warning
+      // Update global cache
+      globalCache.data = { selectedModules: moduleIds };
+      globalCache.timestamp = Date.now();
+      globalCache.loading = false;
+      globalCache.promise = null;
+      
+      // If no modules found, show warning and clear any stale cache
       if (moduleIds.length === 0) {
         console.warn('⚠️ No modules found for user. User may need to activate modules.');
         console.log('💡 Suggestion: Go to /onboarding to activate modules');
+        
+        // No localStorage cache to clear
       }
       
     } catch (error) {
       console.error('❌ Error loading preferences from backend:', error);
       
-      // Fallback to localStorage if backend fails
-      try {
-        const savedPreferences = localStorage.getItem('edonuops_user_preferences');
-        if (savedPreferences) {
-          const preferences = JSON.parse(savedPreferences);
-          console.log('🔧 Fallback: Loading preferences from localStorage:', preferences);
-          setUserPreferences(preferences);
-          setSelectedModules(preferences.selected_modules || []);
-          setIsLoading(false);
-          return;
-        }
-      } catch (localError) {
-        console.error('Error loading from localStorage fallback:', localError);
-      }
-      
-      // Final fallback to defaults
-      const defaultPreferences = {
-        selected_modules: ['finance', 'crm', 'inventory', 'procurement']
-      };
-      
-      console.log('🔧 Using default preferences:', defaultPreferences);
-      setUserPreferences(defaultPreferences);
-      setSelectedModules(defaultPreferences.selected_modules);
+      // No fallbacks - strictly database-driven
+      console.log('🔧 No modules found in database - user needs to complete onboarding');
+      setUserPreferences({ selected_modules: [], source: 'database_empty' });
+      setSelectedModules([]);
+      setError(error);
       setIsLoading(false);
+      
+      // Update global cache
+      globalCache.data = { selectedModules: [] };
+      globalCache.timestamp = Date.now();
+      globalCache.loading = false;
+      globalCache.promise = null;
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, isLoading]);
 
   // Load preferences when user changes
   useEffect(() => {
@@ -150,6 +189,17 @@ export const useUserPreferences = () => {
       return { success: false, error: error.message };
     }
   };
+
+  // Force refresh preferences (cache invalidation)
+  const refreshPreferences = useCallback(() => {
+    console.log('🔄 Force refreshing user preferences...');
+    loadUserPreferences(true);
+  }, [loadUserPreferences]);
+
+  // No cache to clear - always fresh from database
+  const clearCache = useCallback(() => {
+    console.log('🗑️ No cache to clear - data is always fresh from database');
+  }, []);
 
   // Activate a module
   const activateModule = async (moduleId, permissions = null) => {
@@ -229,6 +279,8 @@ export const useUserPreferences = () => {
     updatePreferences,
     activateModule,
     deactivateModule,
-    bulkActivateModules
+    bulkActivateModules,
+    refreshPreferences,
+    clearCache
   };
 };

@@ -46,7 +46,7 @@ const BusinessFinanceDashboard = ({ isMobile, isTablet }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiClient.get('/api/finance/double-entry/journal-entries');
+      const response = await apiClient.get('/api/finance/advanced/general-ledger');
       if (Array.isArray(response)) {
         setTransactions(response);
       } else {

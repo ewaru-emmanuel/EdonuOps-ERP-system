@@ -32,9 +32,15 @@ class InventoryFinanceSyncService:
     """
     
     def __init__(self):
-        self.inventory_cycle_service = DailyInventoryCycleService()
-        self.finance_cycle_service = DailyCycleService()
-        self.auto_journal = AutoJournalEngine()
+        try:
+            self.inventory_cycle_service = DailyInventoryCycleService()
+            self.finance_cycle_service = DailyCycleService()
+            self.auto_journal = AutoJournalEngine()
+        except ImportError as e:
+            logger.warning(f"Some services not available: {e}")
+            self.inventory_cycle_service = None
+            self.finance_cycle_service = None
+            self.auto_journal = None
     
     def process_inventory_transaction(self, transaction_data: Dict) -> Dict:
         """
@@ -45,6 +51,9 @@ class InventoryFinanceSyncService:
             return {'error': 'Database not available'}
         
         try:
+            if not self.auto_journal:
+                return {'error': 'Auto journal service not available'}
+                
             transaction_type = transaction_data.get('transaction_type')
             results = {'inventory_updated': False, 'gl_posted': False, 'journal_entries': []}
             

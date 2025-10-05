@@ -13,7 +13,7 @@ class UserModules(db.Model):
     permissions = db.Column(db.JSON)  # Store module-specific permissions
     activated_at = db.Column(db.DateTime, default=datetime.utcnow)
     deactivated_at = db.Column(db.DateTime)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User who activated this
+    user_id = db.Column(db.Integer)  # Standardized user identification)  # User who activated this
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -96,7 +96,7 @@ class Dashboard(db.Model):
     is_shared = db.Column(db.Boolean, default=False)
     is_default = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -115,7 +115,7 @@ class DashboardWidget(db.Model):
     config = db.Column(db.JSON)  # Widget configuration
     position = db.Column(db.JSON)  # Widget position and size
     is_active = db.Column(db.Boolean, default=True)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -134,7 +134,7 @@ class WidgetTemplate(db.Model):
     description = db.Column(db.Text)
     config = db.Column(db.JSON)  # Default widget configuration
     is_active = db.Column(db.Boolean, default=True)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def __repr__(self):
@@ -152,7 +152,7 @@ class DashboardTemplate(db.Model):
     layout = db.Column(db.JSON)  # Template layout
     widgets = db.Column(db.JSON)  # Template widgets
     is_active = db.Column(db.Boolean, default=True)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):

@@ -23,6 +23,64 @@ def get_version():
         'description': 'Enterprise Resource Planning System'
     })
 
+@core_bp.route('/settings/currency', methods=['GET', 'OPTIONS'])
+def get_currency_settings():
+    """Get currency settings"""
+    # Handle CORS preflight
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-User-ID')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+        return response
+    
+    try:
+        # Try to get from advanced finance settings first
+        from modules.finance.advanced_models import CompanySettings
+        settings = CompanySettings.query.filter_by(setting_key='base_currency').first()
+        
+        if settings:
+            response = jsonify({
+                'success': True,
+                'data': {
+                    'base_currency': settings.setting_value,
+                    'currency_symbol': '$',  # Default
+                    'decimal_places': 2
+                }
+            })
+        else:
+            # Return default currency settings
+            response = jsonify({
+                'success': True,
+                'data': {
+                    'base_currency': 'USD',
+                    'currency_symbol': '$',
+                    'decimal_places': 2
+                }
+            })
+        
+        # Add CORS headers
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-User-ID')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+        return response, 200
+            
+    except Exception as e:
+        # Return default settings on error
+        response = jsonify({
+            'success': True,
+            'data': {
+                'base_currency': 'USD',
+                'currency_symbol': '$',
+                'decimal_places': 2
+            }
+        })
+        # Add CORS headers
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-User-ID')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+        return response, 200
+
 
 # -----------------------------
 # Centralized Settings API

@@ -355,11 +355,7 @@ def register_blueprints(app):
     except ImportError as e:
         print(f"Warning: Could not import finance blueprint: {e}")
     
-    try:
-        from modules.finance.advanced_routes import advanced_finance_bp
-        app.register_blueprint(advanced_finance_bp, url_prefix='/api/finance')
-    except ImportError as e:
-        print(f"Warning: Could not import advanced finance blueprint: {e}")
+    # Advanced finance blueprint registered later with correct prefix
     
     try:
         from modules.finance.payment_routes import payment_bp
@@ -403,6 +399,13 @@ def register_blueprints(app):
         print("Double Entry Accounting API loaded")
     except ImportError as e:
         print(f"Warning: Could not import double entry blueprint: {e}")
+    
+    try:
+        from modules.finance.advanced_routes import advanced_finance_bp
+        app.register_blueprint(advanced_finance_bp, url_prefix='/api/finance/advanced')
+        print("Advanced Finance API loaded")
+    except ImportError as e:
+        print(f"Warning: Could not import advanced finance blueprint: {e}")
     
     try:
         from modules.inventory.daily_cycle_routes import inventory_daily_cycle_bp

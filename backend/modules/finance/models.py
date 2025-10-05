@@ -27,7 +27,7 @@ class Account(db.Model):
     currency = db.Column(db.String(3), default='USD')
     parent_id = db.Column(db.Integer, db.ForeignKey('accounts.id'))
     is_active = db.Column(db.Boolean, default=True)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User isolation
+    user_id = db.Column(db.Integer)  # Standardized user identification)  # User isolation
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -54,7 +54,7 @@ class JournalEntry(db.Model):
     period_locked = db.Column(db.Boolean, default=False)
     backdate_reason = db.Column(db.String(200))
     
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -100,7 +100,7 @@ class Invoice(db.Model):
     status = db.Column(db.String(20), default='draft')  # draft, sent, paid, overdue, cancelled
     currency = db.Column(db.String(3), default='USD')
     notes = db.Column(db.Text)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -116,7 +116,7 @@ class Payment(db.Model):
     reference_number = db.Column(db.String(100))
     status = db.Column(db.String(20), default='pending')  # pending, completed, failed, refunded
     notes = db.Column(db.Text)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -131,7 +131,7 @@ class Budget(db.Model):
     forecast_amount = db.Column(db.Float, default=0.0)
     scenario = db.Column(db.String(20), default='base')  # base, optimistic, pessimistic, custom
     notes = db.Column(db.Text)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -148,7 +148,7 @@ class BudgetScenario(db.Model):
     growth_rate = db.Column(db.Float, default=0.0)  # Percentage change from base
     assumptions = db.Column(get_json_type())  # JSON object for custom assumptions
     is_active = db.Column(db.Boolean, default=True)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

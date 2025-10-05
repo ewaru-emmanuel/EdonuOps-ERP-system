@@ -73,6 +73,7 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null }) => {
     if (editEntry) {
       console.log('🔍 Loading edit data for entry:', editEntry);
       console.log('🔍 Available accounts:', accounts);
+      console.log('🔍 Edit mode activated - form will be pre-filled');
       
       setFormData({
         date: editEntry.entry_date ? editEntry.entry_date.split('T')[0] : 
@@ -163,6 +164,9 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null }) => {
   };
 
   const validateJournalEntry = () => {
+    console.log('🔍 Validating journal entry...');
+    console.log('🔍 Current journal lines:', journalLines);
+    
     const errors = [];
     
     // For business-friendly mode, we only need basic validation
@@ -173,8 +177,13 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null }) => {
       line.account_id && ((line.debit_amount || 0) > 0 || (line.credit_amount || 0) > 0)
     );
     
+    console.log('🔍 Valid lines found:', validLines);
+    
     if (validLines.length === 0) {
       errors.push('Please select an account and enter an amount');
+      console.log('❌ No valid lines found');
+    } else {
+      console.log('✅ Valid lines found:', validLines.length);
     }
     
     // Calculate totals for display
@@ -190,7 +199,13 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null }) => {
   };
 
   const handleSubmit = async () => {
+    console.log('🔍 Submit button clicked!');
+    console.log('🔍 Validation state:', validation);
+    console.log('🔍 Journal lines:', journalLines);
+    console.log('🔍 Form data:', formData);
+    
     if (!validation.valid) {
+      console.log('❌ Validation failed:', validation.errors);
       setSnackbar({
         open: true,
         message: 'Please fix validation errors before submitting',
@@ -198,6 +213,8 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null }) => {
       });
       return;
     }
+    
+    console.log('✅ Validation passed, proceeding with submission...');
 
     setLoading(true);
     try {
@@ -227,34 +244,41 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null }) => {
         description: validLine.description
       });
       
-      // Use the transaction templates API for proper auto-balancing
-      // This creates proper double-entry with separate journal lines
+      // Prepare data for the backend API (matching backend expectations)
       const transactionData = {
-        template_id: 'simple_transaction',
-        amount: amount,
+        entry_date: formData.date,
+        reference: formData.reference || `JE-${Date.now()}`,
         description: formData.description || validLine.description,
         account_id: parseInt(validLine.account_id), // Ensure account_id is an integer
-        is_debit: isDebit,
-        date: formData.date,
-        reference: formData.reference || `JE-${Date.now()}`,
-        status: formData.status,
-        payment_method: formData.payment_method
+        debit_amount: isDebit ? amount : 0,
+        credit_amount: isDebit ? 0 : amount,
+        status: formData.status || 'posted',
+        journal_type: 'manual'
       };
 
       console.log('🔍 Frontend sending transaction data:', transactionData);
       console.log('🔍 Data types:', {
-        amount: typeof amount,
+        debit_amount: typeof transactionData.debit_amount,
+        credit_amount: typeof transactionData.credit_amount,
         description: typeof transactionData.description,
-        account_id: typeof transactionData.account_id,
-        is_debit: typeof transactionData.is_debit
+        account_id: typeof transactionData.account_id
       });
 
       let response;
       if (editEntry) {
-        response = await apiClient.put(`/api/finance/double-entry/journal-entries/${editEntry.id}`, transactionData);
+        // Extract the actual entry ID from composite ID (format: "entryId-lineId")
+        // Convert to string first to handle both number and string IDs
+        const entryIdStr = String(editEntry.id);
+        const entryId = entryIdStr.includes('-') ? entryIdStr.split('-')[0] : entryIdStr;
+        console.log('✏️ Updating existing entry ID:', entryId);
+        console.log('✏️ Original editEntry.id:', editEntry.id, 'type:', typeof editEntry.id);
+        console.log('✏️ Processed entryId:', entryId, 'type:', typeof entryId);
+        console.log('✏️ Update data:', transactionData);
+        response = await apiClient.put(`/api/finance/advanced/general-ledger/${entryId}`, transactionData);
       } else {
-        // Use the transaction templates API for auto-balancing
-        response = await apiClient.post('/api/finance/transactions/create', transactionData);
+        // Use the advanced general ledger API for creating entries
+        console.log('🆕 Creating new entry...');
+        response = await apiClient.post('/api/finance/advanced/general-ledger', transactionData);
       }
 
       if (response.success || response.id) {

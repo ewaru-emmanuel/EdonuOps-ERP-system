@@ -22,7 +22,8 @@ class DatabaseFirstPersistence {
         data: data
       });
       
-      if (response.data.success) {
+      // Check if the response indicates success (status 200 or success property)
+      if (response.status === 200 || response.success || response.data?.success) {
         // Update cache
         this.updateCache(userId, dataType, data);
         console.log(`💾 Saved ${dataType} to database for user ${userId}`);
@@ -54,11 +55,13 @@ class DatabaseFirstPersistence {
         params: { user_id: userId }
       });
       
-      if (response.data.success && response.data.data) {
+      // Check if the response indicates success and has data
+      if ((response.status === 200 || response.success || response.data?.success) && (response.data || response.data?.data)) {
+        const data = response.data || response.data?.data;
         // Update cache
-        this.updateCache(userId, dataType, response.data.data);
+        this.updateCache(userId, dataType, data);
         console.log(`📂 Loaded ${dataType} from database for user ${userId}`);
-        return response.data.data;
+        return data;
       }
       
       return null;

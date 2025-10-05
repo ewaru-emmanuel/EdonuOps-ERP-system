@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useFinanceData } from '../hooks/useFinanceData';
+import apiClient from '../../../services/apiClient';
 import {
-  Box, Typography, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions, Alert, Snackbar, LinearProgress, Tooltip, useMediaQuery, useTheme,
+  Box, Typography, Grid, Card, CardContent, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions, Alert, Snackbar, LinearProgress, CircularProgress, Tooltip, useMediaQuery, useTheme,
   TextField, FormControl, InputLabel, Select, MenuItem, Autocomplete, SpeedDial, SpeedDialAction, SpeedDialIcon,
   TablePagination, TableSortLabel, InputAdornment, OutlinedInput, FormHelperText, Collapse, List, ListItem, ListItemText, ListItemIcon,
   Checkbox, FormControlLabel, FormGroup, Badge, Avatar, Divider, Accordion, AccordionSummary, AccordionDetails,
@@ -42,6 +43,11 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
   const [viewPeriod, setViewPeriod] = useState('daily'); // daily, weekly, monthly, fortnight, custom
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [customDateRange, setCustomDateRange] = useState({ start: null, end: null });
+
+  // Trial balance state
+  const [trialBalanceData, setTrialBalanceData] = useState(null);
+  const [trialLoading, setTrialLoading] = useState(false);
+  const [trialError, setTrialError] = useState(null);
 
   // Data hooks - fetch real data from database
   const { data: generalLedgerData = [], loading: glLoading, error: glError } = useFinanceData('journal-entries');
@@ -211,6 +217,29 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
     datesToFetch.forEach(dateStr => {
       fetchDailyCycleData(dateStr);
     });
+  }, []);
+
+  // Load trial balance data
+  useEffect(() => {
+    const loadTrialBalance = async () => {
+      setTrialLoading(true);
+      setTrialError(null);
+      try {
+        const response = await apiClient.get('/api/finance/double-entry/trial-balance');
+        if (response.trial_balance) {
+          setTrialBalanceData(response);
+        } else {
+          setTrialError('Failed to load trial balance data');
+        }
+      } catch (error) {
+        console.error('Error loading trial balance:', error);
+        setTrialError('Failed to load trial balance');
+      } finally {
+        setTrialLoading(false);
+      }
+    };
+
+    loadTrialBalance();
   }, []);
 
   // Calculate daily cash movements from General Ledger
@@ -765,121 +794,507 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
     return finalMetrics;
   }, [kpiData, calculateBalances, dailyCashData, generalLedgerData, vendorData, customerData, accountsReceivableData, customersResponse]);
 
-  const renderKPIMetrics = () => {
+  const renderEnhancedKPIMetrics = () => {
+    // Calculate real-time metrics from trial balance data
+    const totalAssets = trialBalanceData?.trial_balance?.filter(acc => acc.account_type === 'asset')
+      .reduce((sum, acc) => sum + Math.abs(acc.debit_balance || 0), 0) || 0;
+    
+    const totalRevenue = trialBalanceData?.trial_balance?.filter(acc => acc.account_type === 'revenue')
+      .reduce((sum, acc) => sum + Math.abs(acc.credit_balance || 0), 0) || 0;
+    
+    const totalExpenses = trialBalanceData?.trial_balance?.filter(acc => acc.account_type === 'expense')
+      .reduce((sum, acc) => sum + Math.abs(acc.debit_balance || 0), 0) || 0;
+    
+    const netIncome = totalRevenue - totalExpenses;
+    
+    // Calculate cash flow from trial balance
+    const cashAccounts = trialBalanceData?.trial_balance?.filter(acc => 
+      acc.account_type === 'asset' && 
+      (acc.account_code?.startsWith('1') || acc.account_name?.toLowerCase().includes('cash') || acc.account_name?.toLowerCase().includes('bank'))
+    ) || [];
+    
+    const totalCashBalance = cashAccounts.reduce((sum, acc) => sum + Math.abs(acc.debit_balance || 0), 0);
     
     return (
-    <Grid container spacing={3} sx={{ mb: 3 }}>
-      <Grid item xs={12} sm={6} md={3}>
-        <Card sx={{ bgcolor: 'success.main', color: 'white' }}>
-          <CardContent>
-            <Box display="flex" alignItems="center" justifyContent="space-between">
-              <Box>
-                <Typography variant="h4" component="div">
-                  ${(metrics.revenue || 0).toLocaleString()}
-                </Typography>
-                <Typography variant="body2">Total Revenue</Typography>
-                <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                  Today: +${(metrics.todayNetCashFlow || 0).toLocaleString()}
-                </Typography>
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ 
+            backgroundColor: 'white',
+            border: '1px solid rgba(0, 0, 0, 0.12)',
+            borderRadius: 2,
+            boxShadow: 'none'
+          }}>
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="body2" color="text.primary" sx={{ mb: 1, fontWeight: 500 }}>
+                    Total Assets
+                  </Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'text.primary', mb: 1 }}>
+                    ${totalAssets.toLocaleString()}
+                  </Typography>
+                  <Typography variant="caption" color="success.main">
+                    {trialBalanceData?.is_balanced ? '✅ Balanced' : '❌ Unbalanced'}
+                  </Typography>
+                </Box>
+                <AccountBalance sx={{ fontSize: 40, color: 'success.main' }} />
               </Box>
-              <TrendingUp sx={{ fontSize: 40, opacity: 0.8 }} />
-            </Box>
-          </CardContent>
-        </Card>
-      </Grid>
-      
-      <Grid item xs={12} sm={6} md={3}>
-        <Card sx={{ bgcolor: 'error.main', color: 'white' }}>
-          <CardContent>
-            <Box display="flex" alignItems="center" justifyContent="space-between">
-              <Box>
-                <Typography variant="h4" component="div">
-                  ${(metrics.expenses || 0).toLocaleString()}
-                </Typography>
-                <Typography variant="body2">Total Expenses</Typography>
-                <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                  Cash Out: ${(dailyCashData[0]?.cashOutflows + dailyCashData[0]?.bankOutflows || 0).toLocaleString()}
-                </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ 
+            backgroundColor: 'white',
+            border: '1px solid rgba(0, 0, 0, 0.12)',
+            borderRadius: 2,
+            boxShadow: 'none'
+          }}>
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="body2" color="text.primary" sx={{ mb: 1, fontWeight: 500 }}>
+                    Net Income
+                  </Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: netIncome >= 0 ? 'success.main' : 'error.main', mb: 1 }}>
+                    ${netIncome.toLocaleString()}
+                  </Typography>
+                  <Typography variant="caption" color={netIncome >= 0 ? "success.main" : "error.main"}>
+                    {netIncome >= 0 ? 'Profitable' : 'Loss'}
+                  </Typography>
+                </Box>
+                {netIncome >= 0 ? 
+                  <TrendingUp sx={{ fontSize: 40, color: 'success.main' }} /> :
+                  <TrendingDown sx={{ fontSize: 40, color: 'error.main' }} />
+                }
               </Box>
-              <TrendingDown sx={{ fontSize: 40, opacity: 0.8 }} />
-            </Box>
-          </CardContent>
-        </Card>
-      </Grid>
-      
-      <Grid item xs={12} sm={6} md={3}>
-        <Card sx={{ bgcolor: 'primary.main', color: 'white' }}>
-          <CardContent>
-            <Box display="flex" alignItems="center" justifyContent="space-between">
-              <Box>
-                <Typography variant="h4" component="div">
-                  ${(metrics.totalCashBalance || 0).toLocaleString()}
-                </Typography>
-                <Typography variant="body2">Total Cash & Bank</Typography>
-                <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                  Cash: ${(metrics.todayCashBalance || 0).toLocaleString()} | Bank: ${(metrics.todayBankBalance || 0).toLocaleString()}
-                </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ 
+            backgroundColor: 'white',
+            border: '1px solid rgba(0, 0, 0, 0.12)',
+            borderRadius: 2,
+            boxShadow: 'none'
+          }}>
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="body2" color="text.primary" sx={{ mb: 1, fontWeight: 500 }}>
+                    Cash Balance
+                  </Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'text.primary', mb: 1 }}>
+                    ${totalCashBalance.toLocaleString()}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {cashAccounts.length} cash accounts
+                  </Typography>
+                </Box>
+                <AttachMoney sx={{ fontSize: 40, color: 'primary.main' }} />
               </Box>
-              <AccountBalance sx={{ fontSize: 40, opacity: 0.8 }} />
-            </Box>
-          </CardContent>
-        </Card>
-      </Grid>
-      
-      <Grid item xs={12} sm={6} md={3}>
-        <Card sx={{ bgcolor: 'info.main', color: 'white' }}>
-          <CardContent>
-            <Box display="flex" alignItems="center" justifyContent="space-between">
-              <Box>
-                <Typography variant="h4" component="div">
-                  {(metrics.profitMargin || 0).toFixed(1)}%
-                </Typography>
-                <Typography variant="body2">Profit Margin</Typography>
-                <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                  Net Income: ${(metrics.netIncome || 0).toLocaleString()}
-                </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ 
+            backgroundColor: 'white',
+            border: '1px solid rgba(0, 0, 0, 0.12)',
+            borderRadius: 2,
+            boxShadow: 'none'
+          }}>
+            <CardContent sx={{ p: 3 }}>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="body2" color="text.primary" sx={{ mb: 1, fontWeight: 500 }}>
+                    Total Revenue
+                  </Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'text.primary', mb: 1 }}>
+                    ${totalRevenue.toLocaleString()}
+                  </Typography>
+                  <Typography variant="caption" color="success.main">
+                    Revenue accounts
+                  </Typography>
+                </Box>
+                <TrendingUp sx={{ fontSize: 40, color: 'success.main' }} />
               </Box>
-              <BarChart sx={{ fontSize: 40, opacity: 0.8 }} />
-            </Box>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Grid>
       </Grid>
-    </Grid>
-  );
-};
+    );
+  };
 
-  const renderProfitLossStatement = () => (
+  const renderTrialBalanceSummary = () => (
     <Card>
       <CardContent>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant="h6">Profit & Loss Statement</Typography>
-          <Box display="flex" gap={1}>
-            <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Period</InputLabel>
-              <Select
-                value={reportPeriod}
-                onChange={(e) => setReportPeriod(e.target.value)}
-                label="Period"
-              >
-                <MenuItem value="current_month">Current Month</MenuItem>
-                <MenuItem value="previous_month">Previous Month</MenuItem>
-                <MenuItem value="current_quarter">Current Quarter</MenuItem>
-                <MenuItem value="current_year">Current Year</MenuItem>
-              </Select>
-            </FormControl>
-            <Button variant="outlined" startIcon={<Download />}>
-              Export
-            </Button>
+        <Typography variant="h6" gutterBottom>
+          Trial Balance Summary
+        </Typography>
+        {trialLoading ? (
+          <Box display="flex" justifyContent="center" p={3}>
+            <CircularProgress />
           </Box>
-        </Box>
-
-        {plLoading ? (
-          <Box display="flex" flexDirection="column" gap={1}>
-            {[...Array(8)].map((_, i) => (
-              <Skeleton key={i} variant="rectangular" height={40} />
-            ))}
+        ) : trialError ? (
+          <Alert severity="error">{trialError}</Alert>
+        ) : trialBalanceData ? (
+          <Box>
+            <Grid container spacing={2} sx={{ mb: 2 }}>
+              <Grid item xs={6}>
+                <Box textAlign="center" p={2} border={1} borderColor="success.main" borderRadius={1}>
+                  <Typography variant="h6" color="success.main">
+                    ${(trialBalanceData.total_debits || 0).toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Total Debits
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={6}>
+                <Box textAlign="center" p={2} border={1} borderColor="error.main" borderRadius={1}>
+                  <Typography variant="h6" color="error.main">
+                    ${(trialBalanceData.total_credits || 0).toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Total Credits
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+            <Box textAlign="center" p={2} border={1} borderColor={trialBalanceData.is_balanced ? "success.main" : "error.main"} borderRadius={1}>
+              <Typography variant="h6" color={trialBalanceData.is_balanced ? "success.main" : "error.main"}>
+                {trialBalanceData.is_balanced ? '✅ Balanced' : '❌ Unbalanced'}
+              </Typography>
+              {!trialBalanceData.is_balanced && (
+                <Typography variant="body2" color="error.main">
+                  Difference: ${Math.abs(trialBalanceData.difference || 0).toLocaleString()}
+                </Typography>
+              )}
+            </Box>
           </Box>
         ) : (
+          <Alert severity="info">No trial balance data available</Alert>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  const renderCashFlowAnalysis = () => {
+    // Calculate cash flow from trial balance data
+    const cashAccounts = trialBalanceData?.trial_balance?.filter(acc => 
+      acc.account_type === 'asset' && 
+      (acc.account_code?.startsWith('1') || acc.account_name?.toLowerCase().includes('cash') || acc.account_name?.toLowerCase().includes('bank'))
+    ) || [];
+    
+    const totalCashInflows = cashAccounts.reduce((sum, acc) => sum + Math.abs(acc.debit_balance || 0), 0);
+    const totalCashOutflows = cashAccounts.reduce((sum, acc) => sum + Math.abs(acc.credit_balance || 0), 0);
+    const netCashFlow = totalCashInflows - totalCashOutflows;
+    
+    return (
+      <Card>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Cash Flow Analysis
+          </Typography>
+          <Box>
+            <Grid container spacing={2} sx={{ mb: 2 }}>
+              <Grid item xs={6}>
+                <Box textAlign="center" p={2} border={1} borderColor="info.main" borderRadius={1}>
+                  <Typography variant="h6" color="info.main">
+                    ${totalCashInflows.toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Cash Inflows
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={6}>
+                <Box textAlign="center" p={2} border={1} borderColor="warning.main" borderRadius={1}>
+                  <Typography variant="h6" color="warning.main">
+                    ${totalCashOutflows.toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Cash Outflows
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+            <Box textAlign="center" p={2} border={1} borderColor={netCashFlow >= 0 ? "success.main" : "error.main"} borderRadius={1}>
+              <Typography variant="h6" color={netCashFlow >= 0 ? "success.main" : "error.main"}>
+                ${netCashFlow.toLocaleString()}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Net Cash Flow
+              </Typography>
+            </Box>
+          </Box>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const renderRecentTransactions = () => {
+    // Get recent journal entries
+    const recentEntries = generalLedgerData?.slice(0, 10) || [];
+    
+    return (
+      <Card>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Recent Transactions
+          </Typography>
+          {recentEntries.length > 0 ? (
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Date</TableCell>
+                    <TableCell>Reference</TableCell>
+                    <TableCell>Description</TableCell>
+                    <TableCell align="right">Amount</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {recentEntries.map((entry, index) => (
+                    <TableRow key={index}>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {entry.date ? new Date(entry.date).toLocaleDateString() : 'N/A'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontFamily="monospace">
+                          {entry.reference || 'N/A'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {entry.description || 'No description'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2" color="text.secondary">
+                          ${(entry.total_debits || 0).toLocaleString()}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          ) : (
+            <Alert severity="info">No recent transactions available</Alert>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const renderAccountBalancesSummary = () => {
+    // Get account balances by type
+    const accountTypes = ['asset', 'liability', 'equity', 'revenue', 'expense'];
+    const accountSummary = accountTypes.map(type => {
+      const accounts = trialBalanceData?.trial_balance?.filter(acc => acc.account_type === type) || [];
+      const totalBalance = accounts.reduce((sum, acc) => sum + Math.abs(acc.debit_balance || 0) + Math.abs(acc.credit_balance || 0), 0);
+      return { type, count: accounts.length, totalBalance };
+    }).filter(summary => summary.count > 0);
+    
+    return (
+      <Card>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Account Balances by Type
+          </Typography>
+          {accountSummary.length > 0 ? (
+            <Box>
+              {accountSummary.map((summary, index) => (
+                <Box key={index} display="flex" justifyContent="space-between" alignItems="center" py={1}>
+                  <Box>
+                    <Typography variant="body2" sx={{ textTransform: 'capitalize', fontWeight: 500 }}>
+                      {summary.type}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {summary.count} accounts
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2" fontWeight="medium">
+                    ${summary.totalBalance.toLocaleString()}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          ) : (
+            <Alert severity="info">No account data available</Alert>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const renderProfitLossStatement = () => {
+    // Calculate real P&L data from trial balance
+    if (!trialBalanceData?.trial_balance) {
+      return (
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>Profit & Loss Statement</Typography>
+            <Alert severity="info">Loading profit & loss data...</Alert>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    const accounts = trialBalanceData.trial_balance;
+    
+    // Calculate period-based data from journal entries
+    const calculatePeriodData = (period) => {
+      const now = new Date();
+      let startDate, endDate;
+      
+      switch (period) {
+        case 'current_month':
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          break;
+        case 'previous_month':
+          startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+          break;
+        case 'current_quarter':
+          const quarter = Math.floor(now.getMonth() / 3);
+          startDate = new Date(now.getFullYear(), quarter * 3, 1);
+          endDate = new Date(now.getFullYear(), quarter * 3 + 3, 0);
+          break;
+        case 'current_year':
+          startDate = new Date(now.getFullYear(), 0, 1);
+          endDate = new Date(now.getFullYear(), 11, 31);
+          break;
+        default:
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      }
+      
+      // Filter journal entries by period
+      const periodEntries = generalLedgerData?.filter(entry => {
+        if (!entry.date) return false;
+        const entryDate = new Date(entry.date);
+        return entryDate >= startDate && entryDate <= endDate;
+      }) || [];
+      
+      // Calculate revenue and expenses for the period
+      let periodRevenue = 0;
+      let periodExpenses = 0;
+      
+      periodEntries.forEach(entry => {
+        if (entry.lines && Array.isArray(entry.lines)) {
+          entry.lines.forEach(line => {
+            const account = accounts.find(acc => acc.id === line.account_id);
+            if (account) {
+              if (account.account_type === 'revenue') {
+                periodRevenue += Math.abs(line.credit_amount || 0);
+              } else if (account.account_type === 'expense') {
+                periodExpenses += Math.abs(line.debit_amount || 0);
+              }
+            }
+          });
+        }
+      });
+      
+      return { periodRevenue, periodExpenses, periodEntries };
+    };
+    
+    // Get current period data
+    const currentPeriodData = calculatePeriodData(reportPeriod);
+    const previousPeriodData = calculatePeriodData(
+      reportPeriod === 'current_month' ? 'previous_month' :
+      reportPeriod === 'previous_month' ? 'current_month' :
+      reportPeriod === 'current_quarter' ? 'previous_month' :
+      'previous_month'
+    );
+    
+    // Use period-specific data
+    const totalRevenue = currentPeriodData.periodRevenue;
+    const totalExpenses = currentPeriodData.periodExpenses;
+    const netIncome = totalRevenue - totalExpenses;
+    const grossProfit = totalRevenue;
+    
+    // Calculate operating income
+    const operatingExpenses = totalExpenses; // For now, all expenses are operating
+    
+    const operatingIncome = grossProfit - operatingExpenses;
+    
+    // Calculate variance and percentage change
+    const revenueVariance = totalRevenue - previousPeriodData.periodRevenue;
+    const revenuePercentChange = previousPeriodData.periodRevenue > 0 ? 
+      (revenueVariance / previousPeriodData.periodRevenue) * 100 : 0;
+    
+    const expenseVariance = totalExpenses - previousPeriodData.periodExpenses;
+    const expensePercentChange = previousPeriodData.periodExpenses > 0 ? 
+      (expenseVariance / previousPeriodData.periodExpenses) * 100 : 0;
+    
+    const netIncomeVariance = netIncome - (previousPeriodData.periodRevenue - previousPeriodData.periodExpenses);
+    const netIncomePercentChange = (previousPeriodData.periodRevenue - previousPeriodData.periodExpenses) > 0 ? 
+      (netIncomeVariance / (previousPeriodData.periodRevenue - previousPeriodData.periodExpenses)) * 100 : 0;
+    
+    return (
+      <Card>
+        <CardContent>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+            <Box>
+              <Typography variant="h5">Profit & Loss Statement</Typography>
+              <Typography variant="body2" color="text.secondary" mt={0.5}>
+                {reportPeriod === 'current_month' && 'Current Month'}
+                {reportPeriod === 'previous_month' && 'Previous Month'}
+                {reportPeriod === 'current_quarter' && 'Current Quarter'}
+                {reportPeriod === 'current_year' && 'Current Year'}
+                {' '}• {currentPeriodData.periodEntries.length} transactions
+              </Typography>
+            </Box>
+            <Box display="flex" gap={1}>
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <InputLabel>Period</InputLabel>
+                <Select
+                  value={reportPeriod}
+                  onChange={(e) => setReportPeriod(e.target.value)}
+                  label="Period"
+                >
+                  <MenuItem value="current_month">Current Month</MenuItem>
+                  <MenuItem value="previous_month">Previous Month</MenuItem>
+                  <MenuItem value="current_quarter">Current Quarter</MenuItem>
+                  <MenuItem value="current_year">Current Year</MenuItem>
+                </Select>
+              </FormControl>
+              <Button 
+                variant="outlined" 
+                startIcon={<Download />}
+                onClick={() => {
+                  // Create CSV export
+                  const csvData = [
+                    ['Description', 'Current Period', 'Previous Period', 'Variance', '% Change'],
+                    ['REVENUE', `$${totalRevenue.toLocaleString()}`, `$${previousPeriodData.periodRevenue.toLocaleString()}`, `$${revenueVariance.toLocaleString()}`, `${revenuePercentChange.toFixed(1)}%`],
+                    ['GROSS PROFIT', `$${grossProfit.toLocaleString()}`, `$${previousPeriodData.periodRevenue.toLocaleString()}`, `$${revenueVariance.toLocaleString()}`, `${revenuePercentChange.toFixed(1)}%`],
+                    ['EXPENSES', `$${totalExpenses.toLocaleString()}`, `$${previousPeriodData.periodExpenses.toLocaleString()}`, `$${expenseVariance.toLocaleString()}`, `${expensePercentChange.toFixed(1)}%`],
+                    ['OPERATING INCOME', `$${operatingIncome.toLocaleString()}`, `$${(previousPeriodData.periodRevenue - previousPeriodData.periodExpenses).toLocaleString()}`, `$${netIncomeVariance.toLocaleString()}`, `${netIncomePercentChange.toFixed(1)}%`],
+                    ['NET INCOME', `$${netIncome.toLocaleString()}`, `$${(previousPeriodData.periodRevenue - previousPeriodData.periodExpenses).toLocaleString()}`, `$${netIncomeVariance.toLocaleString()}`, `${netIncomePercentChange.toFixed(1)}%`]
+                  ];
+                  
+                  const csvContent = csvData.map(row => row.join(',')).join('\n');
+                  const blob = new Blob([csvContent], { type: 'text/csv' });
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `profit-loss-${reportPeriod}-${new Date().toISOString().split('T')[0]}.csv`;
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                }}
+              >
+                Export
+              </Button>
+            </Box>
+          </Box>
+
           <TableContainer>
             <Table>
               <TableHead>
@@ -892,6 +1307,7 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
                 </TableRow>
               </TableHead>
               <TableBody>
+                {/* Revenue Section */}
                 <TableRow sx={{ bgcolor: 'grey.50' }}>
                   <TableCell>
                     <Typography variant="subtitle2" fontWeight="bold">
@@ -900,26 +1316,56 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
                   </TableCell>
                   <TableCell align="right">
                     <Typography variant="body2" fontWeight="bold">
-                      ${(metrics.revenue || 0).toLocaleString()}
+                      ${totalRevenue.toLocaleString()}
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
                     <Typography variant="body2">
-                      ${((metrics.revenue || 0) * 0.95).toLocaleString()}
+                      ${previousPeriodData.periodRevenue.toLocaleString()}
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
-                    <Typography variant="body2" color={metrics.revenue > 0 ? "success.main" : "text.secondary"}>
-                      {metrics.revenue > 0 ? '+' : ''}${((metrics.revenue || 0) * 0.05).toLocaleString()}
+                    <Typography variant="body2" color={revenueVariance >= 0 ? "success.main" : "error.main"}>
+                      {revenueVariance >= 0 ? '+' : ''}${revenueVariance.toLocaleString()}
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
-                    <Typography variant="body2" color={metrics.revenue > 0 ? "success.main" : "text.secondary"}>
-                      {metrics.revenue > 0 ? '+' : ''}5.3%
+                    <Typography variant="body2" color={revenueVariance >= 0 ? "success.main" : "error.main"}>
+                      {revenueVariance >= 0 ? '+' : ''}{revenuePercentChange.toFixed(1)}%
                     </Typography>
                   </TableCell>
                 </TableRow>
                 
+                {/* Gross Profit */}
+                <TableRow sx={{ bgcolor: 'grey.100', borderTop: 2, borderBottom: 1 }}>
+                  <TableCell>
+                    <Typography variant="subtitle2" fontWeight="bold">
+                      GROSS PROFIT
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography variant="body2" fontWeight="bold">
+                      ${grossProfit.toLocaleString()}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography variant="body2">
+                      ${previousPeriodData.periodRevenue.toLocaleString()}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography variant="body2" color={revenueVariance >= 0 ? "success.main" : "error.main"}>
+                      {revenueVariance >= 0 ? '+' : ''}${revenueVariance.toLocaleString()}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography variant="body2" color={revenueVariance >= 0 ? "success.main" : "error.main"}>
+                      {revenueVariance >= 0 ? '+' : ''}{revenuePercentChange.toFixed(1)}%
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+                
+                {/* Expenses Section */}
                 <TableRow sx={{ bgcolor: 'grey.50' }}>
                   <TableCell>
                     <Typography variant="subtitle2" fontWeight="bold">
@@ -928,60 +1374,90 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
                   </TableCell>
                   <TableCell align="right">
                     <Typography variant="body2" fontWeight="bold">
-                      ${(metrics.expenses || 0).toLocaleString()}
+                      ${totalExpenses.toLocaleString()}
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
                     <Typography variant="body2">
-                      ${((metrics.expenses || 0) * 1.02).toLocaleString()}
+                      ${previousPeriodData.periodExpenses.toLocaleString()}
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
-                    <Typography variant="body2" color="error.main">
-                      -${((metrics.expenses || 0) * 0.02).toLocaleString()}
+                    <Typography variant="body2" color={expenseVariance <= 0 ? "success.main" : "error.main"}>
+                      {expenseVariance >= 0 ? '+' : ''}${expenseVariance.toLocaleString()}
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
-                    <Typography variant="body2" color="success.main">
-                      -2.0%
+                    <Typography variant="body2" color={expenseVariance <= 0 ? "success.main" : "error.main"}>
+                      {expenseVariance >= 0 ? '+' : ''}{expensePercentChange.toFixed(1)}%
                     </Typography>
                   </TableCell>
                 </TableRow>
                 
-                <TableRow sx={{ bgcolor: 'primary.main', color: 'white' }}>
+                {/* Operating Income */}
+                <TableRow sx={{ bgcolor: 'grey.100', borderTop: 1, borderBottom: 1 }}>
                   <TableCell>
                     <Typography variant="subtitle2" fontWeight="bold">
+                      OPERATING INCOME
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography variant="body2" fontWeight="bold" color={operatingIncome >= 0 ? "success.main" : "error.main"}>
+                      ${operatingIncome.toLocaleString()}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography variant="body2">
+                      ${(previousPeriodData.periodRevenue - previousPeriodData.periodExpenses).toLocaleString()}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography variant="body2" color={netIncomeVariance >= 0 ? "success.main" : "error.main"}>
+                      {netIncomeVariance >= 0 ? '+' : ''}${netIncomeVariance.toLocaleString()}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography variant="body2" color={netIncomeVariance >= 0 ? "success.main" : "error.main"}>
+                      {netIncomeVariance >= 0 ? '+' : ''}{netIncomePercentChange.toFixed(1)}%
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+                
+                {/* Net Income */}
+                <TableRow sx={{ bgcolor: 'primary.main', color: 'white' }}>
+                  <TableCell>
+                    <Typography variant="h6" fontWeight="bold">
                       NET INCOME
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
-                    <Typography variant="body2" fontWeight="bold">
-                      ${(metrics.netIncome || 0).toLocaleString()}
+                    <Typography variant="h6" fontWeight="bold">
+                      ${netIncome.toLocaleString()}
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
-                    <Typography variant="body2">
-                      ${((metrics.netIncome || 0) * 0.98).toLocaleString()}
+                    <Typography variant="h6">
+                      ${(previousPeriodData.periodRevenue - previousPeriodData.periodExpenses).toLocaleString()}
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
-                    <Typography variant="body2">
-                      +${((metrics.netIncome || 0) * 0.02).toLocaleString()}
+                    <Typography variant="h6" fontWeight="bold">
+                      {netIncomeVariance >= 0 ? '+' : ''}${netIncomeVariance.toLocaleString()}
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
-                    <Typography variant="body2">
-                      +2.0%
+                    <Typography variant="h6" fontWeight="bold">
+                      {netIncomeVariance >= 0 ? '+' : ''}{netIncomePercentChange.toFixed(1)}%
                     </Typography>
                   </TableCell>
                 </TableRow>
               </TableBody>
             </Table>
           </TableContainer>
-        )}
-      </CardContent>
-    </Card>
-  );
+        </CardContent>
+      </Card>
+    );
+  };
 
   const renderBalanceSheet = () => (
     <Card>
@@ -1707,55 +2183,120 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
     </Card>
   );
 
-  const renderFinancialRatios = () => (
-    <Card>
-      <CardContent>
-        <Typography variant="h6" mb={2}>Key Financial Ratios</Typography>
-        <Grid container spacing={2}>
-          <Grid item xs={12} sm={6} md={3}>
-            <Box textAlign="center" p={2} border={1} borderColor="grey.300" borderRadius={1}>
-              <Typography variant="h4" color="primary">
-                {(metrics.profitMargin || 0).toFixed(1)}%
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Profit Margin
-              </Typography>
-            </Box>
+  const renderFinancialRatios = () => {
+    // Calculate real financial ratios from trial balance data
+    if (!trialBalanceData?.trial_balance) {
+      return (
+        <Card>
+          <CardContent>
+            <Typography variant="h6" mb={2}>Key Financial Ratios</Typography>
+            <Alert severity="info">Loading financial ratios...</Alert>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    const accounts = trialBalanceData.trial_balance;
+    
+    // Calculate key financial metrics
+    const totalAssets = accounts.filter(acc => acc.account_type === 'asset')
+      .reduce((sum, acc) => sum + Math.abs(acc.debit_balance || 0), 0);
+    
+    const totalLiabilities = accounts.filter(acc => acc.account_type === 'liability')
+      .reduce((sum, acc) => sum + Math.abs(acc.credit_balance || 0), 0);
+    
+    const totalEquity = accounts.filter(acc => acc.account_type === 'equity')
+      .reduce((sum, acc) => sum + Math.abs(acc.credit_balance || 0), 0);
+    
+    const totalRevenue = accounts.filter(acc => acc.account_type === 'revenue')
+      .reduce((sum, acc) => sum + Math.abs(acc.credit_balance || 0), 0);
+    
+    const totalExpenses = accounts.filter(acc => acc.account_type === 'expense')
+      .reduce((sum, acc) => sum + Math.abs(acc.debit_balance || 0), 0);
+    
+    const netIncome = totalRevenue - totalExpenses;
+    
+    // Calculate current assets (cash and short-term assets)
+    const currentAssets = accounts.filter(acc => 
+      acc.account_type === 'asset' && 
+      (acc.account_code?.startsWith('1') || acc.account_name?.toLowerCase().includes('cash') || 
+       acc.account_name?.toLowerCase().includes('bank') || acc.account_name?.toLowerCase().includes('receivable'))
+    ).reduce((sum, acc) => sum + Math.abs(acc.debit_balance || 0), 0);
+    
+    // Calculate current liabilities (short-term liabilities)
+    const currentLiabilities = accounts.filter(acc => 
+      acc.account_type === 'liability' && 
+      (acc.account_name?.toLowerCase().includes('payable') || acc.account_name?.toLowerCase().includes('accrued'))
+    ).reduce((sum, acc) => sum + Math.abs(acc.credit_balance || 0), 0);
+    
+    // Calculate financial ratios
+    const profitMargin = totalRevenue > 0 ? (netIncome / totalRevenue) * 100 : 0;
+    const assetTurnover = totalAssets > 0 ? totalRevenue / totalAssets : 0;
+    const debtToEquity = totalEquity > 0 ? totalLiabilities / totalEquity : 0;
+    const currentRatio = currentLiabilities > 0 ? currentAssets / currentLiabilities : 0;
+    
+    return (
+      <Card>
+        <CardContent>
+          <Typography variant="h6" mb={2}>Key Financial Ratios</Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Box textAlign="center" p={2} border={1} borderColor="primary.main" borderRadius={1}>
+                <Typography variant="h4" color="primary.main">
+                  {profitMargin.toFixed(1)}%
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Profit Margin
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Net Income / Revenue
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Box textAlign="center" p={2} border={1} borderColor="success.main" borderRadius={1}>
+                <Typography variant="h4" color="success.main">
+                  {assetTurnover.toFixed(2)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Asset Turnover
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Revenue / Total Assets
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Box textAlign="center" p={2} border={1} borderColor="warning.main" borderRadius={1}>
+                <Typography variant="h4" color="warning.main">
+                  {debtToEquity.toFixed(2)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Debt-to-Equity
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Total Liabilities / Equity
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Box textAlign="center" p={2} border={1} borderColor="info.main" borderRadius={1}>
+                <Typography variant="h4" color="info.main">
+                  {currentRatio.toFixed(2)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Current Ratio
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Current Assets / Current Liabilities
+                </Typography>
+              </Box>
+            </Grid>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Box textAlign="center" p={2} border={1} borderColor="grey.300" borderRadius={1}>
-              <Typography variant="h4" color="success.main">
-                {(metrics.assetTurnover || 0).toFixed(2)}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Asset Turnover
-              </Typography>
-            </Box>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Box textAlign="center" p={2} border={1} borderColor="grey.300" borderRadius={1}>
-              <Typography variant="h4" color="warning.main">
-                {(metrics.debtToEquity || 0).toFixed(2)}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Debt-to-Equity
-              </Typography>
-            </Box>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Box textAlign="center" p={2} border={1} borderColor="grey.300" borderRadius={1}>
-              <Typography variant="h4" color="info.main">
-                {(metrics.currentRatio || 0).toFixed(2)}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Current Ratio
-              </Typography>
-            </Box>
-          </Grid>
-        </Grid>
-      </CardContent>
-    </Card>
-  );
+        </CardContent>
+      </Card>
+    );
+  };
 
   const renderPaymentMethodAnalysis = () => {
     const totalTransactions = Object.values(paymentMethodStats).reduce((sum, stat) => sum + stat.count, 0);
@@ -1919,135 +2460,215 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
     );
   };
 
-  const renderTrialBalance = () => (
-    <Card>
-      <CardContent>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-          <Typography variant="h5">
-            Trial Balance
-          </Typography>
-          <Box display="flex" gap={1}>
-            <Button
-              variant="outlined"
-              startIcon={<Download />}
-              onClick={() => setSnackbar({ open: true, message: 'Trial Balance exported successfully', severity: 'success' })}
-            >
-              Export
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<Print />}
-              onClick={() => window.print()}
-            >
-              Print
-            </Button>
+  const renderTrialBalance = () => {
+
+    const handleExport = () => {
+      if (!trialBalanceData) return;
+      
+      // Create CSV content
+      const headers = ['Account Code', 'Account Name', 'Account Type', 'Debit Balance', 'Credit Balance', 'Normal Side'];
+      const rows = trialBalanceData.trial_balance.map(account => [
+        account.account_code,
+        account.account_name,
+        account.account_type,
+        account.debit_balance,
+        account.credit_balance,
+        account.normal_side
+      ]);
+      
+      const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
+      
+      // Download CSV
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `trial-balance-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      
+      setSnackbar({
+        open: true,
+        message: 'Trial balance exported successfully',
+        severity: 'success'
+      });
+    };
+
+    if (trialLoading) {
+      return (
+        <Card>
+          <CardContent>
+            <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
+              <CircularProgress />
+            </Box>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    if (trialError) {
+      return (
+        <Card>
+          <CardContent>
+            <Alert severity="error">{trialError}</Alert>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    if (!trialBalanceData) {
+      return (
+        <Card>
+          <CardContent>
+            <Alert severity="info">
+              No trial balance data available. Please create some journal entries first.
+            </Alert>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <Card>
+        <CardContent>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+            <Typography variant="h5">
+              Trial Balance
+            </Typography>
+            <Box display="flex" gap={1}>
+              <Button
+                variant="outlined"
+                startIcon={<Download />}
+                onClick={handleExport}
+              >
+                Export CSV
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<Print />}
+                onClick={() => window.print()}
+              >
+                Print
+              </Button>
+            </Box>
           </Box>
-        </Box>
 
-        <Box>
-          {/* Summary Cards */}
-          <Grid container spacing={3} sx={{ mb: 4 }}>
-            <Grid item xs={12} sm={4}>
-              <Card>
-                <CardContent>
-                  <Typography color="text.secondary" gutterBottom>
-                    Total Debits
-                  </Typography>
-                  <Typography variant="h4" color="success.main">
-                    ${(metrics.totalDebits || 0).toLocaleString()}
-                  </Typography>
-                </CardContent>
-              </Card>
+          <Box>
+            {/* Summary Cards */}
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+              <Grid item xs={12} sm={4}>
+                <Card>
+                  <CardContent>
+                    <Typography color="text.secondary" gutterBottom>
+                      Total Debits
+                    </Typography>
+                    <Typography variant="h4" color="success.main">
+                      ${(trialBalanceData.total_debits || 0).toLocaleString()}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Card>
+                  <CardContent>
+                    <Typography color="text.secondary" gutterBottom>
+                      Total Credits
+                    </Typography>
+                    <Typography variant="h4" color="error.main">
+                      ${(trialBalanceData.total_credits || 0).toLocaleString()}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Card>
+                  <CardContent>
+                    <Typography color="text.secondary" gutterBottom>
+                      Balance Status
+                    </Typography>
+                    <Typography variant="h6">
+                      {trialBalanceData.is_balanced ? '✅ Balanced' : '❌ Unbalanced'}
+                    </Typography>
+                    {!trialBalanceData.is_balanced && (
+                      <Typography variant="body2" color="error.main">
+                        Difference: ${Math.abs(trialBalanceData.difference || 0).toLocaleString()}
+                      </Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
             </Grid>
-            <Grid item xs={12} sm={4}>
-              <Card>
-                <CardContent>
-                  <Typography color="text.secondary" gutterBottom>
-                    Total Credits
-                  </Typography>
-                  <Typography variant="h4" color="error.main">
-                    ${(metrics.totalCredits || 0).toLocaleString()}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <Card>
-                <CardContent>
-                  <Typography color="text.secondary" gutterBottom>
-                    Balance Status
-                  </Typography>
-                  <Typography variant="h6">
-                    {Math.abs((metrics.totalDebits || 0) - (metrics.totalCredits || 0)) < 0.01 ? '✅ Balanced' : '❌ Unbalanced'}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
 
-          {/* Trial Balance Table */}
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Account Code</TableCell>
-                  <TableCell>Account Name</TableCell>
-                  <TableCell>Type</TableCell>
-                  <TableCell align="right">Debit Balance</TableCell>
-                  <TableCell align="right">Credit Balance</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {accounts && accounts.length > 0 ? accounts.map((account, index) => (
-                  <TableRow key={index}>
-                    <TableCell>
-                      <Typography variant="body2" fontFamily="monospace">
-                        {account.account_code || 'N/A'}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {account.account_name || 'Unnamed Account'}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={(account.account_type || 'unknown').toUpperCase()}
-                        size="small"
-                        variant="outlined"
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      {account.debit_balance > 0 && (
-                        <Typography variant="body2" color="success.main" fontWeight="medium">
-                          ${account.debit_balance.toLocaleString()}
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell align="right">
-                      {account.credit_balance > 0 && (
-                        <Typography variant="body2" color="error.main" fontWeight="medium">
-                          ${account.credit_balance.toLocaleString()}
-                        </Typography>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )) : (
+            {/* Trial Balance Table */}
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
                   <TableRow>
-                    <TableCell colSpan={5} align="center">
-                      <Alert severity="info">
-                        No trial balance data available. Please create some journal entries first.
-                      </Alert>
-                    </TableCell>
+                    <TableCell>Account Code</TableCell>
+                    <TableCell>Account Name</TableCell>
+                    <TableCell>Type</TableCell>
+                    <TableCell align="right">Debit Balance</TableCell>
+                    <TableCell align="right">Credit Balance</TableCell>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Box>
-      </CardContent>
-    </Card>
-  );
+                </TableHead>
+                <TableBody>
+                  {trialBalanceData.trial_balance && trialBalanceData.trial_balance.length > 0 ? 
+                    trialBalanceData.trial_balance.map((account, index) => (
+                      <TableRow key={index}>
+                        <TableCell>
+                          <Typography variant="body2" fontFamily="monospace">
+                            {account.account_code || 'N/A'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
+                            {account.account_name || 'Unnamed Account'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={(account.account_type || 'unknown').toUpperCase()}
+                            size="small"
+                            variant="outlined"
+                            color={account.account_type === 'asset' ? 'success' : 
+                                   account.account_type === 'liability' ? 'warning' :
+                                   account.account_type === 'equity' ? 'info' :
+                                   account.account_type === 'revenue' ? 'primary' :
+                                   account.account_type === 'expense' ? 'error' : 'default'}
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          {account.debit_balance > 0 && (
+                            <Typography variant="body2" color="success.main" fontWeight="medium">
+                              ${account.debit_balance.toLocaleString()}
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell align="right">
+                          {account.credit_balance > 0 && (
+                            <Typography variant="body2" color="error.main" fontWeight="medium">
+                              ${account.credit_balance.toLocaleString()}
+                            </Typography>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center">
+                          <Alert severity="info">
+                            No trial balance data available. Please create some journal entries first.
+                          </Alert>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        </CardContent>
+      </Card>
+    );
+  };
 
   const renderReportActions = () => (
     <Card>
@@ -2176,12 +2797,32 @@ const SmartFinancialReports = ({ isMobile, isTablet }) => {
       {/* Tab Content */}
       {activeTab === 0 && (
         <Grid container spacing={3}>
+          {/* Real-time Financial KPIs */}
           <Grid item xs={12}>
-            {renderKPIMetrics()}
+            {renderEnhancedKPIMetrics()}
           </Grid>
-          <Grid item xs={12}>
-            {renderDailySummaryTable()}
+          
+          {/* Trial Balance Summary */}
+          <Grid item xs={12} md={6}>
+            {renderTrialBalanceSummary()}
           </Grid>
+          
+          {/* Cash Flow Analysis */}
+          <Grid item xs={12} md={6}>
+            {renderCashFlowAnalysis()}
+          </Grid>
+          
+          {/* Recent Transactions */}
+          <Grid item xs={12} md={8}>
+            {renderRecentTransactions()}
+          </Grid>
+          
+          {/* Account Balances Summary */}
+          <Grid item xs={12} md={4}>
+            {renderAccountBalancesSummary()}
+          </Grid>
+          
+          {/* Financial Ratios */}
           <Grid item xs={12}>
             {renderFinancialRatios()}
           </Grid>

@@ -1,0 +1,1498 @@
+{
+  "audit_date": "2025-10-05T07:17:09.338359",
+  "total_tables_with_user_fields": 129,
+  "inconsistent_tables": 73,
+  "consistent_tables": 56,
+  "tables_with_user_fields": {
+    "account_lockouts": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "accounting_periods": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "accounts": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "adjustment_entries": [
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "advanced_accounts_payable": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "advanced_accounts_receivable": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "advanced_ap_payments": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "advanced_ar_payments": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "advanced_audit_trail": [
+      {
+        "name": "user_id",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "advanced_bank_reconciliations": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "advanced_budgets": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "advanced_fixed_assets": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "advanced_general_ledger_entries": [
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "advanced_journal_headers": [
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "advanced_tax_records": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "advanced_user_activity": [
+      {
+        "name": "user_name",
+        "type": "VARCHAR(100)",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "VARCHAR(50)",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_agent",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "ai_configurations": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "ai_conversations": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "ai_insights": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "ai_messages": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "ai_models": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "ai_predictions": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "ai_recommendations": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "anomaly_detections": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "audit_logs": [
+      {
+        "name": "tenant_id",
+        "type": "VARCHAR(36)",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_agent",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "bank_accounts": [
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "bank_transactions": [
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "basic_inventory_transactions": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "budget_scenarios": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "budgets": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "communications": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "contacts": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": "1"
+      }
+    ],
+    "contracts": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "cost_allocation_details": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "cost_allocations": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "cost_centers": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "cost_layer_transactions": [
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "crm_customers": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "crm_users": [
+      {
+        "name": "username",
+        "type": "VARCHAR(80)",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "customer_communications": [
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "daily_balances": [
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "daily_cycle_audit_logs": [
+      {
+        "name": "user_id",
+        "type": "VARCHAR(100)",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "user_name",
+        "type": "VARCHAR(200)",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_role",
+        "type": "VARCHAR(50)",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_agent",
+        "type": "VARCHAR(500)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "daily_inventory_balances": [
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "daily_inventory_cycle_audit_logs": [
+      {
+        "name": "user_id",
+        "type": "VARCHAR(100)",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "user_name",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_role",
+        "type": "VARCHAR(50)",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_agent",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "dashboard_templates": [
+      {
+        "name": "user_type",
+        "type": "VARCHAR(50)",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "dashboard_widgets": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "dashboards": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "data_pipelines": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "departments": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "ecommerce_customers": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "ecommerce_orders": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "ecommerce_products": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "employees": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "environmental_metrics": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "esg_reports": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "exchange_rates": [
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "finance_customers": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "finance_vendors": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "fiscal_years": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "follow_ups": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "governance_metrics": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "inventory_adjustment_entries": [
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "inventory_advanced_warehouses": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "inventory_audit_trail": [
+      {
+        "name": "user_id",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "inventory_basic_locations": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "inventory_cost_layers": [
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "inventory_picker_performances": [
+      {
+        "name": "user_id",
+        "type": "VARCHAR(100)",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "inventory_product_categories": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "inventory_product_variants": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "inventory_products": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "inventory_simple_warehouses": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "inventory_stock_levels": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "inventory_transactions": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "inventory_uom": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "inventory_uom_conversions": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "inventory_warehouse_activities": [
+      {
+        "name": "user_id",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "invoices": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "journal_entries": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "knowledge_base_articles": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "leads": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": "1"
+      }
+    ],
+    "login_history": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "user_agent",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "VARCHAR(36)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "model_performance": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "opportunities": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": "1"
+      }
+    ],
+    "organizations": [
+      {
+        "name": "created_by_user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "partial_payments": [
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "password_history": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "payment_methods": [
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "payment_transactions": [
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "payments": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "payroll": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "permission_changes": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "VARCHAR(36)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "pipeline_executions": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "platform_metrics": [
+      {
+        "name": "total_tenants",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "active_tenants",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "total_users",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "posting_rules": [
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "predictions": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "product_categories": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "products": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "projects": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "purchase_orders": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "reconciliation_sessions": [
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "recruitment": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "rfqs": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "rpa_executions": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "rpa_workflows": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "sales_invoices": [
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "sales_payments": [
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "security_events": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_agent",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "security_policies": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "social_metrics": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "stock_movements": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "system_events": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "VARCHAR(36)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "tenant_modules": [
+      {
+        "name": "tenant_id",
+        "type": "VARCHAR(50)",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "tenant_settings": [
+      {
+        "name": "tenant_id",
+        "type": "VARCHAR(50)",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "tenant_usage_stats": [
+      {
+        "name": "tenant_id",
+        "type": "VARCHAR(36)",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "active_users",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "tenants": [
+      {
+        "name": "tenant_metadata",
+        "type": "JSON",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "created_by",
+        "type": "VARCHAR(100)",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "tickets": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "time_entries": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "two_factor_auth": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "user_data": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "user_modules": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "user_preferences": [
+      {
+        "name": "user_id",
+        "type": "VARCHAR(100)",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "user_sessions": [
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "user_agent",
+        "type": "TEXT",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "user_tenants": [
+      {
+        "name": "user_id",
+        "type": "VARCHAR(100)",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "name": "tenant_id",
+        "type": "VARCHAR(50)",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "users": [
+      {
+        "name": "username",
+        "type": "VARCHAR(80)",
+        "nullable": false,
+        "default": null
+      }
+    ],
+    "vendor_communications": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "warehouses": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "name": "user_id",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "widget_templates": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "workflow_rules": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "workflow_templates": [
+      {
+        "name": "created_by",
+        "type": "INTEGER",
+        "nullable": true,
+        "default": null
+      }
+    ]
+  },
+  "inconsistent_table_names": [
+    "accounting_periods",
+    "accounts",
+    "adjustment_entries",
+    "advanced_accounts_payable",
+    "advanced_accounts_receivable",
+    "advanced_ap_payments",
+    "advanced_ar_payments",
+    "advanced_bank_reconciliations",
+    "advanced_general_ledger_entries",
+    "advanced_journal_headers",
+    "advanced_user_activity",
+    "audit_logs",
+    "bank_accounts",
+    "bank_transactions",
+    "basic_inventory_transactions",
+    "budget_scenarios",
+    "budgets",
+    "communications",
+    "contracts",
+    "cost_layer_transactions",
+    "customer_communications",
+    "daily_balances",
+    "daily_cycle_audit_logs",
+    "daily_inventory_balances",
+    "daily_inventory_cycle_audit_logs",
+    "dashboard_templates",
+    "dashboard_widgets",
+    "dashboards",
+    "exchange_rates",
+    "finance_customers",
+    "finance_vendors",
+    "fiscal_years",
+    "follow_ups",
+    "inventory_adjustment_entries",
+    "inventory_advanced_warehouses",
+    "inventory_cost_layers",
+    "inventory_product_categories",
+    "inventory_products",
+    "inventory_stock_levels",
+    "inventory_transactions",
+    "invoices",
+    "journal_entries",
+    "knowledge_base_articles",
+    "login_history",
+    "partial_payments",
+    "payment_methods",
+    "payment_transactions",
+    "payments",
+    "permission_changes",
+    "platform_metrics",
+    "posting_rules",
+    "product_categories",
+    "products",
+    "purchase_orders",
+    "reconciliation_sessions",
+    "rfqs",
+    "sales_invoices",
+    "sales_payments",
+    "security_events",
+    "security_policies",
+    "stock_movements",
+    "system_events",
+    "tenant_usage_stats",
+    "tenants",
+    "tickets",
+    "user_modules",
+    "user_sessions",
+    "user_tenants",
+    "vendor_communications",
+    "warehouses",
+    "widget_templates",
+    "workflow_rules",
+    "workflow_templates"
+  ],
+  "tables_with_data": {
+    "account_lockouts": 0,
+    "accounting_periods": 12,
+    "accounts": 12,
+    "adjustment_entries": 0,
+    "advanced_accounts_payable": 0,
+    "advanced_accounts_receivable": 0,
+    "advanced_ap_payments": 0,
+    "advanced_ar_payments": 0,
+    "advanced_audit_trail": 0,
+    "advanced_bank_reconciliations": 0,
+    "advanced_budgets": 0,
+    "advanced_fixed_assets": 0,
+    "advanced_general_ledger_entries": 6,
+    "advanced_journal_headers": 0,
+    "advanced_tax_records": 0,
+    "advanced_user_activity": 0,
+    "ai_configurations": 0,
+    "ai_conversations": 0,
+    "ai_insights": 0,
+    "ai_messages": 0,
+    "ai_models": 0,
+    "ai_predictions": 0,
+    "ai_recommendations": 0,
+    "anomaly_detections": 0,
+    "audit_logs": 0,
+    "bank_accounts": 0,
+    "bank_transactions": 0,
+    "basic_inventory_transactions": 0,
+    "budget_scenarios": 0,
+    "budgets": 0,
+    "communications": 0,
+    "contacts": 0,
+    "contracts": 0,
+    "cost_allocation_details": 0,
+    "cost_allocations": 0,
+    "cost_centers": 5,
+    "cost_layer_transactions": 0,
+    "crm_customers": 0,
+    "crm_users": 0,
+    "customer_communications": 0,
+    "daily_balances": 0,
+    "daily_cycle_audit_logs": 0,
+    "daily_inventory_balances": 0,
+    "daily_inventory_cycle_audit_logs": 0,
+    "dashboard_templates": 0,
+    "dashboard_widgets": 0,
+    "dashboards": 0,
+    "data_pipelines": 0,
+    "departments": 0,
+    "ecommerce_customers": 0,
+    "ecommerce_orders": 0,
+    "ecommerce_products": 0,
+    "employees": 0,
+    "environmental_metrics": 0,
+    "esg_reports": 0,
+    "exchange_rates": 0,
+    "finance_customers": 0,
+    "finance_vendors": 0,
+    "fiscal_years": 1,
+    "follow_ups": 0,
+    "governance_metrics": 0,
+    "inventory_adjustment_entries": 0,
+    "inventory_advanced_warehouses": 0,
+    "inventory_audit_trail": 0,
+    "inventory_basic_locations": 0,
+    "inventory_cost_layers": 0,
+    "inventory_picker_performances": 0,
+    "inventory_product_categories": 0,
+    "inventory_product_variants": 0,
+    "inventory_products": 0,
+    "inventory_simple_warehouses": 0,
+    "inventory_stock_levels": 0,
+    "inventory_transactions": 0,
+    "inventory_uom": 0,
+    "inventory_uom_conversions": 0,
+    "inventory_warehouse_activities": 0,
+    "invoices": 0,
+    "journal_entries": 18,
+    "knowledge_base_articles": 0,
+    "leads": 0,
+    "login_history": 0,
+    "model_performance": 0,
+    "opportunities": 0,
+    "organizations": 0,
+    "partial_payments": 0,
+    "password_history": 0,
+    "payment_methods": 0,
+    "payment_transactions": 0,
+    "payments": 0,
+    "payroll": 0,
+    "permission_changes": 0,
+    "pipeline_executions": 0,
+    "platform_metrics": 0,
+    "posting_rules": 0,
+    "predictions": 0,
+    "product_categories": 0,
+    "products": 0,
+    "projects": 1,
+    "purchase_orders": 0,
+    "reconciliation_sessions": 0,
+    "recruitment": 0,
+    "rfqs": 0,
+    "rpa_executions": 0,
+    "rpa_workflows": 0,
+    "sales_invoices": 0,
+    "sales_payments": 0,
+    "security_events": 0,
+    "security_policies": 0,
+    "social_metrics": 0,
+    "stock_movements": 0,
+    "system_events": 0,
+    "tenant_modules": 0,
+    "tenant_settings": 0,
+    "tenant_usage_stats": 0,
+    "tenants": 0,
+    "tickets": 0,
+    "time_entries": 0,
+    "two_factor_auth": 0,
+    "user_data": 1,
+    "user_modules": 6,
+    "user_preferences": 0,
+    "user_sessions": 0,
+    "user_tenants": 0,
+    "users": 0,
+    "vendor_communications": 0,
+    "warehouses": 0,
+    "widget_templates": 0,
+    "workflow_rules": 0,
+    "workflow_templates": 0
+  }
+}

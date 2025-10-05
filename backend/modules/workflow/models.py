@@ -13,7 +13,7 @@ class WorkflowRule(db.Model):
     actions = db.Column(JSON)  # JSON structure for actions
     is_active = db.Column(db.Boolean, default=True)
     priority = db.Column(db.Integer, default=1)  # Higher priority rules execute first
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -57,6 +57,6 @@ class WorkflowTemplate(db.Model):
     category = db.Column(db.String(50))  # crm, finance, procurement, etc.
     template_data = db.Column(JSON)  # JSON structure for the template
     is_active = db.Column(db.Boolean, default=True)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

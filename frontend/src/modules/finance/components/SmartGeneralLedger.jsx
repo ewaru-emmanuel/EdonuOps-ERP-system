@@ -103,13 +103,15 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
         entry_date: data.entry_date || new Date().toISOString().split('T')[0],
         reference: data.reference || `JE-${Date.now()}`, // Generate unique reference if empty
         description: data.description || '',
+        account_id: data.account_id,
+        debit_amount: parseFloat(data.debit_amount) || 0,
+        credit_amount: parseFloat(data.credit_amount) || 0,
         status: data.status || 'draft',
-        total_debit: parseFloat(data.debit_amount) || 0,
-        total_credit: parseFloat(data.credit_amount) || 0
+        journal_type: 'manual'
       };
       
       console.log('Sending API data:', apiData);
-      const response = await apiClient.post('/api/finance/journal-entries', apiData);
+      const response = await apiClient.post('/api/finance/advanced/general-ledger', apiData);
       console.log('API response:', response);
       console.log('API response data:', response.data);
       
@@ -122,8 +124,8 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
       const account = chartOfAccounts?.find(acc => acc.id === data.account_id);
       const account_name = account?.name || 'Unknown Account';
       
-      // Handle different response structures - the API returns {entry: {...}, message: '...'}
-      const responseEntry = response.data?.entry || response.data;
+      // Handle different response structures - the API returns the created entry directly
+      const responseEntry = response.data || response;
       
       // Create new entry with proper structure
       const timestamp = Date.now();
@@ -162,18 +164,28 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
     try {
       console.log('Updating GL entry via API:', id, data);
       
-      // Prepare data for API
+      // Extract the actual entry ID from composite ID (format: "entryId-lineId")
+      const entryId = id.includes('-') ? id.split('-')[0] : id;
+      
+      // Find the current entry to get account_id if not provided
+      const currentEntry = generalLedger.find(entry => entry.id === id);
+      if (!currentEntry) {
+        throw new Error('Entry not found for update');
+      }
+      
+      // Prepare data for API (matching backend expectations)
       const apiData = {
-        entry_date: data.entry_date || new Date().toISOString().split('T')[0],
-        reference: data.reference || `JE-${Date.now()}`, // Generate unique reference if empty
-        description: data.description || '',
-        status: data.status || 'draft',
-        total_debit: parseFloat(data.debit_amount) || 0,
-        total_credit: parseFloat(data.credit_amount) || 0
+        entry_date: data.entry_date || currentEntry.entry_date || new Date().toISOString().split('T')[0],
+        reference: data.reference || currentEntry.reference || `JE-${Date.now()}`,
+        description: data.description || currentEntry.description || '',
+        account_id: data.account_id || currentEntry.account_id,
+        debit_amount: parseFloat(data.debit_amount) || 0,
+        credit_amount: parseFloat(data.credit_amount) || 0,
+        status: data.status || currentEntry.status || 'draft'
       };
       
       console.log('Sending update API data:', apiData);
-      const response = await apiClient.put(`/api/finance/journal-entries/${id}`, apiData);
+      const response = await apiClient.put(`/api/finance/advanced/general-ledger/${entryId}`, apiData);
       console.log('Update API response:', response);
       console.log('Update API response data:', response.data);
       
@@ -194,14 +206,15 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
               reference: apiData.reference,
               description: apiData.description,
               status: apiData.status,
-              debit_amount: apiData.total_debit,
-              credit_amount: apiData.total_credit,
-              account_name, 
+              debit_amount: apiData.debit_amount,
+              credit_amount: apiData.credit_amount,
+              account_id: apiData.account_id,
+              account_name: account_name || currentEntry.account_name, 
               updated_at: now
             }
           : entry
       ));
-      return { id, ...data };
+      return { id, ...apiData };
     } catch (error) {
       console.error('Error updating journal entry:', error);
       throw error;
@@ -210,11 +223,14 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
   
   const remove = async (id) => {
     try {
-      console.log('Deleting GL entry via API:', id);
+      console.log('🗑️ Deleting GL entry via API:', id);
       // Extract entry_id from the composite ID (format: "entryId-lineId")
-      const entryId = id.includes('-') ? id.split('-')[0] : id;
+      // Convert to string first to handle both number and string IDs
+      const entryIdStr = String(id);
+      const entryId = entryIdStr.includes('-') ? entryIdStr.split('-')[0] : entryIdStr;
+      console.log('🗑️ Processed entry ID for deletion:', entryId);
       
-      const response = await apiClient.delete(`/api/finance/double-entry/journal-entries/${entryId}`);
+      const response = await apiClient.delete(`/api/finance/advanced/general-ledger/${entryId}`);
       console.log('Delete API response:', response);
       
       // Remove all lines for this entry from local state
@@ -228,13 +244,20 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
   
   const refresh = async () => { 
     try {
-      console.log('Loading GL entries from API');
-      const response = await apiClient.get('/api/finance/double-entry/journal-entries');
-      console.log('API response for loading entries:', response);
-      console.log('Response type:', typeof response);
-      console.log('Response.data type:', typeof response.data);
-      console.log('Response.data is array:', Array.isArray(response.data));
-      console.log('Response.data length:', response.data?.length);
+      console.log('🔄 Loading GL entries from API...');
+      const response = await apiClient.get('/api/finance/advanced/general-ledger');
+      console.log('📡 API response for loading entries:', response);
+      console.log('📊 Response type:', typeof response);
+      console.log('📊 Response.data type:', typeof response.data);
+      console.log('📊 Response.data is array:', Array.isArray(response.data));
+      console.log('📊 Response.data length:', response.data?.length);
+      
+      // Additional debugging for the actual response structure
+      console.log('🔍 Full response object keys:', Object.keys(response));
+      if (response.data) {
+        console.log('🔍 Response.data keys:', Object.keys(response.data));
+        console.log('🔍 First few items of response.data:', response.data.slice(0, 2));
+      }
       
       // Check if response and data exist
       if (!response) {
@@ -264,56 +287,32 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
         console.log('Using response directly as array, length:', dataArray.length);
       }
       
-      console.log('Final data array:', dataArray);
-      console.log('Data array length:', dataArray.length);
+      console.log('📋 Final data array:', dataArray);
+      console.log('📊 Data array length:', dataArray.length);
       
-      // Flatten journal entries into individual journal lines for General Ledger display
-      const entries = [];
-      dataArray.forEach(entry => {
-        if (entry.lines && entry.lines.length > 0) {
-          // Process each journal line as a separate General Ledger entry
-          entry.lines.forEach(line => {
-            entries.push({
-              id: `${entry.id}-${line.id}`, // Unique ID combining entry and line
-              entry_id: entry.id, // Keep reference to original entry
-              line_id: line.id,
-              entry_date: entry.date,
-              reference: entry.reference,
-              description: line.description || entry.description,
-              status: entry.status,
-              debit_amount: line.debit_amount,
-              credit_amount: line.credit_amount,
-              account_id: line.account_id,
-              account_name: line.account_name,
-              account_code: line.account_code,
-              created_at: entry.created_at,
-              updated_at: entry.updated_at,
-              payment_method: entry.payment_method
-            });
-          });
-        } else {
-          // Fallback for entries without lines (shouldn't happen in proper double-entry)
-          entries.push({
-            id: entry.id,
-            entry_id: entry.id,
-            line_id: null,
-            entry_date: entry.date,
-            reference: entry.reference,
-            description: entry.description,
-            status: entry.status,
-            debit_amount: entry.total_debits || 0,
-            credit_amount: entry.total_credits || 0,
-            account_id: null,
-            account_name: 'Database Entry',
-            account_code: 'N/A',
-            created_at: entry.created_at,
-            updated_at: entry.updated_at,
-            payment_method: entry.payment_method
-          });
-        }
-      });
+      // The backend returns individual General Ledger entries directly
+      // No need to flatten - each entry is already a GL entry
+      const entries = dataArray.map(entry => ({
+        id: entry.id,
+        entry_id: entry.id,
+        line_id: null,
+        entry_date: entry.entry_date,
+        reference: entry.reference,
+        description: entry.description,
+        status: entry.status,
+        debit_amount: entry.debit_amount || 0,
+        credit_amount: entry.credit_amount || 0,
+        account_id: entry.account_id,
+        account_name: entry.account_name || `Account ${entry.account_id}`,
+        account_code: entry.account_code || 'N/A',
+        created_at: entry.created_at,
+        updated_at: entry.updated_at,
+        payment_method: entry.payment_method
+      }));
       
-      console.log('Processed entries for display:', entries);
+      console.log('✅ Processed entries for display:', entries);
+      console.log('📊 Processed entries count:', entries.length);
+      console.log('🎯 Setting generalLedger state with', entries.length, 'entries');
       setGeneralLedger(entries);
     } catch (error) {
       console.error('Error loading journal entries:', error);
@@ -378,30 +377,44 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
 
   // Filter and sort data
   const filteredData = useMemo(() => {
-    if (!generalLedger) return [];
+    console.log('🔍 Filtering data - generalLedger:', generalLedger);
+    console.log('🔍 Current filters:', filters);
+    
+    if (!generalLedger) {
+      console.log('❌ No generalLedger data available');
+      return [];
+    }
     
     let filtered = [...generalLedger];
+    console.log('📊 Starting with', filtered.length, 'entries');
     
     // Apply filters
     if (filters.period !== 'all') {
+      console.log('🔍 Applying period filter:', filters.period);
       const currentDate = new Date();
       const currentMonth = currentDate.getMonth();
       const currentYear = currentDate.getFullYear();
       
       filtered = filtered.filter(entry => {
         const entryDate = new Date(entry.entry_date);
-        return entryDate.getMonth() === currentMonth && entryDate.getFullYear() === currentYear;
+        const matches = entryDate.getMonth() === currentMonth && entryDate.getFullYear() === currentYear;
+        return matches;
       });
+      console.log('📊 After period filter:', filtered.length, 'entries');
     }
     
     if (filters.account) {
+      console.log('🔍 Applying account filter:', filters.account);
       filtered = filtered.filter(entry => 
         entry.account_name?.toLowerCase().includes(filters.account.toLowerCase())
       );
+      console.log('📊 After account filter:', filtered.length, 'entries');
     }
     
     if (filters.status) {
+      console.log('🔍 Applying status filter:', filters.status);
       filtered = filtered.filter(entry => entry.status === filters.status);
+      console.log('📊 After status filter:', filtered.length, 'entries');
     }
     
     if (filters.amount) {
@@ -527,13 +540,20 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
 
   // Handle delete
   const handleDelete = async (id) => {
+    console.log('🗑️ Delete button clicked for entry ID:', id);
     if (window.confirm('Are you sure you want to delete this journal entry?')) {
       try {
+        console.log('🗑️ User confirmed deletion, proceeding...');
         await remove(id);
+        console.log('🗑️ Entry deleted successfully, refreshing table...');
+        refresh(); // Refresh the table after deletion
         setSnackbar({ open: true, message: 'Journal entry deleted successfully!', severity: 'success' });
       } catch (error) {
+        console.error('🗑️ Error deleting entry:', error);
         setSnackbar({ open: true, message: 'Error deleting journal entry: ' + error.message, severity: 'error' });
       }
+    } else {
+      console.log('🗑️ User cancelled deletion');
     }
   };
 
@@ -1039,10 +1059,14 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
                           <Tooltip title="Edit">
                             <IconButton onClick={(e) => {
                               e.stopPropagation(); // Prevent row click
+                              console.log('✏️ Edit button clicked for entry:', entry);
+                              console.log('✏️ Entry ID:', entry.id);
+                              console.log('✏️ Entry data:', entry);
                               // For editing, we need to get the full journal entry, not just the line
                               // The entry object already contains the line data, so we can use it directly
                               setEditEntry(entry);
                               setManualJournalOpen(true);
+                              console.log('✏️ Edit entry set, form should open...');
                             }} size="small">
                               <Edit />
                             </IconButton>
@@ -1382,9 +1406,12 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
           setManualJournalOpen(false);
           setEditEntry(null); // Clear edit entry when closing
         }}
-        onSuccess={() => {
+        onSuccess={(response) => {
+          console.log('🎉 Manual journal entry success callback triggered!');
+          console.log('🎉 Response:', response);
           setManualJournalOpen(false);
           setEditEntry(null); // Clear edit entry on success
+          console.log('🔄 Refreshing GL data...');
           refresh(); // Refresh the general ledger data
         }}
         editEntry={editEntry}

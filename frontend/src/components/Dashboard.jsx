@@ -138,7 +138,8 @@ const Dashboard = () => {
     selectedModules, 
     updatePreferences, 
     error: preferencesError,
-    refresh: refreshPreferences
+    refreshPreferences,
+    clearCache
   } = useUserPreferences();
   const { hasModuleAccess, loading: permissionsLoading } = usePermissions();
   

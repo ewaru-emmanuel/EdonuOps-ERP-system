@@ -43,7 +43,7 @@ class PurchaseOrder(db.Model):
     total_amount = db.Column(db.Float, default=0.0)
     tax_amount = db.Column(db.Float, default=0.0)
     notes = db.Column(db.Text)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     approved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     approved_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -103,7 +103,7 @@ class VendorCommunication(db.Model):
     subject = db.Column(db.String(255))
     message = db.Column(db.Text)
     related_rfx_id = db.Column(db.Integer)  # placeholder for future RFx linkage
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -116,7 +116,7 @@ class RFQ(db.Model):
     status = db.Column(db.String(30), default='draft')  # draft, open, closed, awarded, cancelled
     due_date = db.Column(db.Date)
     criteria_json = db.Column(db.Text)  # JSON string of [{name, weight}]
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -191,7 +191,7 @@ class Contract(db.Model):
     auto_renew = db.Column(db.Boolean, default=False)
     contract_value = db.Column(db.Float, default=0.0)
     terms_summary = db.Column(db.Text)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

@@ -33,7 +33,7 @@ class Customer(db.Model):
     # Audit fields
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = db.Column(db.String(100), nullable=True)
+    user_id = db.Column(db.Integer)  # Standardized user identification, nullable=True)
     
     # Relationships
     invoices = db.relationship('Invoice', backref='customer', lazy=True, cascade='all, delete-orphan')
@@ -85,7 +85,7 @@ class Invoice(db.Model):
     # Audit fields
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = db.Column(db.String(100), nullable=True)
+    user_id = db.Column(db.Integer)  # Standardized user identification, nullable=True)
     
     # Relationships
     payments = db.relationship('Payment', backref='invoice', lazy=True, cascade='all, delete-orphan')
@@ -142,7 +142,7 @@ class Payment(db.Model):
     # Audit fields
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = db.Column(db.String(100), nullable=True)
+    user_id = db.Column(db.Integer)  # Standardized user identification, nullable=True)
     
     def __repr__(self):
         return f'<Payment {self.amount} for Invoice {self.invoice_id}>'
@@ -171,7 +171,7 @@ class CustomerCommunication(db.Model):
     # Audit fields
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = db.Column(db.String(100), nullable=True)
+    user_id = db.Column(db.Integer)  # Standardized user identification, nullable=True)
     
     # Relationships
     customer = db.relationship('Customer', backref='communications')

@@ -1,12 +1,9 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from app import db
-from modules.core.models import User
+from modules.core.models import User, UserData
 
 user_data_bp = Blueprint('user_data', __name__, url_prefix='/api/user-data')
-
-# In-memory storage for user data (replace with database table in production)
-user_data_storage = {}
 
 @user_data_bp.route('/save', methods=['POST'])
 def save_user_data():
@@ -36,17 +33,10 @@ def save_user_data():
         if str(user_id) != str(request_user_id):
             return jsonify({'error': 'Access denied: You can only save your own data'}), 403
         
-        # Store data (in production, use a proper database table)
-        storage_key = f"user_{user_id}_{data_type}"
-        user_data_storage[storage_key] = {
-            'user_id': user_id,
-            'data_type': data_type,
-            'data': user_data,
-            'created_at': datetime.utcnow().isoformat(),
-            'updated_at': datetime.utcnow().isoformat()
-        }
+        # Store data in database
+        UserData.save_user_data(user_id, data_type, user_data)
         
-        print(f"💾 Saved {data_type} for user {user_id}")
+        print(f"💾 Saved {data_type} for user {user_id} to database")
         
         return jsonify({
             'success': True,
@@ -82,18 +72,16 @@ def load_user_data(data_type):
         if str(user_id) != str(request_user_id):
             return jsonify({'error': 'Access denied: You can only load your own data'}), 403
         
-        # Load data (in production, use a proper database table)
-        storage_key = f"user_{user_id}_{data_type}"
-        stored_data = user_data_storage.get(storage_key)
+        # Load data from database
+        stored_data = UserData.load_user_data(user_id, data_type)
         
-        if stored_data:
-            print(f"📂 Loaded {data_type} for user {user_id}")
+        if stored_data is not None:
+            print(f"📂 Loaded {data_type} for user {user_id} from database")
             return jsonify({
                 'success': True,
-                'data': stored_data['data'],
+                'data': stored_data,
                 'data_type': data_type,
-                'user_id': user_id,
-                'updated_at': stored_data['updated_at']
+                'user_id': user_id
             }), 200
         else:
             return jsonify({
@@ -129,16 +117,10 @@ def get_all_user_data():
         if str(user_id) != str(request_user_id):
             return jsonify({'error': 'Access denied: You can only load your own data'}), 403
         
-        # Get all data for user
-        user_data = {}
-        prefix = f"user_{user_id}_"
+        # Get all data for user from database
+        user_data = UserData.get_all_user_data(user_id)
         
-        for key, value in user_data_storage.items():
-            if key.startswith(prefix):
-                data_type = key.replace(prefix, '')
-                user_data[data_type] = value['data']
-        
-        print(f"📊 Loaded all data for user {user_id}: {list(user_data.keys())}")
+        print(f"📊 Loaded all data for user {user_id} from database: {list(user_data.keys())}")
         
         return jsonify({
             'success': True,
@@ -174,18 +156,8 @@ def export_user_data():
         if str(user_id) != str(request_user_id):
             return jsonify({'error': 'Access denied: You can only export your own data'}), 403
         
-        # Get all data for user
-        user_data = {}
-        prefix = f"user_{user_id}_"
-        
-        for key, value in user_data_storage.items():
-            if key.startswith(prefix):
-                data_type = key.replace(prefix, '')
-                user_data[data_type] = {
-                    'data': value['data'],
-                    'created_at': value['created_at'],
-                    'updated_at': value['updated_at']
-                }
+        # Get all data for user from database
+        user_data = UserData.get_all_user_data(user_id)
         
         export_data = {
             'user_id': user_id,
@@ -194,7 +166,7 @@ def export_user_data():
             'data': user_data
         }
         
-        print(f"📤 Exported data for user {user_id}")
+        print(f"📤 Exported data for user {user_id} from database")
         
         return jsonify({
             'success': True,
@@ -231,20 +203,14 @@ def import_user_data():
         if str(user_id) != str(request_user_id):
             return jsonify({'error': 'Access denied: You can only import to your own account'}), 403
         
-        # Import each data type
+        # Import each data type to database
         imported_count = 0
         for data_type, data_info in import_data.get('data', {}).items():
-            storage_key = f"user_{user_id}_{data_type}"
-            user_data_storage[storage_key] = {
-                'user_id': user_id,
-                'data_type': data_type,
-                'data': data_info.get('data', data_info),
-                'created_at': data_info.get('created_at', datetime.utcnow().isoformat()),
-                'updated_at': datetime.utcnow().isoformat()
-            }
+            data_to_save = data_info.get('data', data_info)
+            UserData.save_user_data(user_id, data_type, data_to_save)
             imported_count += 1
         
-        print(f"📥 Imported {imported_count} data types for user {user_id}")
+        print(f"📥 Imported {imported_count} data types for user {user_id} to database")
         
         return jsonify({
             'success': True,
@@ -279,11 +245,11 @@ def delete_user_data(data_type):
         if str(user_id) != str(request_user_id):
             return jsonify({'error': 'Access denied: You can only delete your own data'}), 403
         
-        # Delete data
-        storage_key = f"user_{user_id}_{data_type}"
-        if storage_key in user_data_storage:
-            del user_data_storage[storage_key]
-            print(f"🗑️ Deleted {data_type} for user {user_id}")
+        # Delete data from database
+        deleted = UserData.delete_user_data(user_id, data_type)
+        
+        if deleted:
+            print(f"🗑️ Deleted {data_type} for user {user_id} from database")
             return jsonify({
                 'success': True,
                 'message': f'Data {data_type} deleted successfully'
@@ -321,16 +287,10 @@ def clear_all_user_data():
         if str(user_id) != str(request_user_id):
             return jsonify({'error': 'Access denied: You can only clear your own data'}), 403
         
-        # Clear all data for user
-        prefix = f"user_{user_id}_"
-        deleted_count = 0
+        # Clear all data for user from database
+        deleted_count = UserData.clear_all_user_data(user_id)
         
-        keys_to_delete = [key for key in user_data_storage.keys() if key.startswith(prefix)]
-        for key in keys_to_delete:
-            del user_data_storage[key]
-            deleted_count += 1
-        
-        print(f"🗑️ Cleared {deleted_count} data items for user {user_id}")
+        print(f"🗑️ Cleared {deleted_count} data items for user {user_id} from database")
         
         return jsonify({
             'success': True,

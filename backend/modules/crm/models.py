@@ -133,7 +133,7 @@ class Communication(db.Model):
     content = db.Column(db.Text)
     duration = db.Column(db.Integer)  # for calls in seconds
     status = db.Column(db.String(20))  # completed, missed, scheduled
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     scheduled_for = db.Column(db.DateTime)  # for scheduled communications
 
@@ -148,7 +148,7 @@ class FollowUp(db.Model):
     status = db.Column(db.String(20), default='pending')  # pending, completed, overdue
     notes = db.Column(db.Text)
     assigned_to = db.Column(db.Integer, db.ForeignKey('users.id'))
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime)
 
@@ -186,7 +186,7 @@ class Ticket(db.Model):
     lead_id = db.Column(db.Integer, db.ForeignKey('leads.id'))
     opportunity_id = db.Column(db.Integer, db.ForeignKey('opportunities.id'))
     assignee_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -198,7 +198,7 @@ class KnowledgeBaseArticle(db.Model):
     content = db.Column(db.Text)
     tags = db.Column(db.String(200))  # comma-separated tags for simple search
     published = db.Column(db.Boolean, default=False)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer)  # Standardized user identification)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
