@@ -51,9 +51,7 @@ class DatabaseFirstPersistence {
       // Load from database
       const { default: apiClient } = await import('./apiClient');
       
-      const response = await apiClient.get(`/api/user-data/load/${dataType}`, {
-        params: { user_id: userId }
-      });
+      const response = await apiClient.get(`/api/user-data/load/${dataType}?user_id=${userId}`);
       
       // Check if the response indicates success and has data
       if ((response.status === 200 || response.success || response.data?.success) && (response.data || response.data?.data)) {
@@ -192,9 +190,7 @@ class DatabaseFirstPersistence {
     try {
       const { default: apiClient } = await import('./apiClient');
       
-      const response = await apiClient.get(`/api/user-data/all`, {
-        params: { user_id: userId }
-      });
+      const response = await apiClient.get(`/api/user-data/all?user_id=${userId}`);
       
       if (response.data.success) {
         return response.data.data;
@@ -213,9 +209,7 @@ class DatabaseFirstPersistence {
     try {
       const { default: apiClient } = await import('./apiClient');
       
-      const response = await apiClient.get(`/api/user-data/export`, {
-        params: { user_id: userId }
-      });
+      const response = await apiClient.get(`/api/user-data/export?user_id=${userId}`);
       
       if (response.data.success) {
         return response.data.data;

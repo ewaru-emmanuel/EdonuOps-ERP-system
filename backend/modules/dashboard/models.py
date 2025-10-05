@@ -13,7 +13,6 @@ class UserModules(db.Model):
     permissions = db.Column(db.JSON)  # Store module-specific permissions
     activated_at = db.Column(db.DateTime, default=datetime.utcnow)
     deactivated_at = db.Column(db.DateTime)
-    user_id = db.Column(db.Integer)  # Standardized user identification)  # User who activated this
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -41,7 +40,7 @@ class UserModules(db.Model):
         ).first() is not None
     
     @classmethod
-    def enable_module(cls, user_id, module_id, permissions=None, created_by=None):
+    def enable_module(cls, user_id, module_id, permissions=None):
         """Enable a module for a user"""
         existing = cls.query.filter_by(user_id=user_id, module_id=module_id).first()
         
@@ -62,8 +61,7 @@ class UserModules(db.Model):
                 module_id=module_id,
                 is_active=True,
                 is_enabled=True,
-                permissions=permissions,
-                created_by=created_by or user_id
+                permissions=permissions
             )
             db.session.add(user_module)
             db.session.commit()

@@ -98,14 +98,63 @@ import apiClient from './services/apiClient';
 import { PermissionsProvider, usePermissions } from './hooks/usePermissions';
 import SimpleProtectedRoute from './components/SimpleProtectedRoute';
 
-// Import user preferences hook
-import { useUserPreferences } from './hooks/useUserPreferences';
+// Import auth context
 import { AuthProvider as SimpleAuthProvider, useAuth } from './context/AuthContext';
+
+// Simple approach - no complex hooks needed
+console.log('🔍 Using simple direct API approach for sidebar');
+
+// Add manual refresh function for testing
+if (typeof window !== 'undefined') {
+  window.refreshSidebar = () => {
+    console.log('🔄 Manually refreshing sidebar...');
+    window.dispatchEvent(new CustomEvent('modulesUpdated'));
+  };
+}
+
+// Add simple test function to window
+if (typeof window !== 'undefined') {
+  window.testSidebarIssue = async () => {
+    console.log('🧪 Testing sidebar issue...');
+    
+    // Test 1: Check if we can call the API directly
+    try {
+      const response = await fetch('http://localhost:5000/api/dashboard/modules/user', {
+        headers: {
+          'X-User-ID': '3',
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      console.log('🧪 Direct API test:', data);
+    } catch (error) {
+      console.error('🧪 Direct API test failed:', error);
+    }
+    
+    // Test 2: Check localStorage
+    console.log('🧪 localStorage check:', {
+      userId: localStorage.getItem('userId'),
+      userEmail: localStorage.getItem('userEmail'),
+      userRole: localStorage.getItem('userRole')
+    });
+    
+    // Test 3: Check if hook is available
+    console.log('🧪 Hook availability:', typeof useUserPreferences);
+    
+    // Test 4: Check authentication context
+    console.log('🧪 Auth context check:', {
+      hasAuthProvider: typeof SimpleAuthProvider !== 'undefined',
+      hasUseAuth: typeof useAuth !== 'undefined'
+    });
+  };
+}
 
 
 
 // App Content Component (inside Router)
 const AppContent = () => {
+  console.log('🚨 AppContent component is being rendered!');
+  
   const location = useLocation();
   const theme = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -167,6 +216,8 @@ const AppContent = () => {
 
 // Navigation Component
 const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
+  console.log('🚨 Navigation component is being rendered!');
+  
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -188,8 +239,56 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
       return new Set();
     }
   });
-  const { hasPreferences, selectedModules } = useUserPreferences();
+  console.log('🚨 Navigation component is rendering...');
+  
   const { logout: authLogout } = useAuth();
+  
+  // Simple approach: Get user modules directly from API
+  const [userModules, setUserModules] = useState([]);
+  const [modulesLoading, setModulesLoading] = useState(true);
+  
+  // Fetch user modules on component mount and when modules change
+  const fetchUserModules = async () => {
+    try {
+      console.log('🔍 Fetching user modules directly...');
+      const response = await fetch('http://localhost:5000/api/dashboard/modules/user', {
+        headers: {
+          'X-User-ID': '3',
+          'Content-Type': 'application/json'
+        }
+      });
+      const modules = await response.json();
+      console.log('✅ User modules fetched:', modules);
+      setUserModules(modules.map(m => m.id));
+      setModulesLoading(false);
+    } catch (error) {
+      console.error('❌ Error fetching user modules:', error);
+      setModulesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUserModules();
+  }, []);
+
+  // Listen for module changes (when user completes onboarding)
+  useEffect(() => {
+    const handleModuleChange = () => {
+      console.log('🔄 Module change detected, refreshing sidebar...');
+      fetchUserModules();
+    };
+
+    // Listen for custom events
+    window.addEventListener('modulesUpdated', handleModuleChange);
+    window.addEventListener('onboardingCompleted', handleModuleChange);
+
+    return () => {
+      window.removeEventListener('modulesUpdated', handleModuleChange);
+      window.removeEventListener('onboardingCompleted', handleModuleChange);
+    };
+  }, []);
+  
+  console.log('🎯 Simple sidebar - user modules:', userModules);
   
   // Use permissions hook
   const { hasModuleAccess, loading: permissionsLoading } = usePermissions();
@@ -207,9 +306,6 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
   // Define Finance module features
   const financeFeatures = [
     { name: 'Dashboard', path: '/finance?feature=dashboard', icon: <AssessmentIcon />, featureId: 'dashboard' },
-    { name: 'Business Transactions', path: '/finance?feature=business-transactions', icon: <ReceiptIcon />, featureId: 'business-transactions' },
-    { name: 'Manual Journal Entry', path: '/finance?feature=manual-journal', icon: <EditIcon />, featureId: 'manual-journal' },
-    { name: 'Trial Balance', path: '/finance?feature=trial-balance', icon: <BalanceIcon />, featureId: 'trial-balance' },
     { name: 'Advanced Reports', path: '/finance?feature=advanced-reports', icon: <BarChartIcon />, featureId: 'advanced-reports' },
     { name: 'General Ledger', path: '/finance?feature=general-ledger', icon: <FinanceIcon />, featureId: 'general-ledger' },
     { name: 'Chart of Accounts', path: '/finance?feature=chart-of-accounts', icon: <BusinessIcon />, featureId: 'chart-of-accounts' },
@@ -260,23 +356,10 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
     { name: 'Analytics', path: '/procurement?feature=analytics', icon: <BarChartIcon />, featureId: 'analytics' }
   ];
 
-  // No localStorage fallback - strictly database-driven
-
-  // Use ONLY hook data from backend - no localStorage fallback
-  // This ensures sidebar matches dashboard exactly
-  const effectiveSelectedModules = selectedModules; // Only use backend data
-  const effectiveHasPreferences = hasPreferences; // Only use backend data
+  // Simple approach: Show modules that user has activated
+  console.log('🔗 Simple sidebar filtering - user modules:', userModules);
   
-  // Debug: Log sidebar module sync
-  console.log('🔗 Sidebar Module Sync Debug:', {
-    selectedModules,
-    effectiveSelectedModules,
-    hasPreferences,
-    moduleCount: effectiveSelectedModules.length
-  });
-  
-
-  // Filter navigation links based on permissions and user's selected modules
+  // Filter navigation links based on user's activated modules
   const navLinks = allNavLinks.filter(link => {
     // Always show dashboard (not a module, just navigation)
     if (link.moduleId === 'dashboard') return true;
@@ -286,11 +369,22 @@ const Navigation = ({ sidebarOpen, setSidebarOpen }) => {
       return false;
     }
     
-    // Only show modules that user has selected
-    const isSelected = effectiveSelectedModules.includes(link.moduleId);
-    console.log(`🔗 Sidebar Filter: ${link.moduleId} - ${isSelected ? 'SHOW' : 'HIDE'} (selected: ${effectiveSelectedModules.join(', ')})`);
-    return isSelected;
+    // Show modules that user has activated
+    const isActivated = userModules.includes(link.moduleId);
+    console.log(`🔗 Simple Filter: ${link.moduleId} - ${isActivated ? 'SHOW' : 'HIDE'} (activated: ${userModules.join(', ')})`);
+    return isActivated;
   });
+  
+  // Debug: Log sidebar rendering
+  console.log('🔗 Simple sidebar rendering:', {
+    totalLinks: allNavLinks.length,
+    filteredLinks: navLinks.length,
+    userModules,
+    navLinks: navLinks.map(link => link.name)
+  });
+  
+  // Debug: Log allNavLinks array
+  console.log('🔗 allNavLinks array:', allNavLinks.map(link => ({ name: link.name, moduleId: link.moduleId, path: link.path })));
 
 
   // Determine which navigation items to show based on current path

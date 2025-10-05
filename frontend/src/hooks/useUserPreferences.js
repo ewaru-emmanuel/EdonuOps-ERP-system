@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 // Global cache to prevent multiple simultaneous API calls
@@ -11,37 +11,108 @@ let globalCache = {
 };
 
 export const useUserPreferences = () => {
+  console.log('🚨 useUserPreferences hook is being called!');
+  
   const [userPreferences, setUserPreferences] = useState(null);
   const [selectedModules, setSelectedModules] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  
+  // Debug: Track hook calls
+  const hookCallCount = React.useRef(0);
+  hookCallCount.current += 1;
+  console.log('🚨 Hook call count:', hookCallCount.current);
 
   const { isAuthenticated, user } = useAuth();
+  
+  console.log('🚨 useUserPreferences hook initialized with auth:', { isAuthenticated, user: user ? { id: user.id, email: user.email } : null });
+  
+  // Debug: Log hook initialization
+  console.log('🎯 useUserPreferences hook initialized:', {
+    isAuthenticated,
+    user: user ? { id: user.id, email: user.email } : null,
+    selectedModules,
+    isLoading,
+    hasError: !!error
+  });
+  
+  // Debug: Alert to see if hook is being called
+  if (typeof window !== 'undefined') {
+    console.log('🚨 useUserPreferences hook is being called!');
+    
+    // Add test function to window for debugging
+    window.testUserPreferences = async () => {
+      console.log('🧪 Testing user preferences API directly...');
+      try {
+        const { default: apiClient } = await import('../services/apiClient');
+        const response = await apiClient.get('/api/dashboard/modules/user');
+        console.log('🧪 Direct API test result:', response);
+        return response;
+      } catch (error) {
+        console.error('🧪 Direct API test error:', error);
+        return null;
+      }
+    };
+    
+    // Add manual trigger function to window for debugging
+    window.triggerUserPreferences = () => {
+      console.log('🧪 Manually triggering loadUserPreferences...');
+      loadUserPreferences(true);
+    };
+  }
+  
+  // Debug: Log authentication state changes
+  useEffect(() => {
+    console.log('🔐 Authentication state changed:', {
+      isAuthenticated,
+      user: user ? { id: user.id, email: user.email } : null
+    });
+  }, [isAuthenticated, user]);
 
   // Load preferences from backend with proper state management
   const loadUserPreferences = useCallback(async (forceRefresh = false) => {
+    console.log('🔄 loadUserPreferences called:', {
+      isAuthenticated,
+      user: user ? { id: user.id, email: user.email } : null,
+      forceRefresh
+    });
+    console.log('🔄 loadUserPreferences function is being executed...');
+    
     if (!isAuthenticated || !user) {
+      console.log('❌ Not authenticated or no user, skipping load');
       setIsLoading(false);
       return;
     }
 
     // Check global cache first
     const now = Date.now();
+    console.log('🔍 Checking global cache:', {
+      hasData: !!globalCache.data,
+      timestamp: globalCache.timestamp,
+      age: now - globalCache.timestamp,
+      cacheDuration: globalCache.CACHE_DURATION,
+      forceRefresh
+    });
+    
     if (!forceRefresh && globalCache.data && (now - globalCache.timestamp) < globalCache.CACHE_DURATION) {
-      console.log('📦 Using cached user preferences');
+      console.log('📦 Using cached user preferences:', globalCache.data.selectedModules);
       setSelectedModules(globalCache.data.selectedModules || []);
       return;
     }
 
     // Prevent multiple simultaneous calls globally
     if (globalCache.loading) {
-      console.log('🔄 Global loading in progress, waiting...');
+      console.log('🔄 Global loading in progress, waiting...', {
+        loading: globalCache.loading,
+        hasPromise: !!globalCache.promise
+      });
       if (globalCache.promise) {
         try {
           const result = await globalCache.promise;
+          console.log('📦 Got result from global cache promise:', result);
           setSelectedModules(result.selectedModules || []);
         } catch (error) {
-          console.error('Error waiting for global cache:', error);
+          console.error('❌ Error waiting for global cache:', error);
         }
       }
       return;
@@ -76,6 +147,13 @@ export const useUserPreferences = () => {
       const apiPromise = apiClient.get('/api/dashboard/modules/user');
       globalCache.promise = apiPromise;
       const response = await apiPromise;
+      
+      console.log('🌐 API call completed, response:', {
+        response,
+        type: typeof response,
+        isArray: Array.isArray(response),
+        length: Array.isArray(response) ? response.length : 'N/A'
+      });
       console.log('🌐 API Response:', {
         response,
         isArray: Array.isArray(response),
@@ -105,9 +183,17 @@ export const useUserPreferences = () => {
       
       console.log('🔧 Loading preferences from backend:', preferences);
       console.log('🎯 Setting selectedModules to:', moduleIds);
+      console.log('🎯 About to update state with:', {
+        selectedModules: moduleIds,
+        preferences,
+        isLoading: false
+      });
+      
       setUserPreferences(preferences);
       setSelectedModules(moduleIds);
       setIsLoading(false);
+      
+      console.log('✅ State updated successfully');
       
       // Update global cache
       globalCache.data = { selectedModules: moduleIds };
@@ -139,12 +225,31 @@ export const useUserPreferences = () => {
       globalCache.loading = false;
       globalCache.promise = null;
     }
-  }, [isAuthenticated, user, isLoading]);
+  }, [isAuthenticated, user]); // Remove loadUserPreferences from dependencies to prevent infinite loop
 
   // Load preferences when user changes
   useEffect(() => {
-    loadUserPreferences();
-  }, [loadUserPreferences]);
+    console.log('🚀 useEffect triggered - calling loadUserPreferences');
+    console.log('🚀 useEffect dependencies:', { isAuthenticated, user: user ? { id: user.id, email: user.email } : null });
+    console.log('🚀 useEffect will call loadUserPreferences now...');
+    if (isAuthenticated && user) {
+      // Force refresh to bypass any cache issues
+      console.log('🚀 About to call loadUserPreferences(true)...');
+      loadUserPreferences(true);
+    } else {
+      console.log('❌ useEffect: Not authenticated or no user, skipping loadUserPreferences');
+    }
+  }, [isAuthenticated, user]); // Depend on auth state directly, not the callback
+  
+  // Debug: Track useEffect calls
+  const useEffectCallCount = React.useRef(0);
+  useEffect(() => {
+    useEffectCallCount.current += 1;
+    console.log('🚀 useEffect call count:', useEffectCallCount.current);
+  }, [isAuthenticated, user]);
+  
+  // Debug: Log useEffect registration
+  console.log('🚀 useEffect registered with dependencies:', { isAuthenticated, user: user ? { id: user.id, email: user.email } : null });
 
   // Listen for user data restoration events
   useEffect(() => {

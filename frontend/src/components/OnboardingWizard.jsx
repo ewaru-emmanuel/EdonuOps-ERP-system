@@ -55,9 +55,13 @@ const OnboardingWizard = () => {
       
       console.log('📊 Found modules in database:', moduleIds);
       
-      // Set modules from database (this only runs once on mount)
-      setSelectedModules(moduleIds);
-      console.log('✅ Pre-filled modules from database:', moduleIds);
+      // Only pre-fill modules if user hasn't made any selections yet
+      if (selectedModules.length === 0) {
+        setSelectedModules(moduleIds);
+        console.log('✅ Pre-filled modules from database:', moduleIds);
+      } else {
+        console.log('ℹ️ User has already selected modules, not overriding:', selectedModules);
+      }
       
       // Load business profile from database
       let profileResponse = null;
@@ -315,31 +319,56 @@ const OnboardingWizard = () => {
       
       console.log('✅ Onboarding data saved to database with user isolation');
       
+      // Get current user modules to see what needs to be deactivated
+      console.log('🔧 Getting current user modules...');
+      const currentModulesResponse = await apiClient.get('/api/dashboard/modules/user');
+      const currentModules = Array.isArray(currentModulesResponse) ? currentModulesResponse : [];
+      const currentModuleIds = currentModules.map(m => m.id);
+      
+      console.log('📊 Current modules:', currentModuleIds);
+      console.log('📊 Selected modules:', onboardingData.selectedModules);
+      
+      // Deactivate modules that are no longer selected
+      const modulesToDeactivate = currentModuleIds.filter(id => !onboardingData.selectedModules.includes(id));
+      console.log('🔧 Deactivating modules:', modulesToDeactivate);
+      
+      for (const moduleId of modulesToDeactivate) {
+        try {
+          await apiClient.post('/api/dashboard/modules/deactivate', {
+            module_id: moduleId
+          });
+          console.log(`✅ Module ${moduleId} deactivated for user ${userId}`);
+        } catch (moduleError) {
+          console.log(`ℹ️ Module ${moduleId} deactivation issue:`, moduleError.message);
+        }
+      }
+      
       // Activate selected modules in backend
       console.log('🔧 Activating selected modules in backend...');
-      try {
-        for (const moduleId of onboardingData.selectedModules) {
-          try {
-            await apiClient.post('/api/dashboard/modules/activate', {
-              module_id: moduleId,
-              permissions: {
-                can_view: true,
-                can_edit: true,
-                can_delete: false
-              }
-            });
-            console.log(`✅ Module ${moduleId} activated for user ${userId}`);
-          } catch (moduleError) {
-            // Module might already be activated, that's okay
-            console.log(`ℹ️ Module ${moduleId} might already be activated:`, moduleError.message);
-          }
+      for (const moduleId of onboardingData.selectedModules) {
+        try {
+          await apiClient.post('/api/dashboard/modules/activate', {
+            module_id: moduleId,
+            permissions: {
+              can_view: true,
+              can_edit: true,
+              can_delete: false
+            }
+          });
+          console.log(`✅ Module ${moduleId} activated for user ${userId}`);
+        } catch (moduleError) {
+          // Module might already be activated, that's okay
+          console.log(`ℹ️ Module ${moduleId} might already be activated:`, moduleError.message);
         }
-      } catch (error) {
-        console.warn('⚠️ Could not activate modules in backend:', error);
       }
       
       // No localStorage needed - everything is in database
       console.log('✅ All data saved to database - no localStorage needed');
+      
+      // Trigger sidebar refresh
+      console.log('🔄 Triggering sidebar refresh...');
+      window.dispatchEvent(new CustomEvent('modulesUpdated'));
+      window.dispatchEvent(new CustomEvent('onboardingCompleted'));
       
       // Simulate account activation
       console.log('⏳ Finalizing activation...');

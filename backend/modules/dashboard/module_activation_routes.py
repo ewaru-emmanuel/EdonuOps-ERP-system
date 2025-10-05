@@ -154,8 +154,7 @@ def activate_module():
         user_module = UserModules.enable_module(
             user_id=user_id,
             module_id=module_id,
-            permissions=permissions,
-            created_by=user_id
+            permissions=permissions
         )
         
         module_info = AVAILABLE_MODULES[module_id]
