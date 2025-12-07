@@ -2,119 +2,152 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from app import db
 from modules.dashboard.models import Dashboard, DashboardWidget, WidgetTemplate, DashboardTemplate, UserModules
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from modules.core.tenant_sql_helper import tenant_sql_scalar
 
 bp = Blueprint('dashboard', __name__, url_prefix='/api/dashboard')
 
 @bp.route('/summary', methods=['GET', 'OPTIONS'])
+@jwt_required()
 def dashboard_summary():
     if request.method == 'OPTIONS':
         return ('', 200)
     try:
-        # Get user ID from request headers or JWT token
-        user_id = request.headers.get('X-User-ID')
-        if not user_id:
-            # Try to get from JWT token as fallback
-            from flask_jwt_extended import get_jwt_identity
-            try:
-                user_id = get_jwt_identity()
-            except:
-                pass
+        # SECURITY: Get tenant_id from verified JWT token
+        from flask_jwt_extended import get_jwt_identity
+        from modules.core.tenant_helpers import get_current_user_tenant_id
         
-        # If still no user_id, return empty summary (for development)
-        if not user_id:
-            print("Warning: No user context found for dashboard summary, returning empty results")
-            return jsonify({
-                'totalRevenue': 0,
-                'totalCustomers': 0,
-                'totalLeads': 0,
-                'totalOpportunities': 0,
-                'totalProducts': 0,
-                'totalEmployees': 0,
-                'recentActivity': [],
-                'systemStatus': 'operational',
-                'user_id': None
-            }), 200
+        user_id_str = get_jwt_identity()
+        if not user_id_str:
+            return jsonify({'error': 'Authentication required', 'message': 'User identity not found in JWT token'}), 401
         
-        # Get real user-specific dashboard metrics
+        try:
+            user_id = int(user_id_str)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID in token'}), 400
+        
+        # Get tenant_id for tenant-centric filtering
+        tenant_id = get_current_user_tenant_id()
+        if not tenant_id:
+            # Fallback for development
+            tenant_id = 'default'
+        
+        # Get real tenant-specific dashboard metrics (tenant-centric isolation)
         import sqlalchemy as sa
         from modules.finance.models import JournalEntry, JournalLine, Account
         
-        # Calculate total revenue from journal entries (sum of credit amounts for revenue accounts)
-        revenue_query = db.session.query(
-            sa.func.sum(JournalLine.credit_amount).label('total_revenue')
-        ).join(JournalEntry).join(Account).filter(
-            Account.type == 'revenue',
-            JournalEntry.user_id == int(user_id)
-        ).scalar()
-        total_revenue = float(revenue_query) if revenue_query else 0.0
+        # SECURITY: Calculate total revenue filtered by tenant_id (tenant-centric isolation)
+        try:
+            revenue_query = db.session.query(
+                sa.func.sum(JournalLine.credit_amount).label('total_revenue')
+            ).join(JournalEntry).join(Account).filter(
+                Account.type == 'revenue',
+                JournalEntry.tenant_id == tenant_id  # Tenant-centric isolation
+            ).scalar()
+            total_revenue = float(revenue_query) if revenue_query else 0.0
+        except Exception as e:
+            print(f"Warning: Could not query revenue with tenant_id: {e}")
+            total_revenue = 0.0
 
-        # Get counts from database using direct SQL queries
-        total_customers = db.session.execute(
-            sa.text("SELECT COUNT(*) FROM contacts WHERE type = 'customer' AND user_id = :user_id"),
-            {'user_id': int(user_id)}
-        ).scalar()
+        # Get counts from database using direct SQL queries with proper tenant isolation
+        # Try to get counts with tenant_id filter, fallback to 0 if table doesn't exist
         
-        total_leads = db.session.execute(
-            sa.text("SELECT COUNT(*) FROM leads WHERE user_id = :user_id"),
-            {'user_id': int(user_id)}
-        ).scalar()
+        try:
+            total_customers = tenant_sql_scalar(
+                "SELECT COUNT(*) FROM contacts WHERE type = 'customer' AND tenant_id = :tenant_id"
+            )
+        except Exception as e:
+            print(f"Warning: Could not query contacts table with tenant_id: {e}")
+            db.session.rollback()
+            total_customers = 0
         
-        total_opportunities = db.session.execute(
-            sa.text("SELECT COUNT(*) FROM opportunities WHERE user_id = :user_id"),
-            {'user_id': int(user_id)}
-        ).scalar()
+        try:
+            total_leads = tenant_sql_scalar(
+                "SELECT COUNT(*) FROM leads WHERE tenant_id = :tenant_id"
+            )
+        except Exception as e:
+            print(f"Warning: Could not query leads table with tenant_id: {e}")
+            db.session.rollback()
+            total_leads = 0
         
-        total_products = db.session.execute(
-            sa.text("SELECT COUNT(*) FROM products WHERE user_id = :user_id"),
-            {'user_id': int(user_id)}
-        ).scalar()
+        try:
+            total_opportunities = tenant_sql_scalar(
+                "SELECT COUNT(*) FROM opportunities WHERE tenant_id = :tenant_id"
+            )
+        except Exception as e:
+            print(f"Warning: Could not query opportunities table with tenant_id: {e}")
+            db.session.rollback()
+            total_opportunities = 0
         
-        total_employees = db.session.execute(
-            sa.text("SELECT COUNT(*) FROM employees WHERE user_id = :user_id"),
-            {'user_id': int(user_id)}
-        ).scalar()
+        try:
+            total_products = tenant_sql_scalar(
+                "SELECT COUNT(*) FROM products WHERE tenant_id = :tenant_id"
+            )
+        except Exception as e:
+            print(f"Warning: Could not query products table with tenant_id: {e}")
+            db.session.rollback()
+            total_products = 0
+        
+        try:
+            total_employees = tenant_sql_scalar(
+                "SELECT COUNT(*) FROM employees WHERE tenant_id = :tenant_id"
+            )
+        except Exception as e:
+            print(f"Warning: Could not query employees table with tenant_id: {e}")
+            db.session.rollback()
+            total_employees = 0
 
-        # Get recent activities
+        # Recent activities - query tables with tenant_id
         recent_activities = []
         
-        # Recent contacts
-        recent_contacts = db.session.execute(
-            sa.text("SELECT first_name, last_name, type, created_at FROM contacts WHERE user_id = :user_id ORDER BY created_at DESC LIMIT 3"),
-            {'user_id': int(user_id)}
-        ).fetchall()
-        
-        for contact in recent_contacts:
-            recent_activities.append({
-                'type': 'customer',
-                'message': f'New {contact.type} added: {contact.first_name} {contact.last_name}',
-                'time': str(contact.created_at) if contact.created_at else 'Unknown'
-            })
+        # Recent contacts (tenant-centric)
+        try:
+            from modules.core.tenant_sql_helper import tenant_sql_fetchall
+            recent_contacts = tenant_sql_fetchall(
+                "SELECT first_name, last_name, type, created_at FROM contacts WHERE tenant_id = :tenant_id ORDER BY created_at DESC LIMIT 3"
+            )
+            
+            for contact in recent_contacts:
+                recent_activities.append({
+                    'type': 'customer',
+                    'message': f'New {contact.type} added: {contact.first_name} {contact.last_name}',
+                    'time': str(contact.created_at) if contact.created_at else 'Unknown'
+                })
+        except Exception as e:
+            print(f"Warning: Could not query recent contacts: {e}")
+            db.session.rollback()
 
-        # Recent products
-        recent_products = db.session.execute(
-            sa.text("SELECT name, created_at FROM products WHERE user_id = :user_id ORDER BY created_at DESC LIMIT 3"),
-            {'user_id': int(user_id)}
-        ).fetchall()
-        
-        for product in recent_products:
-            recent_activities.append({
-                'type': 'product',
-                'message': f'New product added: {product.name}',
-                'time': str(product.created_at) if product.created_at else 'Unknown'
-            })
+        # Recent products (tenant-centric)
+        try:
+            recent_products = tenant_sql_fetchall(
+                "SELECT name, created_at FROM products WHERE tenant_id = :tenant_id ORDER BY created_at DESC LIMIT 3"
+            )
+            
+            for product in recent_products:
+                recent_activities.append({
+                    'type': 'product',
+                    'message': f'New product added: {product.name}',
+                    'time': str(product.created_at) if product.created_at else 'Unknown'
+                })
+        except Exception as e:
+            print(f"Warning: Could not query recent products: {e}")
+            db.session.rollback()
 
-        # Recent journal entries
-        recent_entries = db.session.execute(
-            sa.text("SELECT reference, created_at FROM journal_entries WHERE user_id = :user_id ORDER BY created_at DESC LIMIT 3"),
-            {'user_id': int(user_id)}
-        ).fetchall()
-        
-        for entry in recent_entries:
-            recent_activities.append({
-                'type': 'finance',
-                'message': f'Journal entry created: {entry.reference}',
-                'time': str(entry.created_at) if entry.created_at else 'Unknown'
-            })
+        # Recent journal entries (tenant-centric)
+        try:
+            recent_entries = tenant_sql_fetchall(
+                "SELECT reference, created_at FROM journal_entries WHERE tenant_id = :tenant_id ORDER BY created_at DESC LIMIT 3"
+            )
+            
+            for entry in recent_entries:
+                recent_activities.append({
+                    'type': 'finance',
+                    'message': f'Journal entry created: {entry.reference}',
+                    'time': str(entry.created_at) if entry.created_at else 'Unknown'
+                })
+        except Exception as e:
+            print(f"Warning: Could not query recent journal entries: {e}")
+            db.session.rollback()
 
         # Sort activities by time
         recent_activities.sort(key=lambda x: x['time'], reverse=True)
@@ -136,24 +169,25 @@ def dashboard_summary():
         return jsonify({'error': str(e)}), 200
 
 @bp.route('/dashboards', methods=['GET'])
+@jwt_required()
 def get_dashboards():
-    """Get user dashboards"""
-    # Get user ID from request headers or JWT token
-    user_id = request.headers.get('X-User-ID')
-    if not user_id:
-        # Try to get from JWT token as fallback
-        from flask_jwt_extended import get_jwt_identity
-        try:
-            user_id = get_jwt_identity()
-        except:
-            pass
+    """Get user dashboards - JWT REQUIRED"""
+    # SECURITY: Get user ID from verified JWT token only
+    user_id_str = get_jwt_identity()
     
-    # If still no user_id, return empty array (for development)
-    if not user_id:
-        print("Warning: No user context found for dashboards, returning empty results")
-        return jsonify([]), 200
+    if not user_id_str:
+        return jsonify({
+            'error': 'Authentication required',
+            'message': 'User identity not found in JWT token'
+        }), 401
     
-    # Get dashboards from database - filter by user
+    # Convert to int (JWT identity is stored as string)
+    try:
+        user_id = int(user_id_str)
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid user ID in token'}), 400
+    
+    # STRICT USER ISOLATION: Get dashboards from database - filter by user_id only
     user_dashboards = Dashboard.query.filter_by(user_id=user_id, is_active=True).all()
     
     dashboards_data = []
@@ -174,21 +208,23 @@ def get_dashboards():
     return jsonify(dashboards_data)
 
 @bp.route('/dashboards', methods=['POST'])
+@jwt_required()
 def create_dashboard():
-    """Create a new dashboard"""
-    # Get user ID from request headers or JWT token
-    user_id = request.headers.get('X-User-ID')
-    if not user_id:
-        # Try to get from JWT token as fallback
-        from flask_jwt_extended import get_jwt_identity
-        try:
-            user_id = get_jwt_identity()
-        except:
-            pass
+    """Create a new dashboard - JWT REQUIRED"""
+    # SECURITY: Get user ID from verified JWT token only
+    user_id_str = get_jwt_identity()
     
-    # If still no user_id, use a default for development
-    if not user_id:
-        user_id = 1  # Default user for development
+    if not user_id_str:
+        return jsonify({
+            'status': 'error',
+            'message': 'User identity not found in JWT token'
+        }), 401
+    
+    # Convert to int (JWT identity is stored as string)
+    try:
+        user_id = int(user_id_str)
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid user ID in token'}), 400
     
     data = request.get_json()
     

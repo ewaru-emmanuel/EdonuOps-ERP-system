@@ -295,17 +295,17 @@ python update_database.py
 4. Set up reverse proxy (Nginx)
 5. Configure SSL certificates
 
-### **Environment Variables**
+### **URL Configuration**
+For comprehensive deployment and URL configuration across all hosting platforms (AWS, GoDaddy, Render, Heroku, etc.), see the **[URL Configuration Guide](URL_CONFIGURATION_GUIDE.md)**.
+
+**Quick Reference:**
 ```bash
 # Backend
 FLASK_ENV=production
 DATABASE_URL=postgresql://user:pass@host:port/db
 SECRET_KEY=your-secret-key
-OPENAI_API_KEY=your-openai-key
-STRIPE_PUBLIC_KEY=your-stripe-public-key
-STRIPE_SECRET_KEY=your-stripe-secret-key
 
-# Frontend
+# Frontend  
 REACT_APP_API_URL=https://your-api-domain.com
 ```
 

@@ -51,7 +51,7 @@ export const debugUserModules = async () => {
     // Check if backend is running
     console.log('\n4️⃣ Testing backend connectivity');
     try {
-      const response = await fetch('http://localhost:5000/api/dashboard/modules/available');
+      const response = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/dashboard/modules/available`);
       console.log('Backend Status:', response.status);
       if (response.ok) {
         const data = await response.json();

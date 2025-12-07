@@ -2,10 +2,12 @@
 from flask import Blueprint, jsonify, request
 from app import db
 from modules.finance.models import Account, JournalEntry, JournalLine
+from modules.core.permissions import require_permission
 from datetime import datetime
 
 finance_bp = Blueprint('finance', __name__)
 @finance_bp.route('/fx/revaluation/preview', methods=['GET', 'OPTIONS'])
+@require_permission('finance.reports.read')
 def fx_revaluation_preview():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -24,12 +26,32 @@ def fx_revaluation_preview():
             except:
                 pass
         
+        # Get base currency from database settings
+        from sqlalchemy import text
+        import json
+        base_currency = None
+        try:
+            result = db.session.execute(
+                text("SELECT data FROM system_settings WHERE section = 'currency'")
+            ).fetchone()
+            if result and result[0]:
+                data = result[0]
+                if isinstance(data, str):
+                    try:
+                        data = json.loads(data)
+                    except:
+                        data = {}
+                if isinstance(data, dict) and 'base_currency' in data:
+                    base_currency = data['base_currency']
+        except:
+            pass
+        
         # If still no user_id, return empty summary (for development)
         if not user_id:
             print("Warning: No user context found for FX revaluation, returning empty results")
             return jsonify({
                 'as_of': datetime.utcnow().date().isoformat(),
-                'base_currency': 'USD',
+                'base_currency': base_currency or None,
                 'ar_unrealized_gl': 0.0,
                 'ap_unrealized_gl': 0.0,
                 'cash_unrealized_gl': 0.0,
@@ -37,7 +59,7 @@ def fx_revaluation_preview():
             }), 200
         
         as_of = request.args.get('as_of') or datetime.utcnow().date().isoformat()
-        base = request.args.get('base') or 'USD'
+        base = request.args.get('base') or base_currency
         # Placeholder summary; real impl would query AR/AP/cash balances by currency
         summary = {
             'as_of': as_of,
@@ -53,6 +75,7 @@ def fx_revaluation_preview():
 
 
 @finance_bp.route('/accounts', methods=['GET'])
+@require_permission('finance.accounts.read')
 def get_accounts():
     """Get accounts for the current user only"""
     try:
@@ -66,15 +89,18 @@ def get_accounts():
             except:
                 pass
         
-        # If still no user_id, return empty array (for development)
+        # SECURITY: Require authentication - no anonymous access
         if not user_id:
-            print("Warning: No user context found for accounts, returning empty results")
-            return jsonify([]), 200
+            return jsonify({'error': 'Authentication required'}), 401
         
-        # Filter accounts by user - include accounts with no user_id for backward compatibility
-        accounts = Account.query.filter(
-            (Account.user_id == int(user_id)) | (Account.user_id.is_(None))
-        ).all()
+        # SECURITY: Convert user_id to int and validate (prevent injection)
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        
+        # STRICT USER ISOLATION: Filter by user_id only (no backward compatibility)
+        accounts = Account.query.filter_by(user_id=user_id).all()
         
         return jsonify([{
             "id": acc.id,
@@ -92,6 +118,7 @@ def get_accounts():
         return jsonify({"error": "Failed to fetch accounts"}), 500
 
 @finance_bp.route('/journal-entries', methods=['GET'])
+@require_permission('finance.journal.read')
 def get_journal_entries():
     """Get journal entries for the current user only"""
     try:
@@ -105,15 +132,18 @@ def get_journal_entries():
             except:
                 pass
         
-        # If still no user_id, return empty array (for development)
+        # SECURITY: Require authentication - no anonymous access
         if not user_id:
-            print("Warning: No user context found, returning empty results")
-            return jsonify([]), 200
+            return jsonify({'error': 'Authentication required'}), 401
         
-        # Filter entries by user - include entries with no user_id for backward compatibility
-        entries = JournalEntry.query.filter(
-            (JournalEntry.user_id == int(user_id)) | (JournalEntry.user_id.is_(None))
-        ).all()
+        # SECURITY: Convert user_id to int and validate (prevent injection)
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        
+        # STRICT USER ISOLATION: Filter by user_id only (no backward compatibility)
+        entries = JournalEntry.query.filter_by(user_id=user_id).all()
         
         return jsonify([{
             "id": entry.id,
@@ -132,6 +162,7 @@ def get_journal_entries():
         return jsonify({"error": "Failed to fetch journal entries"}), 500
 
 @finance_bp.route('/accounts', methods=['POST'])
+@require_permission('finance.accounts.create')
 def create_account():
     """Create a new account in database"""
     try:
@@ -180,6 +211,7 @@ def create_account():
         return jsonify({"error": "Failed to create account"}), 500
 
 @finance_bp.route('/accounts/<int:account_id>', methods=['PUT'])
+@require_permission('finance.accounts.update')
 def update_account(account_id):
     """Update an account in database"""
     try:
@@ -230,6 +262,7 @@ def update_account(account_id):
         return jsonify({"error": "Failed to update account"}), 500
 
 @finance_bp.route('/accounts/<int:account_id>', methods=['DELETE'])
+@require_permission('finance.accounts.delete')
 def delete_account(account_id):
     """Delete an account from database"""
     try:
@@ -262,6 +295,7 @@ def delete_account(account_id):
         return jsonify({"error": "Failed to delete account"}), 500
 
 @finance_bp.route('/journal-entries', methods=['POST'])
+@require_permission('finance.journal.create')
 def create_journal_entry():
     """Create a new journal entry in database with double-entry validation"""
     try:
@@ -350,6 +384,7 @@ def create_journal_entry():
         return jsonify({"error": "Failed to create journal entry"}), 500
 
 @finance_bp.route('/journal-entries/<int:entry_id>', methods=['PUT'])
+@require_permission('finance.journal.update')
 def update_journal_entry(entry_id):
     """Update a journal entry in database"""
     try:
@@ -447,6 +482,7 @@ def update_journal_entry(entry_id):
         return jsonify({"error": "Failed to update journal entry"}), 500
 
 @finance_bp.route('/journal-entries/<int:entry_id>', methods=['DELETE'])
+@require_permission('finance.journal.delete')
 def delete_journal_entry(entry_id):
     """Delete a journal entry from database"""
     try:

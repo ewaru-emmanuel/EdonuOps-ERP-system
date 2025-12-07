@@ -11,7 +11,7 @@
 const API_CONFIG = {
   // Development environment
   development: {
-    baseURL: process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE || 'http://localhost:5000',
+    baseURL: process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE || 'http://localhost:5000/api',
     timeout: 30000,
     retryAttempts: 3,
     retryDelay: 1000
@@ -27,8 +27,8 @@ const API_CONFIG = {
   
   // Production environment
   production: {
-    // Prefer env; fallback to localhost for dev-first posture. To deploy, set env vars.
-    baseURL: process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE || 'http://localhost:5000',
+    // Prefer env; fallback to empty string for security
+    baseURL: process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE || '',
     timeout: 30000,
     retryAttempts: 3,
     retryDelay: 1000
@@ -77,10 +77,10 @@ export const API_ENDPOINTS = {
   
   // Authentication
   AUTH: {
-    LOGIN: '/auth/login',
-    REGISTER: '/auth/register',
-    LOGOUT: '/auth/logout',
-    REFRESH: '/auth/refresh'
+    LOGIN: '/api/auth/login',
+    REGISTER: '/api/auth/register',
+    LOGOUT: '/api/auth/logout',
+    REFRESH: '/api/auth/refresh'
   },
   
   // Inventory Management
@@ -150,6 +150,17 @@ export const buildApiUrl = (endpoint) => {
   const config = getApiConfig();
   const base = (config.baseURL || '').replace(/\/+$/, '');
   const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  
+  // If base is a full URL (starts with http), use it directly
+  if (base.startsWith('http://') || base.startsWith('https://')) {
+    // Avoid double "/api" when base URL already includes it
+    if (base.endsWith('/api') && path.startsWith('/api')) {
+      return `${base}${path.replace(/^\/api/, '')}`;
+    }
+    return `${base}${path}`;
+  }
+  
+  // For relative paths, use as-is (will use proxy in development)
   // Avoid double "/api" when base URL already includes it
   if (base.endsWith('/api') && path.startsWith('/api')) {
     return `${base}${path.replace(/^\/api/, '')}`;

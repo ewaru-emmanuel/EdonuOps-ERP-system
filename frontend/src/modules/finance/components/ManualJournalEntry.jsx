@@ -11,7 +11,12 @@ import {
 } from '@mui/icons-material';
 import apiClient from '../../../services/apiClient';
 
-const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null }) => {
+const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null, showAccountCodes: propShowAccountCodes }) => {
+  // Read preference from localStorage, with prop as override
+  const showAccountCodes = propShowAccountCodes !== undefined 
+    ? propShowAccountCodes 
+    : (localStorage.getItem('coa_show_account_codes') === 'true');
+  
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     reference: '',
@@ -28,6 +33,16 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null }) => {
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [validation, setValidation] = useState({ valid: false, errors: [] });
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddForm, setQuickAddForm] = useState({ name: '', type: '', code: '' });
+  
+  // Reset quick add form when dialog opens/closes
+  useEffect(() => {
+    if (!quickAddOpen) {
+      setQuickAddForm({ name: '', type: '', code: '' });
+    }
+  }, [quickAddOpen]);
+  const [quickAddLoading, setQuickAddLoading] = useState(false);
 
   // Load accounts on component mount
   useEffect(() => {
@@ -53,19 +68,78 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null }) => {
 
   const loadAccounts = async () => {
     try {
+      setLoading(true);
+      
+      // Fetch all accounts from single source
       const response = await apiClient.get('/api/finance/double-entry/accounts');
       console.log('🔍 Accounts API response:', response);
+      
+      // Handle different response structures
+      let accountsArray = [];
       if (Array.isArray(response)) {
-        console.log('🔍 Setting accounts:', response);
-        setAccounts(response);
+        accountsArray = response;
+      } else if (response && Array.isArray(response.data)) {
+        accountsArray = response.data;
+      } else if (response && response.data && Array.isArray(response.data)) {
+        accountsArray = response.data;
+      }
+      
+      console.log('🔍 Processed accounts array:', accountsArray);
+      console.log('🔍 Accounts count:', accountsArray.length);
+      
+      // If no accounts exist, auto-create the 25 default accounts
+      if (accountsArray.length === 0) {
+        console.log('📊 No accounts found - creating 25 default accounts...');
+        try {
+          const createResponse = await apiClient.post('/api/finance/double-entry/accounts/default/create', {});
+          console.log('✅ Default accounts created:', createResponse);
+          
+          if (createResponse.new_count > 0) {
+            // Reload accounts after creation
+            const reloadResponse = await apiClient.get('/api/finance/double-entry/accounts');
+            const reloadedAccounts = Array.isArray(reloadResponse) ? reloadResponse : [];
+            setAccounts(reloadedAccounts);
+            
+            setSnackbar({
+              open: true,
+              message: `Created ${createResponse.new_count} default accounts. You can now select an account.`,
+              severity: 'success'
+            });
+            return;
+          }
+        } catch (createError) {
+          console.error('❌ Error creating default accounts:', createError);
+          setSnackbar({
+            open: true,
+            message: 'Failed to create default accounts. Please try again.',
+            severity: 'error'
+          });
+        }
+      }
+      
+      if (accountsArray.length > 0) {
+        // Filter out inactive accounts for transaction use
+        const activeAccounts = accountsArray.filter(acc => acc.is_active !== false);
+        setAccounts(activeAccounts);
+        console.log('✅ Accounts loaded successfully:', activeAccounts.length, 'active accounts out of', accountsArray.length, 'total');
+      } else {
+        console.warn('⚠️ No accounts found in response');
+        setSnackbar({
+          open: true,
+          message: 'No accounts found. Please create accounts in Chart of Accounts.',
+          severity: 'warning'
+        });
       }
     } catch (error) {
-      console.error('Error loading accounts:', error);
+      console.error('❌ Error loading accounts:', error);
       setSnackbar({
         open: true,
-        message: 'Failed to load chart of accounts',
+        message: 'Failed to load chart of accounts: ' + (error.message || 'Unknown error'),
         severity: 'error'
       });
+      setAccounts([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -184,6 +258,24 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null }) => {
       console.log('❌ No valid lines found');
     } else {
       console.log('✅ Valid lines found:', validLines.length);
+      
+      // Validate that all selected accounts are active
+      const inactiveAccounts = [];
+      validLines.forEach(line => {
+        const account = accounts.find(acc => acc.id === line.account_id);
+        if (account && account.is_active === false) {
+          inactiveAccounts.push({
+            code: account.code || 'N/A',
+            name: account.name
+          });
+        }
+      });
+      
+      if (inactiveAccounts.length > 0) {
+        const accountList = inactiveAccounts.map(acc => `${acc.code} (${acc.name})`).join(', ');
+        errors.push(`Cannot use inactive accounts: ${accountList}. Please select active accounts only.`);
+        console.log('❌ Inactive accounts detected:', inactiveAccounts);
+      }
     }
     
     // Calculate totals for display
@@ -315,7 +407,56 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null }) => {
 
   const getAccountName = (accountId) => {
     const account = accounts.find(acc => acc.id === accountId);
-    return account ? `${account.code} - ${account.name}` : '';
+    return account ? account.name : '';
+  };
+
+  const handleQuickAdd = async () => {
+    if (!quickAddForm.name || !quickAddForm.type) {
+      setSnackbar({
+        open: true,
+        message: 'Please fill in account name and type',
+        severity: 'error'
+      });
+      return;
+    }
+
+    setQuickAddLoading(true);
+    try {
+      const response = await apiClient.post('/api/finance/double-entry/accounts', {
+        name: quickAddForm.name,
+        type: quickAddForm.type,
+        code: quickAddForm.code || undefined // Let backend auto-generate if empty
+      });
+
+      if (response.id) {
+        // Reload accounts to include the new one
+        await loadAccounts();
+        
+        // Auto-select the newly created account in the current line
+        const currentLine = journalLines[journalLines.length - 1];
+        if (currentLine && !currentLine.account_id) {
+          updateJournalLine(currentLine.id, 'account_id', response.id);
+        }
+
+        setSnackbar({
+          open: true,
+          message: `Account "${response.name}" created successfully!`,
+          severity: 'success'
+        });
+        
+        setQuickAddOpen(false);
+        setQuickAddForm({ name: '', type: '', code: '' });
+      }
+    } catch (error) {
+      console.error('Error creating account:', error);
+      setSnackbar({
+        open: true,
+        message: error.message || 'Failed to create account',
+        severity: 'error'
+      });
+    } finally {
+      setQuickAddLoading(false);
+    }
   };
 
   return (
@@ -442,20 +583,78 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null }) => {
                       <TableRow key={line.id}>
                         <TableCell>
                           <FormControl fullWidth size="small">
-                            <Select
-                              value={line.account_id}
-                              onChange={(e) => updateJournalLine(line.id, 'account_id', e.target.value)}
-                              displayEmpty
-                            >
-                              <MenuItem value="" disabled>
-                                Select Account
-                              </MenuItem>
-                              {accounts.map((account) => (
-                                <MenuItem key={account.id} value={account.id}>
-                                  {account.code} - {account.name}
+                            {loading ? (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1 }}>
+                                <CircularProgress size={16} />
+                                <Typography variant="body2" color="text.secondary">
+                                  Loading accounts...
+                                </Typography>
+                              </Box>
+                            ) : (
+                              <Select
+                                value={line.account_id || ''}
+                                onChange={(e) => updateJournalLine(line.id, 'account_id', e.target.value)}
+                                displayEmpty
+                                disabled={accounts.length === 0}
+                              >
+                                <MenuItem value="" disabled>
+                                  {accounts.length === 0 ? 'No active accounts available' : 'Select Account'}
                                 </MenuItem>
-                              ))}
-                            </Select>
+                                {accounts
+                                  .filter(account => account.is_active !== false)
+                                  .map((account) => (
+                                  <MenuItem key={account.id} value={account.id}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                      {showAccountCodes && account.code && (
+                                        <Typography 
+                                          variant="caption" 
+                                          sx={{ 
+                                            fontFamily: 'monospace',
+                                            color: 'text.secondary',
+                                            mr: 0.5
+                                          }}
+                                        >
+                                          {account.code}
+                                        </Typography>
+                                      )}
+                                      <Typography component="span" sx={{ flexGrow: 1 }}>
+                                        {account.name}
+                                      </Typography>
+                                      {account.is_core && (
+                                        <Chip 
+                                          label="Core" 
+                                          size="small" 
+                                          sx={{ height: 18, fontSize: '0.65rem' }}
+                                          color="primary"
+                                          variant="filled"
+                                        />
+                                      )}
+                                      {account.is_default && !account.is_core && (
+                                        <Chip 
+                                          label="Default" 
+                                          size="small" 
+                                          sx={{ height: 18, fontSize: '0.65rem' }}
+                                          color="primary"
+                                          variant="outlined"
+                                        />
+                                      )}
+                                    </Box>
+                                  </MenuItem>
+                                ))}
+                                <Divider />
+                                <MenuItem 
+                                  value="__create_new__"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setQuickAddOpen(true);
+                                  }}
+                                  sx={{ fontStyle: 'italic', color: 'primary.main' }}
+                                >
+                                  <Add sx={{ mr: 1, fontSize: 18 }} />
+                                  Create New Account...
+                                </MenuItem>
+                              </Select>
+                            )}
                           </FormControl>
                         </TableCell>
                         <TableCell>
@@ -578,6 +777,86 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null }) => {
             startIcon={loading ? <CircularProgress size={20} /> : <Save />}
           >
             {loading ? 'Saving...' : (editEntry ? 'Update Entry' : 'Create Entry')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Quick Add Account Dialog */}
+      <Dialog open={quickAddOpen} onClose={() => setQuickAddOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create New Account</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              label="Account Name *"
+              value={quickAddForm.name}
+              onChange={(e) => setQuickAddForm({ ...quickAddForm, name: e.target.value })}
+              fullWidth
+              required
+            />
+            <FormControl fullWidth required>
+              <InputLabel>Account Type *</InputLabel>
+              <Select
+                value={quickAddForm.type}
+                onChange={(e) => {
+                  setQuickAddForm({ ...quickAddForm, type: e.target.value });
+                  // Auto-suggest code based on type
+                  if (!quickAddForm.code) {
+                    const typePrefixes = {
+                      'asset': '1',
+                      'liability': '2',
+                      'equity': '3',
+                      'revenue': '4',
+                      'expense': '5'
+                    };
+                    const prefix = typePrefixes[e.target.value] || '9';
+                    // Find next available code for this type
+                    const existingCodes = accounts
+                      .filter(acc => acc.code && acc.code.startsWith(prefix))
+                      .map(acc => parseInt(acc.code))
+                      .filter(code => !isNaN(code));
+                    const maxCode = existingCodes.length > 0 ? Math.max(...existingCodes) : parseInt(`${prefix}000`);
+                    const suggestedCode = String(maxCode + 10);
+                    setQuickAddForm({ ...quickAddForm, type: e.target.value, code: suggestedCode });
+                  }
+                }}
+                label="Account Type *"
+              >
+                <MenuItem value="asset">Asset</MenuItem>
+                <MenuItem value="liability">Liability</MenuItem>
+                <MenuItem value="equity">Equity</MenuItem>
+                <MenuItem value="revenue">Revenue</MenuItem>
+                <MenuItem value="expense">Expense</MenuItem>
+              </Select>
+            </FormControl>
+            {showAccountCodes && (
+              <TextField
+                label="Account Code"
+                value={quickAddForm.code}
+                onChange={(e) => setQuickAddForm({ ...quickAddForm, code: e.target.value })}
+                fullWidth
+                helperText="Optional - leave blank for auto-generation"
+                sx={{ fontFamily: 'monospace' }}
+              />
+            )}
+            <Alert severity="info" sx={{ mt: 1 }}>
+              You can edit this account later in Chart of Accounts for more details.
+            </Alert>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setQuickAddOpen(false);
+            setQuickAddForm({ name: '', type: '', code: '' });
+          }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleQuickAdd}
+            disabled={!quickAddForm.name || !quickAddForm.type || quickAddLoading}
+            startIcon={quickAddLoading ? <CircularProgress size={20} /> : <Add />}
+          >
+            {quickAddLoading ? 'Creating...' : 'Create Account'}
           </Button>
         </DialogActions>
       </Dialog>

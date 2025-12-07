@@ -16,17 +16,36 @@ class ApiClient {
 
   // Get auth token from localStorage
   getAuthToken() {
+    // Check for sessionToken first (primary token storage from AuthContext)
+    const sessionToken = localStorage.getItem('sessionToken');
+    if (sessionToken) {
+      console.log('🔑 Token found (sessionToken):', sessionToken.substring(0, 20) + '...');
+      return sessionToken;
+    }
+    
+    // Check for access_token (JWT token from login)
+    const accessToken = localStorage.getItem('access_token');
+    if (accessToken) {
+      console.log('🔑 Token found (access_token):', accessToken.substring(0, 20) + '...');
+      return accessToken;
+    }
+    
     // Check for our authentication system
     const user = localStorage.getItem('user');
     if (user) {
       try {
         const userData = JSON.parse(user);
-        return userData.token || userData.id || 'authenticated';
+        const token = userData.token || userData.access_token || null;
+        if (token) {
+          console.log('🔑 Token found (user object):', token.substring(0, 20) + '...');
+        }
+        return token;
       } catch {
-        return 'authenticated';
+        return null;
       }
     }
-    return localStorage.getItem('access_token');
+    console.log('⚠️ No token found in localStorage');
+    return null;
   }
 
   // Get headers with authentication and user context
@@ -50,16 +69,171 @@ class ApiClient {
     return headers;
   }
 
-  // Get user context - use just the user ID from localStorage
+  // Get user context - check multiple sources for user ID
   getUserContext() {
     try {
+      // First, try to get userId directly from localStorage
       const userId = localStorage.getItem('userId');
       if (userId) {
-        return { id: userId, user_id: userId };
+        return { id: parseInt(userId), user_id: parseInt(userId) };
       }
+      
+      // Second, try to get from user object in localStorage
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        try {
+          const userData = JSON.parse(userStr);
+          if (userData.id || userData.user_id) {
+            const uid = userData.id || userData.user_id;
+            return { id: parseInt(uid), user_id: parseInt(uid) };
+          }
+        } catch (e) {
+          // Invalid JSON, continue
+        }
+      }
+      
       return null;
     } catch {
       return null;
+    }
+  }
+
+  // Clear authentication data
+  clearAuth() {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('sessionToken');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('username');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('user');
+  }
+
+  // Refresh access token automatically
+  async refreshToken() {
+    try {
+      const token = this.getAuthToken();
+      if (!token) {
+        console.log('⚠️ No token to refresh');
+        return false;
+      }
+
+      const url = buildApiUrl('/api/auth/refresh');
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.access_token) {
+          // Update token in localStorage
+          localStorage.setItem('sessionToken', data.access_token);
+          localStorage.setItem('access_token', data.access_token);
+          console.log('✅ Token refreshed successfully');
+          return true;
+        }
+      }
+      
+      console.log('⚠️ Token refresh failed:', response.status);
+      return false;
+    } catch (error) {
+      console.log('⚠️ Token refresh error:', error);
+      return false;
+    }
+  }
+
+  // Handle 401 errors with automatic token refresh
+  async handle401Error(response, retryRequestFn) {
+    const token = this.getAuthToken();
+    if (!token) {
+      console.log('⚠️ 401 but no token was sent - user not logged in');
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    try {
+      const responseClone = response.clone();
+      const errorData = await responseClone.json();
+      
+      const message = (errorData.message || '').toLowerCase();
+      const error = (errorData.error || '').toLowerCase();
+      
+      // Check if it's an expired token (not a permission error)
+      const isExpiredToken = 
+        message.includes('expired') ||
+        message.includes('token has expired') ||
+        (message.includes('unauthorized') && !message.includes('permission') && !message.includes('insufficient'));
+      
+      // Check if it's an invalid token
+      const isInvalidToken = 
+        message.includes('invalid token') ||
+        message.includes('signature verification failed') ||
+        message.includes('token could not be decoded') ||
+        message.includes('missing authorization header');
+      
+      // Check if it's a permission error
+      const isPermissionError = 
+        message.includes('permission') ||
+        message.includes('insufficient') ||
+        error.includes('permission');
+      
+      // Try to refresh if token is expired
+      if (isExpiredToken && !isPermissionError) {
+        console.log('🔄 Token expired, attempting automatic refresh...');
+        const refreshSuccess = await this.refreshToken();
+        if (refreshSuccess) {
+          console.log('✅ Token refreshed, retrying request...');
+          // Retry the original request with new token
+          return retryRequestFn();
+        } else {
+          console.log('❌ Token refresh failed, logging out');
+          this.clearAuth();
+          window.dispatchEvent(new CustomEvent('auth:logout'));
+          throw new Error(`HTTP ${response.status}: Token expired and refresh failed`);
+        }
+      }
+      
+      // If invalid token, logout immediately
+      if (isInvalidToken && !isPermissionError) {
+        console.log('🔐 Invalid token detected, logging out:', errorData);
+        this.clearAuth();
+        window.dispatchEvent(new CustomEvent('auth:logout'));
+        throw new Error(`HTTP ${response.status}: Invalid token`);
+      }
+      
+      // SECURITY: Any 401 that's not a permission error means token is invalid
+      // Clear session immediately to prevent stale tokens from persisting
+      if (!isPermissionError) {
+        console.log('🔐 401 error - token invalid or user deleted, clearing session:', errorData);
+        this.clearAuth();
+        window.dispatchEvent(new CustomEvent('auth:logout'));
+        // Redirect to login page
+        if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+          window.location.href = '/login';
+        }
+      }
+      
+      // Permission errors - don't logout, just throw
+      if (isPermissionError) {
+        console.log('⚠️ 401 error (permission denied):', errorData);
+      }
+      
+      throw new Error(`HTTP ${response.status}: ${errorData.message || response.statusText}`);
+      
+    } catch (e) {
+      // If we can't parse the error, assume token is invalid and clear session
+      if (e.message && !e.message.includes('HTTP')) {
+        console.log('⚠️ Could not parse 401 error - clearing session to be safe:', e);
+        this.clearAuth();
+        window.dispatchEvent(new CustomEvent('auth:logout'));
+        if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+          window.location.href = '/login';
+        }
+      }
+      throw e;
     }
   }
 
@@ -89,11 +263,9 @@ class ApiClient {
       });
 
       if (!response.ok) {
-        // Handle token expiration
         if (response.status === 401) {
-          // Clear expired token and redirect to login
-          localStorage.removeItem('access_token');
-          window.location.href = '/login';
+          // SECURITY: Always handle 401 by clearing invalid tokens
+          return await this.handle401Error(response, () => this.get(endpoint, options));
         }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -116,13 +288,30 @@ class ApiClient {
       });
 
       if (!response.ok) {
-        // Handle token expiration
         if (response.status === 401) {
-          // Clear expired token and redirect to login
-          localStorage.removeItem('access_token');
-          window.location.href = '/login';
+          return await this.handle401Error(response, () => this.post(endpoint, data, options));
         }
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        
+        // Try to parse error response body
+        let errorData = null;
+        try {
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            errorData = await response.json();
+          }
+        } catch (e) {
+          // If parsing fails, errorData remains null
+        }
+        
+        // Create error with response data for proper handling
+        const error = new Error(`HTTP ${response.status}: ${response.statusText}`);
+        error.status = response.status;
+        error.response = {
+          status: response.status,
+          statusText: response.statusText,
+          data: errorData
+        };
+        throw error;
       }
 
       return await response.json();
@@ -143,6 +332,9 @@ class ApiClient {
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          return await this.handle401Error(response, () => this.put(endpoint, data, options));
+        }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
@@ -163,6 +355,9 @@ class ApiClient {
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          return await this.handle401Error(response, () => this.delete(endpoint, options));
+        }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
@@ -191,6 +386,9 @@ class ApiClient {
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          return await this.handle401Error(response, () => this.upload(endpoint, file, options));
+        }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 

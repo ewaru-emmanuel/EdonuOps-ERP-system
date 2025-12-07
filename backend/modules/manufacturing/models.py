@@ -14,6 +14,8 @@ class BillOfMaterials(db.Model):
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
     version = db.Column(db.String(50), default='1.0')
     is_active = db.Column(db.Boolean, default=True)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -34,6 +36,8 @@ class BOMItem(db.Model):
     lead_time = db.Column(db.Integer, default=0)  # Days
     cost = db.Column(db.Float, default=0.0)
     sequence = db.Column(db.Integer, default=0)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     
     # Relationships
     component = db.relationship('Product', foreign_keys=[component_id])
@@ -57,6 +61,8 @@ class ProductionOrder(db.Model):
     work_center_id = db.Column(db.Integer, db.ForeignKey('work_centers.id'))
     cost = db.Column(db.Float, default=0.0)
     notes = db.Column(db.Text)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -77,6 +83,8 @@ class WorkCenter(db.Model):
     cost_per_hour = db.Column(db.Float, default=0.0)
     is_active = db.Column(db.Boolean, default=True)
     location = db.Column(db.String(200))
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class ProductionOperation(db.Model):
@@ -95,6 +103,8 @@ class ProductionOperation(db.Model):
     sequence = db.Column(db.Integer, default=0)
     setup_time = db.Column(db.Float, default=0.0)
     run_time = db.Column(db.Float, default=0.0)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -117,6 +127,8 @@ class MaterialRequirementsPlan(db.Model):
     safety_stock = db.Column(db.Float, default=0.0)
     lead_time = db.Column(db.Integer, default=0)
     lot_size = db.Column(db.Float, default=0.0)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -138,6 +150,8 @@ class SupplyChainNode(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     coordinates = db.Column(db.JSON)  # Latitude/Longitude
     contact_info = db.Column(db.JSON)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class SupplyChainLink(db.Model):
@@ -152,6 +166,8 @@ class SupplyChainLink(db.Model):
     cost_per_unit = db.Column(db.Float, default=0.0)
     capacity = db.Column(db.Float, default=0.0)
     is_active = db.Column(db.Boolean, default=True)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -173,6 +189,8 @@ class QualityControl(db.Model):
     defect_types = db.Column(db.JSON)  # Store defect details
     notes = db.Column(db.Text)
     status = db.Column(db.String(50), default='pending')  # pending, passed, failed
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -194,6 +212,8 @@ class MaintenanceSchedule(db.Model):
     cost = db.Column(db.Float, default=0.0)
     status = db.Column(db.String(50), default='scheduled')  # scheduled, in_progress, completed, overdue
     priority = db.Column(db.String(20), default='normal')  # low, normal, high, critical
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -218,6 +238,8 @@ class Equipment(db.Model):
     capacity = db.Column(db.Float, default=0.0)
     efficiency = db.Column(db.Float, default=100.0)
     cost = db.Column(db.Float, default=0.0)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships

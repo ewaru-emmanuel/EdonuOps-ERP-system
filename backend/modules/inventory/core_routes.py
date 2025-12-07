@@ -110,7 +110,7 @@ def get_uom():
         # Filter by user - include records with no user_id for backward compatibility
         uoms = UnitOfMeasure.query.filter(
             UnitOfMeasure.is_active == True,
-            (UnitOfMeasure.user_id == user_id_int) | (UnitOfMeasure.user_id.is_(None))
+            UnitOfMeasure.user_id == user_id_int
         ).all()
         print(f"[UOM] Found {len(uoms)} UoM records for user {user_id_int}")
         return jsonify([{
@@ -159,7 +159,7 @@ def update_uom(uom_id):
         # Check if UoM exists and belongs to user
         uom = UnitOfMeasure.query.filter(
             UnitOfMeasure.id == uom_id,
-            (UnitOfMeasure.user_id == int(user_id)) | (UnitOfMeasure.user_id.is_(None))
+            UnitOfMeasure.user_id == int(user_id)
         ).first()
         
         if not uom:
@@ -190,7 +190,7 @@ def delete_uom(uom_id):
         # Check if UoM exists and belongs to user
         uom = UnitOfMeasure.query.filter(
             UnitOfMeasure.id == uom_id,
-            (UnitOfMeasure.user_id == int(user_id)) | (UnitOfMeasure.user_id.is_(None))
+            UnitOfMeasure.user_id == int(user_id)
         ).first()
         
         if not uom:
@@ -262,7 +262,7 @@ def get_categories():
         # Filter by user - include records with no user_id for backward compatibility
         categories = ProductCategory.query.filter(
             ProductCategory.is_active == True,
-            (ProductCategory.user_id == user_id_int) | (ProductCategory.user_id.is_(None))
+            ProductCategory.user_id == user_id_int
         ).all()
         print(f"[CATEGORIES] Found {len(categories)} categories for user {user_id_int}")
         return jsonify([{
@@ -312,7 +312,7 @@ def update_category(category_id):
         # Check if category exists and belongs to user
         category = ProductCategory.query.filter(
             ProductCategory.id == category_id,
-            (ProductCategory.user_id == int(user_id)) | (ProductCategory.user_id.is_(None))
+            ProductCategory.user_id == int(user_id)
         ).first()
         
         if not category:
@@ -344,7 +344,7 @@ def delete_category(category_id):
         # Check if category exists and belongs to user
         category = ProductCategory.query.filter(
             ProductCategory.id == category_id,
-            (ProductCategory.user_id == int(user_id)) | (ProductCategory.user_id.is_(None))
+            ProductCategory.user_id == int(user_id)
         ).first()
         
         if not category:
@@ -353,7 +353,7 @@ def delete_category(category_id):
         # Check if category has products (only check user's products)
         products = InventoryProduct.query.filter(
             InventoryProduct.category_id == category_id,
-            (InventoryProduct.user_id == int(user_id)) | (InventoryProduct.user_id.is_(None))
+            InventoryProduct.user_id == int(user_id)
         ).all()
         if products:
             return jsonify({'error': 'Cannot delete category with existing products'}), 400
@@ -386,7 +386,7 @@ def get_products():
         # Filter by user - include records with no user_id for backward compatibility
         products = InventoryProduct.query.filter(
             InventoryProduct.is_active == True,
-            (InventoryProduct.user_id == user_id_int) | (InventoryProduct.user_id.is_(None))
+            InventoryProduct.user_id == user_id_int
         ).all()
         print(f"[PRODUCTS] Found {len(products)} products for user {user_id_int}")
         result = []
@@ -504,7 +504,7 @@ def create_product():
         
         base_uom = UnitOfMeasure.query.filter(
             UnitOfMeasure.id == base_uom_id,
-            (UnitOfMeasure.user_id == user_id_int) | (UnitOfMeasure.user_id.is_(None))
+            UnitOfMeasure.user_id == user_id_int
         ).first()
         
         if not base_uom:
@@ -521,7 +521,7 @@ def create_product():
             
             category = ProductCategory.query.filter(
                 ProductCategory.id == category_id,
-                (ProductCategory.user_id == user_id_int) | (ProductCategory.user_id.is_(None))
+                ProductCategory.user_id == user_id_int
             ).first()
             
             if not category:
@@ -647,7 +647,7 @@ def get_stock_levels():
         
         # Filter by user - include records with no user_id for backward compatibility
         stock_levels = StockLevel.query.filter(
-            (StockLevel.user_id == int(user_id)) | (StockLevel.user_id.is_(None))
+            StockLevel.user_id == int(user_id)
         ).all()
         result = []
         for stock in stock_levels:
@@ -710,7 +710,7 @@ def add_stock():
         product = InventoryProduct.query.filter(
             and_(
                 InventoryProduct.id == product_id,
-                (InventoryProduct.user_id == int(user_id)) | (InventoryProduct.user_id.is_(None))
+                InventoryProduct.user_id == int(user_id)
             )
         ).first()
         if not product:
@@ -1154,11 +1154,11 @@ def get_inventory_adjustments():
             print("Warning: No user context found for adjustments, returning empty results")
             return jsonify([]), 200
         
-        # Filter by user - include records with no created_by for backward compatibility
+        # STRICT USER ISOLATION: Filter by user_id only (no backward compatibility)
         adjustments = InventoryTransaction.query.filter(
             and_(
                 InventoryTransaction.transaction_type == 'adjustment',
-                (InventoryTransaction.created_by == user_id) | (InventoryTransaction.created_by.is_(None))
+                InventoryTransaction.user_id == user_id
             )
         ).order_by(InventoryTransaction.transaction_date.desc()).all()
         
@@ -1270,12 +1270,12 @@ def get_inventory_kpis():
         
         # Get basic KPIs - FILTER BY USER
         total_products = InventoryProduct.query.filter(
-            (InventoryProduct.user_id == user_id_int) | (InventoryProduct.user_id.is_(None))
+            InventoryProduct.user_id == user_id_int
         ).count()
         
         # Get stock levels for user's products
         user_product_ids = [p.id for p in InventoryProduct.query.filter(
-            (InventoryProduct.user_id == user_id_int) | (InventoryProduct.user_id.is_(None))
+            InventoryProduct.user_id == user_id_int
         ).all()]
         
         total_stock_levels = StockLevel.query.filter(
@@ -1309,7 +1309,7 @@ def get_inventory_kpis():
             ProductCategory.name,
             func.count(InventoryProduct.id)
         ).join(InventoryProduct).filter(
-            (InventoryProduct.user_id == user_id_int) | (InventoryProduct.user_id.is_(None))
+            InventoryProduct.user_id == user_id_int
         ).group_by(ProductCategory.name).all()
         
         print(f"[INVENTORY KPIs] Found {total_products} products, {total_stock_levels} stock levels for user {user_id_int}")
@@ -1369,7 +1369,7 @@ def get_stock_levels_report():
         ).join(
             ProductCategory, InventoryProduct.category_id == ProductCategory.id
         ).filter(
-            (StockLevel.created_by == user_id) | (StockLevel.created_by.is_(None))
+            StockLevel.user_id == user_id
         ).all()
         
         report_data = []

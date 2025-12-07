@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify, request
+from modules.core.permissions import require_permission
 from app import db
 from modules.inventory.advanced_models import InventoryProduct, InventoryTransaction, StockLevel
 from modules.core.tenant_context import require_tenant, get_tenant_context
@@ -44,6 +45,7 @@ def get_ai_insights(insight_type, data):
 @analytics_bp.route('/kpis', methods=['GET'])
 @api_endpoint_limit()
 @require_tenant
+@require_permission('kpis.kpis.read')
 def get_inventory_kpis():
     """Get key performance indicators for inventory"""
     try:
@@ -67,23 +69,21 @@ def get_inventory_kpis():
                 'low_stock_items': 0
             }), 200
         
-        # Filter by user - include records with no created_by for backward compatibility
-        total_products = InventoryProduct.query.filter(
-            (InventoryProduct.created_by == user_id) | (InventoryProduct.created_by.is_(None))
-        ).count()
+        # STRICT USER ISOLATION: Convert and validate user_id
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
         
-        total_transactions = InventoryTransaction.query.filter(
-            (InventoryTransaction.created_by == user_id) | (InventoryTransaction.created_by.is_(None))
-        ).count()
+        # STRICT USER ISOLATION: Filter by user_id only (no backward compatibility)
+        total_products = InventoryProduct.query.filter_by(user_id=user_id).count()
         
-        stock_levels = StockLevel.query.filter(
-            (StockLevel.created_by == user_id) | (StockLevel.created_by.is_(None))
-        ).all()
+        total_transactions = InventoryTransaction.query.filter_by(user_id=user_id).count()
+        
+        stock_levels = StockLevel.query.filter_by(user_id=user_id).all()
         total_stock_value = sum(level.quantity_on_hand * (level.unit_cost or 0) for level in stock_levels)
-        # Get products with their reorder points - FILTER BY USER
-        products = InventoryProduct.query.filter(
-            (InventoryProduct.created_by == user_id) | (InventoryProduct.created_by.is_(None))
-        ).all()
+        # Get products with their reorder points - STRICT USER ISOLATION
+        products = InventoryProduct.query.filter_by(user_id=user_id).all()
         product_reorder_points = {p.id: p.reorder_point for p in products}
         low_stock_items = sum(1 for level in stock_levels if level.quantity_on_hand <= (product_reorder_points.get(level.product_id, 0) or 0))
         
@@ -106,6 +106,7 @@ def get_inventory_kpis():
 @analytics_bp.route('/trends', methods=['GET'])
 @api_endpoint_limit()
 @require_tenant
+@require_permission('trends.trends.read')
 def get_inventory_trends():
     """Get inventory trends and patterns"""
     try:
@@ -136,12 +137,18 @@ def get_inventory_trends():
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=days)
         
-        # Filter by user - include records with no created_by for backward compatibility
+        # STRICT USER ISOLATION: Convert and validate user_id
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        
+        # STRICT USER ISOLATION: Filter by user_id only (no backward compatibility)
         transactions = InventoryTransaction.query.filter(
             and_(
                 InventoryTransaction.transaction_date >= start_date,
                 InventoryTransaction.transaction_date <= end_date,
-                (InventoryTransaction.created_by == user_id) | (InventoryTransaction.created_by.is_(None))
+                InventoryTransaction.user_id == user_id
             )
         ).order_by(InventoryTransaction.transaction_date).all()
         
@@ -184,6 +191,7 @@ def get_inventory_trends():
         return jsonify({'error': str(e)}), 500
 
 @analytics_bp.route('/reports/stock-levels', methods=['GET'])
+@require_permission('reports.stock-levels.read')
 def get_stock_levels_report():
     """Get comprehensive stock levels report"""
     try:
@@ -209,11 +217,17 @@ def get_stock_levels_report():
                 }
             }), 200
         
-        # Filter by user - include records with no created_by for backward compatibility
+        # STRICT USER ISOLATION: Convert and validate user_id
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        
+        # STRICT USER ISOLATION: Filter by user_id only (no backward compatibility)
         stock_levels = db.session.query(StockLevel, InventoryProduct).join(
             InventoryProduct, StockLevel.product_id == InventoryProduct.id
         ).filter(
-            (StockLevel.created_by == user_id) | (StockLevel.created_by.is_(None))
+            StockLevel.user_id == user_id
         ).all()
         
         report_data = []
@@ -244,6 +258,7 @@ def get_stock_levels_report():
         return jsonify({'error': str(e)}), 500
 
 @analytics_bp.route('/reports/movement', methods=['GET'])
+@require_permission('reports.movement.read')
 def get_movement_report():
     """Get inventory movement report"""
     try:
@@ -273,14 +288,20 @@ def get_movement_report():
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=days)
         
-        # Filter by user - include records with no created_by for backward compatibility
+        # STRICT USER ISOLATION: Convert and validate user_id
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        
+        # STRICT USER ISOLATION: Filter by user_id only (no backward compatibility)
         transactions = db.session.query(InventoryTransaction, InventoryProduct).join(
             InventoryProduct, InventoryTransaction.product_id == InventoryProduct.id
         ).filter(
             and_(
                 InventoryTransaction.transaction_date >= start_date,
                 InventoryTransaction.transaction_date <= end_date,
-                (InventoryTransaction.created_by == user_id) | (InventoryTransaction.created_by.is_(None))
+                InventoryTransaction.user_id == user_id
             )
         ).order_by(desc(InventoryTransaction.transaction_date)).all()
         

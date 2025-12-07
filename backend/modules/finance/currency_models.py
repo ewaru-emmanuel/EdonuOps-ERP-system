@@ -22,6 +22,8 @@ class Currency(db.Model):
     is_active = Column(Boolean, default=True)
     is_base_currency = Column(Boolean, default=False)  # Company's base currency
     country = Column(String(100))  # Primary country using this currency
+    tenant_id = Column(String(50), nullable=True, index=True)  # Company/tenant identifier (NULL = global currency)
+    created_by = Column(Integer, ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
@@ -72,6 +74,9 @@ class ExchangeRate(db.Model):
     date = Column(DateTime, nullable=False, index=True)  # Rate effective date
     source = Column(String(50), default='ExchangeRate-API')  # Data source
     is_current = Column(Boolean, default=True, index=True)  # Latest rate flag
+    tenant_id = Column(String(50), nullable=True, index=True)  # Company/tenant identifier (NULL = global rate)
+    # Note: created_by column not in database yet - will be added via migration
+    # created_by = Column(Integer, ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     # Relationships
@@ -148,6 +153,8 @@ class CurrencyConversion(db.Model):
     reference_type = Column(String(50))  # 'account', 'transaction', 'report', etc.
     reference_id = Column(Integer)  # ID of related record
     notes = Column(Text)
+    tenant_id = Column(String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = Column(Integer, ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     # Relationships

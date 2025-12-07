@@ -4,19 +4,44 @@ from datetime import datetime, date
 from sqlalchemy import func, and_, or_
 import json
 from modules.core.permissions import require_permission, require_module_access
+from modules.core.tenant_helpers import get_current_user_tenant_id, get_current_user_id
 from .advanced_models import (
     ChartOfAccounts, GeneralLedgerEntry, AccountsPayable, AccountsReceivable,
     FixedAsset, Budget, TaxRecord, BankReconciliation, APPayment, ARPayment,
-    FinanceVendor, FinanceCustomer, AuditTrail, FinancialReport, Currency, ExchangeRate,
+    FinanceVendor, FinanceCustomer, AuditTrail, FinancialReport,
     DepreciationSchedule, InvoiceLineItem, FinancialPeriod, JournalHeader, MaintenanceRecord,
     TaxFilingHistory, ComplianceReport, UserActivity, BankStatement, KPI, CompanySettings
 )
+# Currency and ExchangeRate moved to currency_models.py - import separately if needed
+from .currency_models import Currency, ExchangeRate
 from .ai_analytics_service import AIAnalyticsService
 from .workflow_service import WorkflowService
 from .payment_journal_service import create_ar_payment_journal, create_ap_payment_journal, create_fx_journal
 
 # Create Blueprint
 advanced_finance_bp = Blueprint('advanced_finance', __name__)
+
+# Handle CORS preflight for all routes in this blueprint
+@advanced_finance_bp.before_request
+def handle_preflight():
+    if request.method == "OPTIONS":
+        response = jsonify({})
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,X-User-ID,X-Tenant-ID")
+        response.headers.add('Access-Control-Allow-Methods', "GET,PUT,POST,DELETE,OPTIONS,PATCH")
+        return response, 200
+
+# Test route to verify blueprint is registered
+@advanced_finance_bp.route('/test', methods=['GET', 'OPTIONS'])
+def test_route():
+    """Test route to verify blueprint registration"""
+    if request.method == 'OPTIONS':
+        response = jsonify({})
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,X-User-ID,X-Tenant-ID")
+        response.headers.add('Access-Control-Allow-Methods', "GET,PUT,POST,DELETE,OPTIONS,PATCH")
+        return response, 200
+    return jsonify({"message": "Advanced finance blueprint is working", "route": "/api/finance/advanced/test"}), 200
 
 # Helper function to create audit trail
 def create_audit_trail(table_name, record_id, action, old_values=None, new_values=None, user_id=None):
@@ -43,7 +68,7 @@ def create_audit_trail(table_name, record_id, action, old_values=None, new_value
 
 # General Ledger Routes
 @advanced_finance_bp.route('/general-ledger', methods=['GET'])
-# @require_permission('finance.journal.read')  # Temporarily disabled for testing
+@require_permission('finance.journal.read')
 def get_general_ledger():
     try:
         print("🔍 GET /general-ledger called")
@@ -60,10 +85,15 @@ def get_general_ledger():
             except:
                 pass
         
-        # If still no user_id, return empty array (for development)
+        # SECURITY: Require authentication - no anonymous access
         if not user_id:
-            print("Warning: No user context found for general ledger, returning empty results")
-            return jsonify([]), 200
+            return jsonify({'error': 'Authentication required'}), 401
+        
+        # SECURITY: Convert user_id to int and validate (prevent injection)
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
         
         # Get query parameters
         start_date = request.args.get('start_date')
@@ -71,10 +101,8 @@ def get_general_ledger():
         account_id = request.args.get('account_id')
         status = request.args.get('status')
         
-        # Filter by user - include records with no user_id for backward compatibility
-        query = GeneralLedgerEntry.query.filter(
-            (GeneralLedgerEntry.user_id == int(user_id)) | (GeneralLedgerEntry.user_id.is_(None))
-        )
+        # STRICT USER ISOLATION: Filter by user_id only (no backward compatibility)
+        query = GeneralLedgerEntry.query.filter_by(user_id=user_id)
         
         if start_date:
             query = query.filter(GeneralLedgerEntry.entry_date >= start_date)
@@ -140,28 +168,25 @@ def get_general_ledger():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-@advanced_finance_bp.route('/general-ledger', methods=['POST'])
+@advanced_finance_bp.route('/general-ledger', methods=['POST', 'OPTIONS'])
+@require_permission('finance.journal.create')
 def create_general_ledger_entry():
+    # Handle OPTIONS preflight
+    if request.method == 'OPTIONS':
+        response = jsonify({})
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,X-User-ID,X-Tenant-ID")
+        response.headers.add('Access-Control-Allow-Methods', "GET,PUT,POST,DELETE,OPTIONS,PATCH")
+        return response, 200
     try:
+        # TENANT-CENTRIC: Get tenant_id and user_id using the same pattern as working routes
+        tenant_id = get_current_user_tenant_id()
+        user_id_int = get_current_user_id()
+        
+        if not tenant_id or not user_id_int:
+            return jsonify({"error": "Tenant context and user authentication required"}), 403
+        
         data = request.get_json()
-        
-        # Get user ID from request headers or JWT token
-        user_id = request.headers.get('X-User-ID')
-        if not user_id:
-            # Try to get from JWT token as fallback
-            from flask_jwt_extended import get_jwt_identity
-            try:
-                user_id = get_jwt_identity()
-            except:
-                pass
-        
-        # If still no user_id, use a default for development
-        if not user_id:
-            user_id = 1  # Default user for development
-            print("Warning: No user context found for general ledger creation, using default user ID")
-        
-        # Convert user_id to int for database storage
-        user_id = int(user_id)
         
         # Validate required fields
         required_fields = ['entry_date', 'account_id']
@@ -183,6 +208,17 @@ def create_general_ledger_entry():
         if debit_amount == 0 and credit_amount == 0:
             return jsonify({'error': 'Must have either debit or credit amount'}), 400
         
+        # Validate account exists and belongs to tenant
+        # GeneralLedgerEntry uses ChartOfAccounts model (advanced_chart_of_accounts table)
+        account = tenant_query(ChartOfAccounts).filter_by(id=data['account_id']).first()
+        if not account:
+            # Also check if account exists in regular Account model (in case frontend sends wrong ID)
+            from .models import Account
+            regular_account = tenant_query(Account).filter_by(id=data['account_id']).first()
+            if regular_account:
+                return jsonify({'error': 'Account found but General Ledger requires Chart of Accounts entry. Please use an account from the Chart of Accounts.'}), 400
+            return jsonify({'error': f'Account {data["account_id"]} not found or access denied for tenant {tenant_id}'}), 404
+        
         entry = GeneralLedgerEntry(
             entry_date=datetime.strptime(data['entry_date'], '%Y-%m-%d').date(),
             reference=data['reference'],
@@ -194,8 +230,8 @@ def create_general_ledger_entry():
             status=data.get('status', 'posted'),
             journal_type=data.get('journal_type', 'manual'),
             fiscal_period=data.get('fiscal_period'),
-            user_id=user_id,  # Associate with current user
-            created_by=str(user_id),  # Keep for backward compatibility
+            tenant_id=tenant_id,  # TENANT-CENTRIC: Required field
+            created_by=user_id_int,  # Audit trail: who created it
             approved_by=data.get('approved_by'),
             # Payment method integration fields
             payment_method_id=data.get('payment_method_id'),
@@ -211,15 +247,23 @@ def create_general_ledger_entry():
         # Create audit trail
         create_audit_trail('general_ledger_entries', entry.id, 'create', new_values=data)
         
-        return jsonify({
+        response = jsonify({
             'id': entry.id,
             'reference': entry.reference,
             'message': 'General ledger entry created successfully'
-        }), 201
+        })
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,X-User-ID,X-Tenant-ID")
+        response.headers.add('Access-Control-Allow-Methods', "GET,PUT,POST,DELETE,OPTIONS,PATCH")
+        return response, 201
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"❌ Error creating general ledger entry: {e}")
+        print(error_trace)
+        return jsonify({'error': f'Failed to create general ledger entry: {str(e)}'}), 500
 
 # Update General Ledger Entry
 @advanced_finance_bp.route('/general-ledger/<int:entry_id>', methods=['PUT'])
@@ -231,8 +275,14 @@ def update_general_ledger_entry(entry_id):
         if not user_id:
             return jsonify({'error': 'User ID required'}), 400
         
-        # Find entry with user context
-        entry = GeneralLedgerEntry.query.filter_by(id=entry_id, created_by=user_id).first()
+        # STRICT USER ISOLATION: Convert and validate user_id
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        
+        # Find entry with user context - STRICT USER ISOLATION
+        entry = GeneralLedgerEntry.query.filter_by(id=entry_id, user_id=user_id).first()
         if not entry:
             return jsonify({'error': 'Entry not found or access denied'}), 404
             
@@ -301,11 +351,17 @@ def delete_general_ledger_entry(entry_id):
         if not user_id:
             return jsonify({'error': 'User ID required'}), 400
         
-        # Find entry with user context
-        entry = GeneralLedgerEntry.query.filter_by(id=entry_id, created_by=user_id).first()
+        # STRICT USER ISOLATION: Convert and validate user_id
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        
+        # Find entry with user context - STRICT USER ISOLATION
+        entry = GeneralLedgerEntry.query.filter_by(id=entry_id, user_id=user_id).first()
         if not entry:
             return jsonify({'error': 'Entry not found or access denied'}), 404
-            
+        
         db.session.delete(entry)
         db.session.commit()
         
@@ -327,6 +383,7 @@ def delete_general_ledger_entry(entry_id):
 
 # Accounts Payable Routes
 @advanced_finance_bp.route('/accounts-payable', methods=['GET'])
+@require_permission('finance.ap.read')
 def get_accounts_payable():
     try:
         # Get user ID from request headers or JWT token
@@ -350,10 +407,12 @@ def get_accounts_payable():
         due_date_from = request.args.get('due_date_from')
         due_date_to = request.args.get('due_date_to')
         
-        # Filter by user - include records with no user_id for backward compatibility
-        query = AccountsPayable.query.filter(
-            (AccountsPayable.user_id == int(user_id)) | (AccountsPayable.user_id.is_(None))
-        )
+        # STRICT USER ISOLATION: Filter by user_id only (no backward compatibility)
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        query = AccountsPayable.query.filter_by(user_id=user_id)
         
         if status:
             query = query.filter(AccountsPayable.status == status)
@@ -390,6 +449,7 @@ def get_accounts_payable():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/accounts-payable', methods=['POST'])
+@require_permission('finance.ap.create')
 def create_accounts_payable():
     try:
         data = request.get_json()
@@ -456,6 +516,7 @@ def create_accounts_payable():
 
 # Update Accounts Payable
 @advanced_finance_bp.route('/accounts-payable/<int:invoice_id>', methods=['PUT'])
+@require_permission('finance.ap.update')
 def update_accounts_payable(invoice_id):
     try:
         # Get user ID from request headers or JWT token
@@ -475,8 +536,12 @@ def update_accounts_payable(invoice_id):
         # Get invoice and check ownership
         invoice = AccountsPayable.query.get_or_404(invoice_id)
         
-        # Ensure user can only update their own invoices (or invoices with no created_by for backward compatibility)
-        if invoice.created_by is not None and invoice.created_by != user_id:
+        # STRICT USER ISOLATION: Ensure user can only update their own invoices
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        if invoice.user_id != user_id:
             return jsonify({"error": "Access denied: You can only update your own invoices"}), 403
         
         data = request.get_json()
@@ -520,6 +585,7 @@ def update_accounts_payable(invoice_id):
 
 # Delete Accounts Payable
 @advanced_finance_bp.route('/accounts-payable/<int:invoice_id>', methods=['DELETE'])
+@require_permission('finance.ap.delete')
 def delete_accounts_payable(invoice_id):
     try:
         # Get user ID from request headers or JWT token
@@ -539,8 +605,14 @@ def delete_accounts_payable(invoice_id):
         # Get invoice and check ownership
         invoice = AccountsPayable.query.get_or_404(invoice_id)
         
-        # Ensure user can only delete their own invoices (or invoices with no created_by for backward compatibility)
-        if invoice.created_by is not None and invoice.created_by != user_id:
+        # STRICT USER ISOLATION: Convert and validate user_id
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        
+        # STRICT USER ISOLATION: Ensure user can only delete their own invoices
+        if invoice.user_id != user_id:
             return jsonify({"error": "Access denied: You can only delete your own invoices"}), 403
         
         db.session.delete(invoice)
@@ -559,6 +631,7 @@ def delete_accounts_payable(invoice_id):
 
 # Accounts Receivable Routes
 @advanced_finance_bp.route('/accounts-receivable', methods=['GET'])
+@require_permission('finance.ar.read')
 def get_accounts_receivable():
     try:
         # Get user ID from request headers or JWT token
@@ -584,7 +657,7 @@ def get_accounts_receivable():
         
         # Filter by user - include records with no user_id for backward compatibility
         query = AccountsReceivable.query.filter(
-            (AccountsReceivable.user_id == int(user_id)) | (AccountsReceivable.user_id.is_(None))
+            AccountsReceivable.user_id == int(user_id)
         )
         
         if status:
@@ -623,6 +696,7 @@ def get_accounts_receivable():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/accounts-receivable', methods=['POST'])
+@require_permission('finance.ar.create')
 def create_accounts_receivable():
     try:
         data = request.get_json()
@@ -690,6 +764,7 @@ def create_accounts_receivable():
 
 # Update Accounts Receivable
 @advanced_finance_bp.route('/accounts-receivable/<int:invoice_id>', methods=['PUT'])
+@require_permission('finance.ar.update')
 def update_accounts_receivable(invoice_id):
     try:
         # Get user ID from request headers or JWT token
@@ -709,8 +784,14 @@ def update_accounts_receivable(invoice_id):
         # Get invoice and check ownership
         invoice = AccountsReceivable.query.get_or_404(invoice_id)
         
-        # Ensure user can only update their own invoices (or invoices with no user_id for backward compatibility)
-        if invoice.user_id is not None and invoice.user_id != int(user_id):
+        # STRICT USER ISOLATION: Convert and validate user_id
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        
+        # STRICT USER ISOLATION: Ensure user can only update their own invoices
+        if invoice.user_id != user_id:
             return jsonify({"error": "Access denied: You can only update your own invoices"}), 403
         
         data = request.get_json()
@@ -755,6 +836,7 @@ def update_accounts_receivable(invoice_id):
 
 # Delete Accounts Receivable
 @advanced_finance_bp.route('/accounts-receivable/<int:invoice_id>', methods=['DELETE'])
+@require_permission('finance.ar.delete')
 def delete_accounts_receivable(invoice_id):
     try:
         # Get user ID from request headers or JWT token
@@ -774,8 +856,14 @@ def delete_accounts_receivable(invoice_id):
         # Get invoice and check ownership
         invoice = AccountsReceivable.query.get_or_404(invoice_id)
         
-        # Ensure user can only delete their own invoices (or invoices with no created_by for backward compatibility)
-        if invoice.created_by is not None and invoice.created_by != user_id:
+        # STRICT USER ISOLATION: Convert and validate user_id
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        
+        # STRICT USER ISOLATION: Ensure user can only delete their own invoices
+        if invoice.user_id != user_id:
             return jsonify({"error": "Access denied: You can only delete your own invoices"}), 403
         
         db.session.delete(invoice)
@@ -794,6 +882,7 @@ def delete_accounts_receivable(invoice_id):
 
 # Fixed Assets Routes
 @advanced_finance_bp.route('/fixed-assets', methods=['GET'])
+@require_permission('finance.assets.read')
 def get_fixed_assets():
     try:
         # Get user ID from request headers or JWT token
@@ -818,7 +907,7 @@ def get_fixed_assets():
         
         # Filter by user - include records with no user_id for backward compatibility
         query = FixedAsset.query.filter(
-            (FixedAsset.user_id == int(user_id)) | (FixedAsset.user_id.is_(None))
+            FixedAsset.user_id == int(user_id)
         )
         
         if status:
@@ -858,6 +947,7 @@ def get_fixed_assets():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/fixed-assets', methods=['POST'])
+@require_permission('finance.assets.create')
 def create_fixed_asset():
     try:
         data = request.get_json()
@@ -925,6 +1015,7 @@ def create_fixed_asset():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/fixed-assets/<int:asset_id>', methods=['PUT'])
+@require_permission('finance.assets.update')
 def update_fixed_asset(asset_id):
     try:
         asset = FixedAsset.query.get_or_404(asset_id)
@@ -968,6 +1059,7 @@ def update_fixed_asset(asset_id):
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/fixed-assets/<int:asset_id>', methods=['DELETE'])
+@require_permission('finance.assets.delete')
 def delete_fixed_asset(asset_id):
     try:
         asset = FixedAsset.query.get_or_404(asset_id)
@@ -992,6 +1084,7 @@ def delete_fixed_asset(asset_id):
 
 # Maintenance Records Routes
 @advanced_finance_bp.route('/maintenance-records', methods=['GET'])
+@require_permission('finance.assets.read')
 def get_maintenance_records():
     try:
         # Get user ID from request headers or JWT token
@@ -1016,9 +1109,9 @@ def get_maintenance_records():
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
         
-        # Filter by user - include records with no created_by for backward compatibility
+        # STRICT USER ISOLATION: Filter by user_id only (no backward compatibility)
         query = MaintenanceRecord.query.filter(
-            (MaintenanceRecord.user_id == int(user_id)) | (MaintenanceRecord.user_id.is_(None))
+            MaintenanceRecord.user_id == int(user_id)
         )
         
         if asset_id:
@@ -1057,6 +1150,7 @@ def get_maintenance_records():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/maintenance-records', methods=['POST'])
+@require_permission('finance.assets.update')
 def create_maintenance_record():
     try:
         # Get user ID from request headers or JWT token
@@ -1085,7 +1179,7 @@ def create_maintenance_record():
         asset = FixedAsset.query.filter(
             and_(
                 FixedAsset.id == data['asset_id'],
-                (FixedAsset.user_id == int(user_id)) | (FixedAsset.user_id.is_(None))
+                FixedAsset.user_id == int(user_id)
             )
         ).first()
         if not asset:
@@ -1126,6 +1220,7 @@ def create_maintenance_record():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/maintenance-records/<int:record_id>', methods=['PUT'])
+@require_permission('finance.assets.update')
 def update_maintenance_record(record_id):
     try:
         record = MaintenanceRecord.query.get_or_404(record_id)
@@ -1158,6 +1253,7 @@ def update_maintenance_record(record_id):
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/maintenance-records/<int:record_id>', methods=['DELETE'])
+@require_permission('finance.assets.delete')
 def delete_maintenance_record(record_id):
     try:
         record = MaintenanceRecord.query.get_or_404(record_id)
@@ -1182,6 +1278,7 @@ def delete_maintenance_record(record_id):
 
 # Budget Routes
 @advanced_finance_bp.route('/budgets', methods=['GET'])
+@require_permission('finance.budgets.read')
 def get_budgets():
     try:
         # Get user ID from request headers or JWT token
@@ -1206,7 +1303,7 @@ def get_budgets():
         
         # Filter by user - include records with no user_id for backward compatibility
         query = Budget.query.filter(
-            (Budget.user_id == int(user_id)) | (Budget.user_id.is_(None))
+            Budget.user_id == int(user_id)
         )
         
         if fiscal_year:
@@ -1240,6 +1337,7 @@ def get_budgets():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/budgets', methods=['POST'])
+@require_permission('finance.budgets.create')
 def create_budget():
     try:
         # Get user ID from request headers
@@ -1289,6 +1387,7 @@ def create_budget():
 
 # Update Budget
 @advanced_finance_bp.route('/budgets/<int:budget_id>', methods=['PUT'])
+@require_permission('finance.budgets.update')
 def update_budget(budget_id):
     try:
         budget = Budget.query.get_or_404(budget_id)
@@ -1331,6 +1430,7 @@ def update_budget(budget_id):
 
 # Delete Budget
 @advanced_finance_bp.route('/budgets/<int:budget_id>', methods=['DELETE'])
+@require_permission('finance.budgets.delete')
 def delete_budget(budget_id):
     try:
         budget = Budget.query.get_or_404(budget_id)
@@ -1350,6 +1450,7 @@ def delete_budget(budget_id):
 
 # Get Budgets by Account and Period
 @advanced_finance_bp.route('/budgets/account/<int:account_id>', methods=['GET'])
+@require_permission('finance.budgets.read')
 def get_budgets_by_account(account_id):
     try:
         period = request.args.get('period')  # YYYY-MM format
@@ -1380,6 +1481,7 @@ def get_budgets_by_account(account_id):
 
 # Get Budget Summary for Dashboard
 @advanced_finance_bp.route('/budgets/summary', methods=['GET'])
+@require_permission('finance.budgets.read')
 def get_budget_summary():
     try:
         period = request.args.get('period')  # YYYY-MM format
@@ -1422,6 +1524,7 @@ def get_budget_summary():
 
 # Create Budget from Template (Multiple accounts)
 @advanced_finance_bp.route('/budgets/template', methods=['POST'])
+@require_permission('finance.budgets.create')
 def create_budget_from_template():
     try:
         data = request.get_json()
@@ -1470,6 +1573,7 @@ def create_budget_from_template():
 
 # Tax Management Routes
 @advanced_finance_bp.route('/tax-records', methods=['GET'])
+@require_permission('finance.tax.read')
 def get_tax_records():
     try:
         # Get user ID from request headers or JWT token
@@ -1492,9 +1596,9 @@ def get_tax_records():
         period = request.args.get('period')
         status = request.args.get('status')
         
-        # Filter by user - include records with no created_by for backward compatibility
+        # STRICT USER ISOLATION: Filter by user_id only (no backward compatibility)
         query = TaxRecord.query.filter(
-            (TaxRecord.user_id == int(user_id)) | (TaxRecord.user_id.is_(None))
+            TaxRecord.user_id == int(user_id)
         )
         
         if tax_type:
@@ -1529,6 +1633,7 @@ def get_tax_records():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/tax-records', methods=['POST'])
+@require_permission('finance.tax.create')
 def create_tax_record():
     try:
         data = request.get_json()
@@ -1574,6 +1679,7 @@ def create_tax_record():
 
 # Update Tax Record
 @advanced_finance_bp.route('/tax-records/<int:tax_id>', methods=['PUT'])
+@require_permission('finance.tax.update')
 def update_tax_record(tax_id):
     try:
         tax_record = TaxRecord.query.get_or_404(tax_id)
@@ -1618,6 +1724,7 @@ def update_tax_record(tax_id):
 
 # Delete Tax Record
 @advanced_finance_bp.route('/tax-records/<int:tax_id>', methods=['DELETE'])
+@require_permission('finance.tax.delete')
 def delete_tax_record(tax_id):
     try:
         tax_record = TaxRecord.query.get_or_404(tax_id)
@@ -1637,6 +1744,7 @@ def delete_tax_record(tax_id):
 
 # Bank Reconciliation Routes
 @advanced_finance_bp.route('/bank-reconciliations', methods=['GET'])
+@require_permission('finance.reconciliation.read')
 def get_bank_reconciliations():
     try:
         # Get query parameters
@@ -1673,6 +1781,7 @@ def get_bank_reconciliations():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/bank-reconciliations', methods=['POST'])
+@require_permission('finance.reconciliation.create')
 def create_bank_reconciliation():
     try:
         data = request.get_json()
@@ -1719,6 +1828,7 @@ def create_bank_reconciliation():
 
 # Update Bank Reconciliation
 @advanced_finance_bp.route('/bank-reconciliations/<int:reconciliation_id>', methods=['PUT'])
+@require_permission('finance.reconciliation.update')
 def update_bank_reconciliation(reconciliation_id):
     try:
         reconciliation = BankReconciliation.query.get_or_404(reconciliation_id)
@@ -1764,6 +1874,7 @@ def update_bank_reconciliation(reconciliation_id):
 
 # Delete Bank Reconciliation
 @advanced_finance_bp.route('/bank-reconciliations/<int:reconciliation_id>', methods=['DELETE'])
+@require_permission('finance.reconciliation.delete')
 def delete_bank_reconciliation(reconciliation_id):
     try:
         reconciliation = BankReconciliation.query.get_or_404(reconciliation_id)
@@ -1783,6 +1894,7 @@ def delete_bank_reconciliation(reconciliation_id):
 
 # Financial Reports Routes
 @advanced_finance_bp.route('/reports/profit-loss', methods=['GET'])
+@require_permission('finance.reports.read')
 def get_profit_loss_report():
     try:
         # Get user ID from request headers or JWT token
@@ -1817,7 +1929,7 @@ def get_profit_loss_report():
                 GeneralLedgerEntry.entry_date >= start_date,
                 GeneralLedgerEntry.entry_date <= end_date,
                 GeneralLedgerEntry.account.has(account_type='Revenue'),
-                (GeneralLedgerEntry.user_id == int(user_id)) | (GeneralLedgerEntry.user_id.is_(None))
+                GeneralLedgerEntry.user_id == int(user_id)
             )
         ).scalar() or 0
         
@@ -1827,7 +1939,7 @@ def get_profit_loss_report():
                 GeneralLedgerEntry.entry_date >= start_date,
                 GeneralLedgerEntry.entry_date <= end_date,
                 GeneralLedgerEntry.account.has(account_type='Expense'),
-                (GeneralLedgerEntry.user_id == int(user_id)) | (GeneralLedgerEntry.user_id.is_(None))
+                GeneralLedgerEntry.user_id == int(user_id)
             )
         ).scalar() or 0
         
@@ -1847,6 +1959,7 @@ def get_profit_loss_report():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/reports/balance-sheet', methods=['GET'])
+@require_permission('finance.reports.read')
 def get_balance_sheet_report():
     try:
         # Get query parameters
@@ -1894,6 +2007,7 @@ def get_balance_sheet_report():
 
 # Dashboard Metrics
 @advanced_finance_bp.route('/dashboard-metrics', methods=['GET'])
+@require_permission('finance.reports.read')
 def get_dashboard_metrics():
     try:
         # Get user ID from request headers or JWT token
@@ -1919,27 +2033,27 @@ def get_dashboard_metrics():
         
         # Calculate key metrics - FILTER BY USER
         total_assets = db.session.query(func.sum(FixedAsset.current_value)).filter(
-            (FixedAsset.created_by == user_id) | (FixedAsset.created_by.is_(None))
+            FixedAsset.user_id == int(user_id)
         ).scalar() or 0
         
         total_ap = db.session.query(func.sum(AccountsPayable.outstanding_amount)).filter(
             and_(
                 AccountsPayable.status.in_(['pending', 'approved']),
-                (AccountsPayable.user_id == int(user_id)) | (AccountsPayable.user_id.is_(None))
+                AccountsPayable.user_id == int(user_id)
             )
         ).scalar() or 0
         
         total_ar = db.session.query(func.sum(AccountsReceivable.outstanding_amount)).filter(
             and_(
                 AccountsReceivable.status.in_(['pending', 'overdue']),
-                (AccountsReceivable.user_id == int(user_id)) | (AccountsReceivable.user_id.is_(None))
+                AccountsReceivable.user_id == int(user_id)
             )
         ).scalar() or 0
         
         pending_reconciliations = db.session.query(func.count(BankReconciliation.id)).filter(
             and_(
                 BankReconciliation.status == 'pending',
-                (BankReconciliation.user_id == int(user_id)) | (BankReconciliation.user_id.is_(None))
+                BankReconciliation.user_id == int(user_id)
             )
         ).scalar() or 0
         
@@ -1947,7 +2061,7 @@ def get_dashboard_metrics():
             and_(
                 AccountsReceivable.status == 'overdue',
                 AccountsReceivable.due_date < date.today(),
-                (AccountsReceivable.user_id == int(user_id)) | (AccountsReceivable.user_id.is_(None))
+                AccountsReceivable.user_id == int(user_id)
             )
         ).scalar() or 0
         
@@ -1968,6 +2082,7 @@ def get_dashboard_metrics():
 
 # Legacy routes for backward compatibility
 @advanced_finance_bp.route('/accounts', methods=['GET'])
+@require_permission('finance.accounts.read')
 def get_accounts():
     """Get all accounts from database - Legacy route"""
     try:
@@ -2002,6 +2117,7 @@ def get_accounts():
         return jsonify({"error": "Failed to fetch accounts"}), 500
 
 @advanced_finance_bp.route('/accounts', methods=['POST'])
+@require_permission('finance.accounts.create')
 def create_account():
     """Create a new account - Legacy route"""
     try:
@@ -2047,6 +2163,7 @@ def create_account():
         return jsonify({"error": f"Failed to create account: {str(e)}"}), 500
 
 @advanced_finance_bp.route('/journal-entries', methods=['GET'])
+@require_permission('finance.journal.read')
 def get_journal_entries():
     """Get all journal entries from database - Legacy route"""
     try:
@@ -2067,6 +2184,7 @@ def get_journal_entries():
 
 # Vendor Management Routes
 @advanced_finance_bp.route('/vendors', methods=['GET'])
+@require_permission('finance.vendors.read')
 def get_vendors():
     try:
         vendors = FinanceVendor.query.all()
@@ -2088,6 +2206,7 @@ def get_vendors():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/vendors', methods=['POST'])
+@require_permission('finance.vendors.create')
 def create_vendor():
     try:
         data = request.get_json()
@@ -2134,6 +2253,7 @@ def create_vendor():
 
 # Customer Management Routes
 @advanced_finance_bp.route('/customers', methods=['GET'])
+@require_permission('finance.customers.read')
 def get_customers():
     try:
         customers = FinanceCustomer.query.all()
@@ -2155,6 +2275,7 @@ def get_customers():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/customers', methods=['POST'])
+@require_permission('finance.customers.create')
 def create_customer():
     try:
         data = request.get_json()
@@ -2360,6 +2481,7 @@ def create_ar_payment():
 
 # Audit Trail Routes
 @advanced_finance_bp.route('/audit-trail', methods=['GET'])
+@require_permission('finance.audit.read')
 def get_audit_trail():
     try:
         # Get query parameters
@@ -2401,6 +2523,7 @@ def get_audit_trail():
 
 # Currency Management Routes
 @advanced_finance_bp.route('/currencies', methods=['GET'])
+@require_permission('finance.currency.read')
 def get_currencies():
     try:
         currencies = Currency.query.filter_by(is_active=True).all()
@@ -2417,6 +2540,7 @@ def get_currencies():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/currencies', methods=['POST'])
+@require_permission('finance.currency.create')
 def create_currency():
     try:
         data = request.get_json()
@@ -2455,11 +2579,12 @@ def create_currency():
 
 # Exchange Rate Routes
 @advanced_finance_bp.route('/exchange-rates', methods=['GET'])
+@require_permission('finance.currency.read')
 def get_exchange_rates():
     try:
         # Return empty array if ExchangeRate model doesn't exist
         try:
-            from .advanced_models import ExchangeRate
+            from .currency_models import ExchangeRate
         except ImportError:
             return jsonify([]), 200
         
@@ -2492,6 +2617,7 @@ def get_exchange_rates():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/exchange-rates', methods=['POST'])
+@require_permission('finance.currency.create')
 def create_exchange_rate():
     try:
         data = request.get_json()
@@ -2525,6 +2651,7 @@ def create_exchange_rate():
 
 # Financial Reports Cache Routes
 @advanced_finance_bp.route('/reports/cache', methods=['GET'])
+@require_permission('finance.reports.read')
 def get_cached_reports():
     try:
         # Get query parameters
@@ -2554,6 +2681,7 @@ def get_cached_reports():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/reports/cache', methods=['POST'])
+@require_permission('reports.cache.create')
 def cache_financial_report():
     try:
         data = request.get_json()
@@ -2594,6 +2722,7 @@ def cache_financial_report():
 
 # Journal Header Routes
 @advanced_finance_bp.route('/journal-headers', methods=['GET'])
+@require_permission('journal-headers.journal-headers.read')
 def get_journal_headers():
     try:
         # Get query parameters
@@ -2636,6 +2765,7 @@ def get_journal_headers():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/journal-headers', methods=['POST'])
+@require_permission('journal-headers.journal-headers.create')
 def create_journal_header():
     try:
         data = request.get_json()
@@ -2680,6 +2810,7 @@ def create_journal_header():
 
 # Depreciation Schedule Routes
 @advanced_finance_bp.route('/depreciation-schedules', methods=['GET'])
+@require_permission('finance.assets.read')
 def get_depreciation_schedules():
     try:
         # Get query parameters
@@ -2714,6 +2845,7 @@ def get_depreciation_schedules():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/depreciation-schedules', methods=['POST'])
+@require_permission('finance.assets.create')
 def create_depreciation_schedule():
     try:
         data = request.get_json()
@@ -2753,6 +2885,7 @@ def create_depreciation_schedule():
 
 # Invoice Line Items Routes
 @advanced_finance_bp.route('/invoice-line-items', methods=['GET'])
+@require_permission('finance.invoices.read')
 def get_invoice_line_items():
     try:
         # Get query parameters
@@ -2789,6 +2922,7 @@ def get_invoice_line_items():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/invoice-line-items', methods=['POST'])
+@require_permission('finance.invoices.create')
 def create_invoice_line_item():
     try:
         data = request.get_json()
@@ -2833,6 +2967,7 @@ def create_invoice_line_item():
 
 # Financial Periods Routes
 @advanced_finance_bp.route('/financial-periods', methods=['GET'])
+@require_permission('finance.settings.read')
 def get_financial_periods():
     try:
         # Get query parameters
@@ -2865,6 +3000,7 @@ def get_financial_periods():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/financial-periods', methods=['POST'])
+@require_permission('finance.settings.create')
 def create_financial_period():
     try:
         data = request.get_json()
@@ -2907,6 +3043,7 @@ def create_financial_period():
 
 # Tax Filing History Routes
 @advanced_finance_bp.route('/tax-filing-history', methods=['GET'])
+@require_permission('finance.tax.read')
 def get_tax_filing_history():
     try:
         # Get query parameters
@@ -2948,6 +3085,7 @@ def get_tax_filing_history():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/tax-filing-history', methods=['POST'])
+@require_permission('finance.tax.create')
 def create_tax_filing():
     try:
         data = request.get_json()
@@ -2991,6 +3129,7 @@ def create_tax_filing():
 
 # Compliance Reports Routes
 @advanced_finance_bp.route('/compliance-reports', methods=['GET'])
+@require_permission('finance.reports.read')
 def get_compliance_reports():
     try:
         # Get query parameters
@@ -3034,6 +3173,7 @@ def get_compliance_reports():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/compliance-reports', methods=['POST'])
+@require_permission('finance.reports.create')
 def create_compliance_report():
     try:
         data = request.get_json()
@@ -3079,6 +3219,7 @@ def create_compliance_report():
 
 # User Activity Routes
 @advanced_finance_bp.route('/user-activity', methods=['GET'])
+@require_permission('finance.audit.read')
 def get_user_activity():
     try:
         # Get query parameters
@@ -3122,6 +3263,7 @@ def get_user_activity():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/user-activity', methods=['POST'])
+@require_permission('finance.audit.create')
 def create_user_activity():
     try:
         data = request.get_json()
@@ -3163,11 +3305,13 @@ def create_user_activity():
 
 # Compliance Audit Routes (alias for compliance-reports)
 @advanced_finance_bp.route('/compliance-audit', methods=['GET'])
+@require_permission('finance.reconciliation.read')
 def get_compliance_audit():
     return get_compliance_reports()
 
 # Bank Statements Routes
 @advanced_finance_bp.route('/bank-statements', methods=['GET'])
+@require_permission('finance.reconciliation.read')
 def get_bank_statements():
     try:
         # Get query parameters
@@ -3212,6 +3356,7 @@ def get_bank_statements():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/bank-statements', methods=['POST'])
+@require_permission('finance.reconciliation.create')
 def create_bank_statement():
     try:
         data = request.get_json()
@@ -3256,11 +3401,13 @@ def create_bank_statement():
 
 # Ledger Entries Routes (alias for general-ledger)
 @advanced_finance_bp.route('/ledger-entries', methods=['GET'])
+@require_permission('finance.reports.read')
 def get_ledger_entries():
     return get_general_ledger()
 
 # Financial Reports Routes
 @advanced_finance_bp.route('/profit-loss', methods=['GET'])
+@require_permission('finance.reports.read')
 def get_profit_loss():
     try:
         # Get query parameters
@@ -3305,6 +3452,7 @@ def get_profit_loss():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/balance-sheet', methods=['GET'])
+@require_permission('finance.reports.read')
 def get_balance_sheet():
     try:
         # Get query parameters
@@ -3359,6 +3507,7 @@ def get_balance_sheet():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/cash-flow', methods=['GET'])
+@require_permission('finance.reports.read')
 def get_cash_flow():
     try:
         # Get query parameters
@@ -3416,6 +3565,7 @@ def get_cash_flow():
 
 # KPIs Routes
 @advanced_finance_bp.route('/kpis', methods=['GET'])
+@require_permission('inventory.reports.read')
 def get_kpis():
     try:
         # Get query parameters
@@ -3453,6 +3603,7 @@ def get_kpis():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/kpis', methods=['POST'])
+@require_permission('finance.reports.create')
 def create_kpi():
     try:
         data = request.get_json()
@@ -3502,6 +3653,7 @@ def create_kpi():
 
 # AI Analytics Routes
 @advanced_finance_bp.route('/ai/insights', methods=['GET'])
+@require_permission('finance.reports.read')
 def get_ai_insights():
     """Get AI-powered financial insights"""
     try:
@@ -3512,6 +3664,7 @@ def get_ai_insights():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/ai/inventory-insights', methods=['GET'])
+@require_permission('finance.reports.read')
 def get_inventory_insights():
     """Get AI-powered inventory insights"""
     try:
@@ -3521,6 +3674,7 @@ def get_inventory_insights():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/ai/market-trends', methods=['GET'])
+@require_permission('finance.reports.read')
 def get_market_trends():
     """Get AI-powered market trend analysis"""
     try:
@@ -3535,6 +3689,7 @@ def get_market_trends():
 # ============================================================================
 
 @advanced_finance_bp.route('/settings/base-currency', methods=['GET'])
+@require_permission('finance.settings.read')
 def get_base_currency():
     """Get current base currency setting"""
     try:
@@ -3552,10 +3707,10 @@ def get_base_currency():
                 'updated_at': settings.updated_at.isoformat() if settings.updated_at else None
             }), 200
         else:
-            # Return default if no settings exist
+            # No settings exist - return empty (no defaults)
             return jsonify({
                 'status': 'success',
-                'base_currency': 'USD',
+                'base_currency': None,
                 'updated_at': None
             }), 200
     except Exception as e:
@@ -3563,6 +3718,7 @@ def get_base_currency():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/settings/debug', methods=['GET'])
+@require_permission('finance.settings.read')
 def debug_settings():
     """Debug endpoint to check all settings in database"""
     try:
@@ -3597,6 +3753,7 @@ def debug_settings():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/settings/cleanup', methods=['POST'])
+@require_permission('finance.settings.update')
 def cleanup_settings():
     """Clean up corrupted settings and create fresh base currency"""
     try:
@@ -3624,6 +3781,7 @@ def cleanup_settings():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/settings/base-currency', methods=['POST'])
+@require_permission('finance.settings.update')
 def set_base_currency():
     """Set base currency setting"""
     try:
@@ -3673,6 +3831,7 @@ def set_base_currency():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/currency/convert-all', methods=['POST'])
+@require_permission('currency.convert-all.create')
 def convert_all_currencies():
     """Convert all existing data to new base currency"""
     try:
@@ -3702,6 +3861,7 @@ def convert_all_currencies():
 # ============================================================================
 
 @advanced_finance_bp.route('/workflows/alerts/low-stock', methods=['GET'])
+@require_permission('finance.workflows.read')
 def get_low_stock_alerts():
     """Get low stock alerts"""
     try:
@@ -3715,6 +3875,7 @@ def get_low_stock_alerts():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/workflows/alerts/overstock', methods=['GET'])
+@require_permission('finance.workflows.read')
 def get_overstock_alerts():
     """Get overstock alerts"""
     try:
@@ -3728,6 +3889,7 @@ def get_overstock_alerts():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/workflows/alerts/budget', methods=['POST'])
+@require_permission('finance.workflows.create')
 def check_budget_alerts():
     """Check budget exceeded alerts"""
     try:
@@ -3743,6 +3905,7 @@ def check_budget_alerts():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/workflows/alerts/payment-due', methods=['GET'])
+@require_permission('finance.workflows.read')
 def get_payment_due_alerts():
     """Get payment due alerts"""
     try:
@@ -3757,6 +3920,7 @@ def get_payment_due_alerts():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/workflows/reports/daily', methods=['GET'])
+@require_permission('finance.workflows.read')
 def get_daily_report():
     """Get daily automated report"""
     try:
@@ -3769,6 +3933,7 @@ def get_daily_report():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/workflows/approval', methods=['POST'])
+@require_permission('finance.workflows.create')
 def create_approval_workflow():
     """Create an approval workflow"""
     try:
@@ -3785,6 +3950,7 @@ def create_approval_workflow():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/workflows/approval/<workflow_id>', methods=['POST'])
+@require_permission('finance.workflows.create')
 def process_approval(workflow_id):
     """Process an approval decision"""
     try:
@@ -3802,6 +3968,7 @@ def process_approval(workflow_id):
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/workflows/approval/<workflow_id>/status', methods=['GET'])
+@require_permission('finance.workflows.read')
 def get_workflow_status(workflow_id):
     """Get workflow status"""
     try:
@@ -3814,6 +3981,7 @@ def get_workflow_status(workflow_id):
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/workflows/schedule', methods=['POST'])
+@require_permission('finance.workflows.create')
 def schedule_task():
     """Schedule a recurring task"""
     try:
@@ -3831,6 +3999,7 @@ def schedule_task():
         return jsonify({'error': str(e)}), 500
 
 @advanced_finance_bp.route('/workflows/run-scheduled', methods=['POST'])
+@require_permission('finance.workflows.create')
 def run_scheduled_tasks():
     """Run all scheduled tasks that are due"""
     try:
@@ -3845,6 +4014,7 @@ def run_scheduled_tasks():
 
 # General Finance Summary Endpoint
 @advanced_finance_bp.route('/summary', methods=['GET'])
+@require_permission('finance.reports.read')
 def get_finance_summary():
     """Get overall finance summary for dashboard"""
     try:
@@ -3900,6 +4070,7 @@ def get_finance_summary():
 
 # Financial Reports Endpoint
 @advanced_finance_bp.route('/financial-reports', methods=['GET'])
+@require_permission('finance.reports.read')
 def get_financial_reports():
     """Get available financial reports"""
     try:

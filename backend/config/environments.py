@@ -188,6 +188,14 @@ class EnvironmentConfig:
     def get_cors_origins(cls) -> List[str]:
         """Get CORS origins for current environment"""
         env = cls.get_environment()
+        
+        # First try to get from environment variables
+        env_var_name = f"{env.upper()}_CORS_ORIGINS"
+        env_origins = os.getenv(env_var_name)
+        if env_origins:
+            return [origin.strip() for origin in env_origins.split(',') if origin.strip()]
+        
+        # Fallback to hardcoded configuration
         return cls.CORS_ORIGINS.get(env, cls.CORS_ORIGINS['development'])
     
     @classmethod

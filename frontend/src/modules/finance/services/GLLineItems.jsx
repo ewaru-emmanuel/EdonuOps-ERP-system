@@ -389,7 +389,7 @@ const GLLineItems = ({ lineItems, onChange, onAdd, onRemove, readOnly = false })
                     >
                       <Stack direction="row" justifyContent="space-between">
                         <Typography variant="body2">
-                          <strong>{suggestion.code}</strong> - {suggestion.name}
+                          <strong>{suggestion.name}</strong>
                         </Typography>
                         <Chip 
                           label={`${suggestion.confidence}% match`} 

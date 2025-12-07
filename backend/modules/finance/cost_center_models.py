@@ -26,7 +26,8 @@ class CostCenter(db.Model):
     is_active = Column(Boolean, default=True)
     budget_amount = Column(Float, default=0.0)  # Annual budget
     responsible_manager = Column(String(100))  # Manager name
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)  # Multi-tenancy
+    tenant_id = Column(String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = Column(Integer, ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -34,9 +35,9 @@ class CostCenter(db.Model):
     parent = relationship('CostCenter', remote_side=[id], backref='children')
     journal_lines = relationship('JournalLine', backref='cost_center')
     
-    # Ensure unique cost center codes per user
+    # Ensure unique cost center codes per tenant
     __table_args__ = (
-        UniqueConstraint('code', 'user_id', name='_cost_center_code_user_uc'),
+        UniqueConstraint('code', 'tenant_id', name='_cost_center_code_tenant_uc'),
     )
     
     def __repr__(self):
@@ -71,7 +72,8 @@ class Department(db.Model):
     department_head = Column(String(100))  # Department head name
     location = Column(String(100))  # Physical location
     is_active = Column(Boolean, default=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)  # Multi-tenancy
+    tenant_id = Column(String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = Column(Integer, ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -79,9 +81,9 @@ class Department(db.Model):
     parent = relationship('Department', remote_side=[id], backref='children')
     journal_lines = relationship('JournalLine', backref='department')
     
-    # Ensure unique department codes per user
+    # Ensure unique department codes per tenant
     __table_args__ = (
-        UniqueConstraint('code', 'user_id', name='_department_code_user_uc'),
+        UniqueConstraint('code', 'tenant_id', name='_department_code_tenant_uc'),
     )
     
     def __repr__(self):
@@ -119,16 +121,17 @@ class Project(db.Model):
     project_manager = Column(String(100))  # Project manager name
     client_name = Column(String(100))  # For external projects
     is_active = Column(Boolean, default=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)  # Multi-tenancy
+    tenant_id = Column(String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = Column(Integer, ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
     journal_lines = relationship('JournalLine', backref='project')
     
-    # Ensure unique project codes per user
+    # Ensure unique project codes per tenant
     __table_args__ = (
-        UniqueConstraint('code', 'user_id', name='_project_code_user_uc'),
+        UniqueConstraint('code', 'tenant_id', name='_project_code_tenant_uc'),
     )
     
     def __repr__(self):
@@ -164,7 +167,8 @@ class CostAllocation(db.Model):
     allocation_method = Column(String(50), default='percentage')  # percentage, fixed_amount, headcount, square_footage
     source_account_id = Column(Integer, ForeignKey('accounts.id'), nullable=False)  # Source account
     is_active = Column(Boolean, default=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)  # Multi-tenancy
+    tenant_id = Column(String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = Column(Integer, ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -201,7 +205,8 @@ class CostAllocationDetail(db.Model):
     allocation_percentage = Column(Float, default=0.0)  # Percentage allocation
     allocation_amount = Column(Float, default=0.0)  # Fixed amount allocation
     target_account_id = Column(Integer, ForeignKey('accounts.id'), nullable=False)  # Target account
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)  # Multi-tenancy
+    tenant_id = Column(String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = Column(Integer, ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships

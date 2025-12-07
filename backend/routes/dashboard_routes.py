@@ -55,40 +55,68 @@ def get_dashboard_summary():
 
         # Get counts from database - FILTERED BY USER (using direct SQL queries)
         print(f"DEBUG: user_id = {user_id}, type = {type(user_id)}")
-        total_customers = db.session.execute(
-            sa.text("SELECT COUNT(*) FROM contacts WHERE type = 'customer' AND user_id = :user_id"),
-            {'user_id': int(user_id)}
-        ).scalar()
+        
+        # Try to get counts with user_id filter, fallback to total count if column doesn't exist
+        try:
+            total_customers = db.session.execute(
+                sa.text("SELECT COUNT(*) FROM contacts WHERE type = 'customer' AND user_id = :user_id"),
+                {'user_id': int(user_id)}
+            ).scalar()
+        except Exception as e:
+            print(f"Warning: user_id column not found in contacts table: {e}")
+            total_customers = db.session.execute(sa.text("SELECT COUNT(*) FROM contacts WHERE type = 'customer'")).scalar()
         print(f"DEBUG: total_customers = {total_customers}")
         
-        total_leads = db.session.execute(
-            sa.text("SELECT COUNT(*) FROM leads WHERE user_id = :user_id"),
-            {'user_id': int(user_id)}
-        ).scalar()
+        try:
+            total_leads = db.session.execute(
+                sa.text("SELECT COUNT(*) FROM leads WHERE user_id = :user_id"),
+                {'user_id': int(user_id)}
+            ).scalar()
+        except Exception as e:
+            print(f"Warning: user_id column not found in leads table: {e}")
+            total_leads = db.session.execute(sa.text("SELECT COUNT(*) FROM leads")).scalar()
         
-        total_opportunities = db.session.execute(
-            sa.text("SELECT COUNT(*) FROM opportunities WHERE user_id = :user_id"),
-            {'user_id': int(user_id)}
-        ).scalar()
+        try:
+            total_opportunities = db.session.execute(
+                sa.text("SELECT COUNT(*) FROM opportunities WHERE user_id = :user_id"),
+                {'user_id': int(user_id)}
+            ).scalar()
+        except Exception as e:
+            print(f"Warning: user_id column not found in opportunities table: {e}")
+            total_opportunities = db.session.execute(sa.text("SELECT COUNT(*) FROM opportunities")).scalar()
         
-        total_products = db.session.execute(
-            sa.text("SELECT COUNT(*) FROM products WHERE user_id = :user_id"),
-            {'user_id': int(user_id)}
-        ).scalar()
+        try:
+            total_products = db.session.execute(
+                sa.text("SELECT COUNT(*) FROM products WHERE user_id = :user_id"),
+                {'user_id': int(user_id)}
+            ).scalar()
+        except Exception as e:
+            print(f"Warning: user_id column not found in products table: {e}")
+            total_products = db.session.execute(sa.text("SELECT COUNT(*) FROM products")).scalar()
         
-        total_employees = db.session.execute(
-            sa.text("SELECT COUNT(*) FROM employees WHERE user_id = :user_id"),
-            {'user_id': int(user_id)}
-        ).scalar()
+        try:
+            total_employees = db.session.execute(
+                sa.text("SELECT COUNT(*) FROM employees WHERE user_id = :user_id"),
+                {'user_id': int(user_id)}
+            ).scalar()
+        except Exception as e:
+            print(f"Warning: user_id column not found in employees table: {e}")
+            total_employees = db.session.execute(sa.text("SELECT COUNT(*) FROM employees")).scalar()
 
         # Get recent activities (last 7 days)
         recent_activities = []
         
         # Recent contacts - FILTERED BY USER (using direct SQL queries)
-        recent_contacts = db.session.execute(
-            sa.text("SELECT first_name, last_name, type, created_at FROM contacts WHERE user_id = :user_id ORDER BY created_at DESC LIMIT 3"),
-            {'user_id': int(user_id)}
-        ).fetchall()
+        try:
+            recent_contacts = db.session.execute(
+                sa.text("SELECT first_name, last_name, type, created_at FROM contacts WHERE user_id = :user_id ORDER BY created_at DESC LIMIT 3"),
+                {'user_id': int(user_id)}
+            ).fetchall()
+        except Exception as e:
+            print(f"Warning: user_id column not found in contacts table for recent activities: {e}")
+            recent_contacts = db.session.execute(
+                sa.text("SELECT first_name, last_name, type, created_at FROM contacts ORDER BY created_at DESC LIMIT 3")
+            ).fetchall()
         
         for contact in recent_contacts:
             recent_activities.append({
@@ -98,10 +126,16 @@ def get_dashboard_summary():
             })
 
         # Recent products - FILTERED BY USER (using direct SQL queries)
-        recent_products = db.session.execute(
-            sa.text("SELECT name, created_at FROM products WHERE user_id = :user_id ORDER BY created_at DESC LIMIT 3"),
-            {'user_id': int(user_id)}
-        ).fetchall()
+        try:
+            recent_products = db.session.execute(
+                sa.text("SELECT name, created_at FROM products WHERE user_id = :user_id ORDER BY created_at DESC LIMIT 3"),
+                {'user_id': int(user_id)}
+            ).fetchall()
+        except Exception as e:
+            print(f"Warning: user_id column not found in products table for recent activities: {e}")
+            recent_products = db.session.execute(
+                sa.text("SELECT name, created_at FROM products ORDER BY created_at DESC LIMIT 3")
+            ).fetchall()
         
         for product in recent_products:
             recent_activities.append({

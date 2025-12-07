@@ -17,26 +17,44 @@ def save_user_data():
         if not user_id or not data_type:
             return jsonify({'error': 'user_id and data_type are required'}), 400
         
-        # Get user ID from headers for security
-        request_user_id = request.headers.get('X-User-ID')
-        if not request_user_id:
-            from flask_jwt_extended import get_jwt_identity
-            try:
-                request_user_id = get_jwt_identity()
-            except:
-                pass
+        # SECURITY: Get user ID from JWT token first (strict user isolation)
+        request_user_id = None
+        from flask_jwt_extended import get_jwt_identity
+        try:
+            request_user_id = get_jwt_identity()
+        except:
+            pass
         
+        # Fallback to request headers if JWT not available
         if not request_user_id:
-            request_user_id = 1  # Default for development
+            request_user_id = request.headers.get('X-User-ID')
         
-        # Verify user can only save their own data
-        if str(user_id) != str(request_user_id):
+        # SECURITY: Require authentication - no anonymous access (even during onboarding)
+        if not request_user_id:
+            return jsonify({'error': 'Authentication required'}), 401
+        
+        # SECURITY: Convert to int and validate
+        try:
+            request_user_id = int(request_user_id)
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID format'}), 400
+        
+        # SECURITY: Verify user can only save their own data (strict user isolation)
+        if user_id != request_user_id:
             return jsonify({'error': 'Access denied: You can only save your own data'}), 403
         
         # Store data in database
-        UserData.save_user_data(user_id, data_type, user_data)
-        
-        print(f"💾 Saved {data_type} for user {user_id} to database")
+        try:
+            UserData.save_user_data(user_id, data_type, user_data)
+            print(f"💾 Saved {data_type} for user {user_id} to database")
+        except Exception as db_error:
+            print(f"❌ Database error saving {data_type} for user {user_id}: {str(db_error)}")
+            db.session.rollback()
+            return jsonify({
+                'error': f'Failed to save data: {str(db_error)}',
+                'details': 'Database error occurred'
+            }), 500
         
         return jsonify({
             'success': True,
@@ -46,30 +64,47 @@ def save_user_data():
         }), 200
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"❌ Error in save_user_data endpoint: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': str(e),
+            'type': type(e).__name__
+        }), 500
 
 @user_data_bp.route('/load/<data_type>', methods=['GET'])
 def load_user_data(data_type):
-    """Load user data from database"""
+    """Load user data from database - ONBOARDING SUPPORTED with strict user isolation"""
     try:
         user_id = request.args.get('user_id')
         if not user_id:
             return jsonify({'error': 'user_id is required'}), 400
         
-        # Get user ID from headers for security
-        request_user_id = request.headers.get('X-User-ID')
-        if not request_user_id:
-            from flask_jwt_extended import get_jwt_identity
-            try:
-                request_user_id = get_jwt_identity()
-            except:
-                pass
+        # SECURITY: Get user ID from JWT token first (strict user isolation)
+        request_user_id = None
+        from flask_jwt_extended import get_jwt_identity
+        try:
+            request_user_id = get_jwt_identity()
+        except:
+            pass
         
+        # Fallback to request headers if JWT not available
         if not request_user_id:
-            request_user_id = 1  # Default for development
+            request_user_id = request.headers.get('X-User-ID')
         
-        # Verify user can only load their own data
-        if str(user_id) != str(request_user_id):
+        # SECURITY: Require authentication - no anonymous access (even during onboarding)
+        if not request_user_id:
+            return jsonify({'error': 'Authentication required'}), 401
+        
+        # SECURITY: Convert to int and validate
+        try:
+            request_user_id = int(request_user_id)
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID format'}), 400
+        
+        # SECURITY: Verify user can only load their own data (strict user isolation)
+        if user_id != request_user_id:
             return jsonify({'error': 'Access denied: You can only load your own data'}), 403
         
         # Load data from database
@@ -95,26 +130,37 @@ def load_user_data(data_type):
 
 @user_data_bp.route('/all', methods=['GET'])
 def get_all_user_data():
-    """Get all user data from database"""
+    """Get all user data from database - ONBOARDING SUPPORTED with strict user isolation"""
     try:
         user_id = request.args.get('user_id')
         if not user_id:
             return jsonify({'error': 'user_id is required'}), 400
         
-        # Get user ID from headers for security
-        request_user_id = request.headers.get('X-User-ID')
-        if not request_user_id:
-            from flask_jwt_extended import get_jwt_identity
-            try:
-                request_user_id = get_jwt_identity()
-            except:
-                pass
+        # SECURITY: Get user ID from JWT token first (strict user isolation)
+        request_user_id = None
+        from flask_jwt_extended import get_jwt_identity
+        try:
+            request_user_id = get_jwt_identity()
+        except:
+            pass
         
+        # Fallback to request headers if JWT not available
         if not request_user_id:
-            request_user_id = 1  # Default for development
+            request_user_id = request.headers.get('X-User-ID')
         
-        # Verify user can only load their own data
-        if str(user_id) != str(request_user_id):
+        # SECURITY: Require authentication - no anonymous access (even during onboarding)
+        if not request_user_id:
+            return jsonify({'error': 'Authentication required'}), 401
+        
+        # SECURITY: Convert to int and validate
+        try:
+            request_user_id = int(request_user_id)
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID format'}), 400
+        
+        # SECURITY: Verify user can only load their own data (strict user isolation)
+        if user_id != request_user_id:
             return jsonify({'error': 'Access denied: You can only load your own data'}), 403
         
         # Get all data for user from database

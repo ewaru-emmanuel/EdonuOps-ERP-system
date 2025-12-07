@@ -6,6 +6,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from app import db
 from modules.core.models import User, Role, Organization
 from modules.core.permissions import require_permission, PermissionManager
+from modules.core.tenant_helpers import get_current_user_tenant_id, get_current_user_id
+from modules.core.tenant_query_helper import tenant_query
 from datetime import datetime
 import logging
 
@@ -13,32 +15,111 @@ logger = logging.getLogger(__name__)
 
 user_management_bp = Blueprint('user_management', __name__)
 
-@user_management_bp.route('/users', methods=['GET'])
-@require_permission('system.users.read')
-def get_all_users():
-    """Get all users with their roles and permissions"""
+# Test endpoint to verify JWT is working
+@user_management_bp.route('/test-jwt', methods=['GET'])
+@jwt_required()
+def test_jwt():
+    """Test endpoint to verify JWT authentication is working"""
     try:
-        users = User.query.all()
+        current_user_id = get_jwt_identity()
+        return jsonify({
+            'success': True,
+            'user_id': current_user_id,
+            'message': 'JWT authentication is working'
+        }), 200
+    except Exception as e:
+        logger.error(f"JWT test error: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'JWT authentication failed'
+        }), 401
+
+@user_management_bp.route('/users', methods=['GET'])
+@jwt_required()
+def get_all_users():
+    """Get all users with their roles and permissions - STRICT TENANT ISOLATION"""
+    try:
+        # Get current user ID from JWT (already verified by @jwt_required())
+        try:
+            current_user_id = get_jwt_identity()
+        except Exception as jwt_error:
+            logger.error(f"JWT error in get_all_users: {jwt_error}")
+            return jsonify({'error': 'JWT token error', 'message': str(jwt_error)}), 401
+        
+        if not current_user_id:
+            return jsonify({'error': 'Authentication required', 'message': 'User ID not found in JWT token'}), 401
+        
+        # Get user and check if admin
+        user = User.query.get(current_user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Superadmin/Admin bypass - can view users without explicit permission
+        is_admin = user.role and user.role.role_name in ['superadmin', 'admin']
+        
+        # Non-admin users need system.users.read permission
+        if not is_admin:
+            if not PermissionManager.user_has_permission(current_user_id, 'system.users.read'):
+                return jsonify({
+                    'error': 'Insufficient permissions',
+                    'message': 'This action requires the "system.users.read" permission'
+                }), 403
+        
+        # STRICT TENANT ISOLATION: Automatic tenant filtering
+        users = tenant_query(User).all()
+        tenant_id = get_current_user_tenant_id() or 'default'
+        logger.debug(f"Found {len(users)} users for tenant {tenant_id}")
         result = []
         
         for user in users:
+            # Safely get organization info if it exists
+            organization_name = None
+            organization_id = None
+            try:
+                # Check if user has organization_id attribute (column exists)
+                if hasattr(user, 'organization_id') and user.organization_id:
+                    organization_id = user.organization_id
+                    # Try to get organization name if Organization model exists
+                    try:
+                        from modules.core.models import Organization
+                        org = Organization.query.get(user.organization_id)
+                        if org:
+                            organization_name = org.name
+                    except Exception as org_err:
+                        logger.debug(f"Could not fetch organization for user {user.id}: {org_err}")
+                        pass
+                # Note: User model does not have 'organization' relationship defined
+                # So we don't check for user.organization
+            except Exception as org_err:
+                logger.debug(f"Error getting organization info for user {user.id}: {org_err}")
+                pass
+            
             user_data = {
                 'id': user.id,
                 'username': user.username,
                 'email': user.email,
-                'role': user.role.role_name if user.role else None,
+                'role': user.role.role_name if (hasattr(user, 'role') and user.role) else None,
                 'role_id': user.role_id,
-                'organization': user.organization.name if user.organization else None,
-                'organization_id': user.organization_id,
+                'organization': organization_name,
+                'organization_id': organization_id,
                 'is_active': getattr(user, 'is_active', True),
                 'created_at': user.created_at.isoformat() if hasattr(user, 'created_at') and user.created_at else None,
                 'last_login': user.last_login.isoformat() if hasattr(user, 'last_login') and user.last_login else None
             }
             
-            # Get user's permission count
-            permissions = PermissionManager.get_user_permissions(user.id)
-            user_data['permission_count'] = len(permissions)
-            user_data['modules'] = PermissionManager.get_user_modules(user.id)
+            # Get user's permission count - PermissionManager is imported at top of file
+            try:
+                permissions = PermissionManager.get_user_permissions(user.id)
+                user_data['permission_count'] = len(permissions) if permissions else 0
+                user_data['modules'] = PermissionManager.get_user_modules(user.id) if permissions else []
+            except Exception as perm_err:
+                import traceback
+                error_trace = traceback.format_exc()
+                logger.warning(f"Error getting permissions for user {user.id}: {perm_err}")
+                logger.debug(f"Permission error traceback: {error_trace}")
+                user_data['permission_count'] = 0
+                user_data['modules'] = []
             
             result.append(user_data)
         
@@ -48,14 +129,30 @@ def get_all_users():
         })
         
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
         logger.error(f"Error getting users: {e}")
-        return jsonify({'error': 'Failed to get users'}), 500
+        logger.error(f"Traceback: {error_trace}")
+        return jsonify({
+            'error': 'Failed to get users',
+            'message': str(e),
+            'traceback': error_trace
+        }), 500
 
 @user_management_bp.route('/users', methods=['POST'])
 @require_permission('system.users.create')
 def create_user():
-    """Create a new user"""
+    """Create a new user - STRICT TENANT ISOLATION"""
     try:
+        # STRICT TENANT ISOLATION: Get tenant_id for assignment
+        tenant_id = get_current_user_tenant_id()
+        if not tenant_id:
+            logger.warning("User has no tenant_id - cannot create users without tenant context")
+            return jsonify({
+                'error': 'Tenant context required',
+                'message': 'User must belong to a tenant to create users'
+            }), 403
+        
         data = request.get_json()
         
         # Validate required fields
@@ -64,13 +161,13 @@ def create_user():
             if field not in data or not data[field]:
                 return jsonify({'error': f'{field} is required'}), 400
         
-        # Check if username or email already exists
-        existing_user = User.query.filter(
+        # STRICT TENANT ISOLATION: Check if username or email already exists within same tenant
+        existing_user = tenant_query(User).filter(
             (User.username == data['username']) | (User.email == data['email'])
         ).first()
         
         if existing_user:
-            return jsonify({'error': 'Username or email already exists'}), 409
+            return jsonify({'error': 'Username or email already exists in your organization'}), 409
         
         # Validate role exists
         role = Role.query.get(data['role_id'])
@@ -80,17 +177,57 @@ def create_user():
         # Hash password
         password_hash = generate_password_hash(data['password'])
         
-        # Create user
-        new_user = User(
-            username=data['username'],
-            email=data['email'],
-            password_hash=password_hash,
-            role_id=data['role_id'],
-            organization_id=data.get('organization_id', 1)  # Default organization
-        )
+        # Create user with tenant_id
+        user_data = {
+            'username': data['username'],
+            'email': data['email'],
+            'password_hash': password_hash,
+            'role_id': data['role_id'],
+            'tenant_id': tenant_id  # STRICT TENANT ISOLATION: Assign to current user's tenant
+        }
+        
+        # Only add organization_id if User model supports it
+        if hasattr(User, 'organization_id'):
+            user_data['organization_id'] = data.get('organization_id', 1)  # Default organization
+        
+        new_user = User(**user_data)
         
         db.session.add(new_user)
         db.session.commit()
+        
+        # Log user creation to audit trail
+        try:
+            from services.audit_logger_service import audit_logger
+            from flask import request
+            current_user_id = request.headers.get('X-User-ID')
+            if not current_user_id:
+                from flask_jwt_extended import get_jwt_identity
+                try:
+                    current_user_id = get_jwt_identity()
+                except:
+                    current_user_id = None
+            
+            if audit_logger and current_user_id:
+                audit_logger.log_action(
+                    action='CREATE',
+                    entity_type='user',
+                    entity_id=str(new_user.id),
+                    new_values={'username': new_user.username, 'email': new_user.email, 'role_id': new_user.role_id},
+                    module='admin',
+                    user_id=int(current_user_id)
+                )
+        except Exception as audit_err:
+            logger.warning(f"Failed to log user creation to audit trail: {audit_err}")
+        
+        # Create default accounts automatically for new user
+        try:
+            from modules.finance.default_accounts_service import create_default_accounts
+            logger.info(f"Creating default accounts for new user {new_user.id}...")
+            result = create_default_accounts(new_user.id, force=False)
+            logger.info(f"Created {result['new_count']} default accounts for user {new_user.id}")
+        except Exception as e:
+            logger.warning(f"Failed to create default accounts for user {new_user.id}: {e}")
+            # Don't fail user creation if account creation fails - can be created later
         
         return jsonify({
             'message': 'User created successfully',
@@ -110,9 +247,10 @@ def create_user():
 @user_management_bp.route('/users/<int:user_id>', methods=['GET'])
 @require_permission('system.users.read')
 def get_user(user_id):
-    """Get specific user details"""
+    """Get specific user details - STRICT TENANT ISOLATION"""
     try:
-        user = User.query.get(user_id)
+        # STRICT TENANT ISOLATION: Automatic tenant filtering
+        user = tenant_query(User).filter_by(id=user_id).first()
         if not user:
             return jsonify({'error': 'User not found'}), 404
         
@@ -120,14 +258,36 @@ def get_user(user_id):
         permissions = PermissionManager.get_user_permissions(user_id)
         modules = PermissionManager.get_user_modules(user_id)
         
+        # Safely get organization info if it exists
+        organization_name = None
+        organization_id = None
+        try:
+            # Check if user has organization_id attribute (column exists)
+            if hasattr(user, 'organization_id') and user.organization_id:
+                organization_id = user.organization_id
+                # Try to get organization name if Organization model exists
+                try:
+                    from modules.core.models import Organization
+                    org = Organization.query.get(user.organization_id)
+                    if org:
+                        organization_name = org.name
+                except Exception as org_err:
+                    logger.debug(f"Could not fetch organization for user {user.id}: {org_err}")
+                    pass
+            # Note: User model does not have 'organization' relationship defined
+            # So we don't check for user.organization
+        except Exception as org_err:
+            logger.debug(f"Error getting organization info for user {user.id}: {org_err}")
+            pass
+        
         return jsonify({
             'id': user.id,
             'username': user.username,
             'email': user.email,
             'role': user.role.role_name if user.role else None,
             'role_id': user.role_id,
-            'organization': user.organization.name if user.organization else None,
-            'organization_id': user.organization_id,
+            'organization': organization_name,
+            'organization_id': organization_id,
             'is_active': getattr(user, 'is_active', True),
             'created_at': user.created_at.isoformat() if hasattr(user, 'created_at') and user.created_at else None,
             'last_login': user.last_login.isoformat() if hasattr(user, 'last_login') and user.last_login else None,
@@ -143,9 +303,19 @@ def get_user(user_id):
 @user_management_bp.route('/users/<int:user_id>', methods=['PUT'])
 @require_permission('system.users.update')
 def update_user(user_id):
-    """Update user information"""
+    """Update user information - STRICT TENANT ISOLATION"""
     try:
-        user = User.query.get(user_id)
+        # STRICT TENANT ISOLATION: Get tenant_id for validation
+        tenant_id = get_current_user_tenant_id()
+        if not tenant_id:
+            logger.warning("User has no tenant_id - cannot update user without tenant context")
+            return jsonify({
+                'error': 'Tenant context required',
+                'message': 'User must belong to a tenant to update users'
+            }), 403
+        
+        # STRICT TENANT ISOLATION: Automatic tenant filtering
+        user = tenant_query(User).filter_by(id=user_id).first()
         if not user:
             return jsonify({'error': 'User not found'}), 404
         
@@ -153,23 +323,23 @@ def update_user(user_id):
         
         # Update fields if provided
         if 'username' in data:
-            # Check if username already exists (excluding current user)
-            existing = User.query.filter(
+            # STRICT TENANT ISOLATION: Check if username already exists within same tenant (excluding current user)
+            existing = tenant_query(User).filter(
                 User.username == data['username'],
                 User.id != user_id
             ).first()
             if existing:
-                return jsonify({'error': 'Username already exists'}), 409
+                return jsonify({'error': 'Username already exists in your organization'}), 409
             user.username = data['username']
         
         if 'email' in data:
-            # Check if email already exists (excluding current user)
-            existing = User.query.filter(
+            # STRICT TENANT ISOLATION: Check if email already exists within same tenant (excluding current user)
+            existing = tenant_query(User).filter(
                 User.email == data['email'],
                 User.id != user_id
             ).first()
             if existing:
-                return jsonify({'error': 'Email already exists'}), 409
+                return jsonify({'error': 'Email already exists in your organization'}), 409
             user.email = data['email']
         
         if 'role_id' in data:
@@ -178,7 +348,7 @@ def update_user(user_id):
                 return jsonify({'error': 'Invalid role'}), 400
             user.role_id = data['role_id']
         
-        if 'organization_id' in data:
+        if 'organization_id' in data and hasattr(user, 'organization_id'):
             user.organization_id = data['organization_id']
         
         if 'password' in data and data['password']:
@@ -188,7 +358,48 @@ def update_user(user_id):
             if hasattr(user, 'is_active'):
                 user.is_active = data['is_active']
         
+        # Track old values for audit log
+        old_values = {
+            'username': user.username,
+            'email': user.email,
+            'role_id': user.role_id,
+            'is_active': getattr(user, 'is_active', True)
+        }
+        
         db.session.commit()
+        
+        # Log user update to audit trail
+        try:
+            from services.audit_logger_service import audit_logger
+            from flask import request
+            current_user_id = request.headers.get('X-User-ID')
+            if not current_user_id:
+                from flask_jwt_extended import get_jwt_identity
+                try:
+                    current_user_id = get_jwt_identity()
+                except:
+                    current_user_id = None
+            
+            if audit_logger and current_user_id:
+                new_values = {
+                    'username': user.username,
+                    'email': user.email,
+                    'role_id': user.role_id,
+                    'is_active': getattr(user, 'is_active', True)
+                }
+                # Only log if there were actual changes
+                if old_values != new_values:
+                    audit_logger.log_action(
+                        action='UPDATE',
+                        entity_type='user',
+                        entity_id=str(user_id),
+                        old_values=old_values,
+                        new_values=new_values,
+                        module='admin',
+                        user_id=int(current_user_id)
+                    )
+        except Exception as audit_err:
+            logger.warning(f"Failed to log user update to audit trail: {audit_err}")
         
         return jsonify({
             'message': 'User updated successfully',
@@ -208,32 +419,64 @@ def update_user(user_id):
 @user_management_bp.route('/users/<int:user_id>', methods=['DELETE'])
 @require_permission('system.users.delete')
 def delete_user(user_id):
-    """Delete a user"""
+    """Delete a user - STRICT TENANT ISOLATION"""
     try:
-        user = User.query.get(user_id)
+        # STRICT TENANT ISOLATION: Get tenant_id for validation
+        tenant_id = get_current_user_tenant_id()
+        if not tenant_id:
+            logger.warning("User has no tenant_id - cannot delete user without tenant context")
+            return jsonify({
+                'error': 'Tenant context required',
+                'message': 'User must belong to a tenant to delete users'
+            }), 403
+        
+        # STRICT TENANT ISOLATION: Automatic tenant filtering
+        user = tenant_query(User).filter_by(id=user_id).first()
         if not user:
             return jsonify({'error': 'User not found'}), 404
         
-        # Prevent deleting the last admin
-        if user.role and user.role.role_name == 'admin':
-            admin_count = User.query.join(Role).filter(Role.role_name == 'admin').count()
-            if admin_count <= 1:
-                return jsonify({'error': 'Cannot delete the last admin user'}), 400
-        
-        # Store user info for response
-        deleted_user_info = {
-            'id': user.id,
+        # Track user data for audit log before deletion
+        user_data = {
             'username': user.username,
-            'email': user.email
+            'email': user.email,
+            'role_id': user.role_id,
+            'is_active': getattr(user, 'is_active', True)
         }
         
         db.session.delete(user)
         db.session.commit()
         
-        return jsonify({
-            'message': 'User deleted successfully',
-            'deleted_user': deleted_user_info
-        })
+        # Log user deletion to audit trail
+        try:
+            from services.audit_logger_service import audit_logger
+            current_user_id = request.headers.get('X-User-ID')
+            if not current_user_id:
+                try:
+                    current_user_id = get_jwt_identity()
+                except:
+                    current_user_id = None
+            
+            if audit_logger and current_user_id:
+                audit_logger.log_action(
+                    action='DELETE',
+                    entity_type='user',
+                    entity_id=str(user_id),
+                    old_values=user_data,
+                    module='admin',
+                    user_id=int(current_user_id)
+                )
+        except Exception as audit_err:
+            logger.warning(f"Failed to log user deletion to audit trail: {audit_err}")
+        
+        # Prevent deleting the last superadmin/admin within the same tenant
+        if user.role and user.role.role_name in ['superadmin', 'admin']:
+            admin_count = tenant_query(User).join(Role).filter(
+                Role.role_name.in_(['superadmin', 'admin'])
+            ).count()
+            if admin_count <= 1:
+                return jsonify({'error': 'Cannot delete the last admin user in your organization'}), 400
+        
+        return jsonify({'message': 'User deleted successfully'}), 200
         
     except Exception as e:
         logger.error(f"Error deleting user: {e}")
@@ -243,9 +486,10 @@ def delete_user(user_id):
 @user_management_bp.route('/users/<int:user_id>/activate', methods=['POST'])
 @require_permission('system.users.update')
 def activate_user(user_id):
-    """Activate a user"""
+    """Activate a user - STRICT TENANT ISOLATION"""
     try:
-        user = User.query.get(user_id)
+        # STRICT TENANT ISOLATION: Automatic tenant filtering
+        user = tenant_query(User).filter_by(id=user_id).first()
         if not user:
             return jsonify({'error': 'User not found'}), 404
         
@@ -266,20 +510,29 @@ def activate_user(user_id):
 @user_management_bp.route('/users/<int:user_id>/deactivate', methods=['POST'])
 @require_permission('system.users.update')
 def deactivate_user(user_id):
-    """Deactivate a user"""
+    """Deactivate a user - STRICT TENANT ISOLATION"""
     try:
-        user = User.query.get(user_id)
+        # STRICT TENANT ISOLATION: Get tenant_id for validation
+        tenant_id = get_current_user_tenant_id()
+        if not tenant_id:
+            return jsonify({
+                'error': 'Tenant context required',
+                'message': 'User must belong to a tenant to deactivate users'
+            }), 403
+        
+        # STRICT TENANT ISOLATION: Automatic tenant filtering
+        user = tenant_query(User).filter_by(id=user_id).first()
         if not user:
             return jsonify({'error': 'User not found'}), 404
         
-        # Prevent deactivating the last admin
+        # Prevent deactivating the last admin within the same tenant
         if user.role and user.role.role_name == 'admin':
-            active_admin_count = User.query.join(Role).filter(
+            active_admin_count = tenant_query(User).join(Role).filter(
                 Role.role_name == 'admin',
                 User.id != user_id
             ).count()
             if active_admin_count == 0:
-                return jsonify({'error': 'Cannot deactivate the last admin user'}), 400
+                return jsonify({'error': 'Cannot deactivate the last admin user in your organization'}), 400
         
         if hasattr(user, 'is_active'):
             user.is_active = False
@@ -296,16 +549,42 @@ def deactivate_user(user_id):
         return jsonify({'error': 'Failed to deactivate user'}), 500
 
 @user_management_bp.route('/roles', methods=['GET'])
-@require_permission('system.roles.manage')
+@jwt_required()
 def get_all_roles():
-    """Get all roles with permission counts"""
+    """Get all roles with permission counts - STRICT TENANT ISOLATION"""
     try:
+        # Get current user ID from JWT (already verified by @jwt_required())
+        try:
+            current_user_id = get_jwt_identity()
+        except Exception as jwt_error:
+            logger.error(f"JWT error in get_all_roles: {jwt_error}")
+            return jsonify({'error': 'JWT token error', 'message': str(jwt_error)}), 401
+        
+        if not current_user_id:
+            return jsonify({'error': 'Authentication required', 'message': 'User ID not found in JWT token'}), 401
+        
+        user = User.query.get(current_user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Admin bypass - admin can view roles without explicit permission
+        is_admin = user.role and user.role.role_name == 'admin'
+        
+        # Non-admin users need system.roles.manage permission
+        if not is_admin:
+            # PermissionManager is imported at top of file
+            if not PermissionManager.user_has_permission(current_user_id, 'system.roles.manage'):
+                return jsonify({
+                    'error': 'Insufficient permissions',
+                    'message': 'This action requires the "system.roles.manage" permission'
+                }), 403
+        
         roles = Role.query.all()
         result = []
         
         for role in roles:
-            # Count users with this role
-            user_count = User.query.filter_by(role_id=role.id).count()
+            # STRICT TENANT ISOLATION: Count users with this role within same tenant
+            user_count = tenant_query(User).filter_by(role_id=role.id).count()
             
             # Get permissions count (simplified)
             try:
@@ -336,11 +615,16 @@ def get_all_roles():
 def get_organizations():
     """Get all organizations"""
     try:
+        from modules.core.models import Organization
         organizations = Organization.query.all()
         result = []
         
         for org in organizations:
-            user_count = User.query.filter_by(organization_id=org.id).count()
+            # Check if User model has organization_id field
+            if hasattr(User, 'organization_id'):
+                user_count = User.query.filter_by(organization_id=org.id).count()
+            else:
+                user_count = 0  # Organization not linked to users
             
             result.append({
                 'id': org.id,
@@ -388,30 +672,60 @@ def reset_user_password(user_id):
         return jsonify({'error': 'Failed to reset password'}), 500
 
 @user_management_bp.route('/stats', methods=['GET'])
-@require_permission('system.users.read')
+@jwt_required()
 def get_user_stats():
-    """Get user management statistics"""
+    """Get user management statistics - STRICT TENANT ISOLATION"""
     try:
-        # Total users
-        total_users = User.query.count()
+        # Get current user ID from JWT (already verified by @jwt_required())
+        try:
+            current_user_id = get_jwt_identity()
+        except Exception as jwt_error:
+            logger.error(f"JWT error in get_user_stats: {jwt_error}")
+            return jsonify({'error': 'JWT token error', 'message': str(jwt_error)}), 401
+        
+        if not current_user_id:
+            return jsonify({'error': 'Authentication required', 'message': 'User ID not found in JWT token'}), 401
+        
+        # Get user and check if admin
+        user = User.query.get(current_user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Admin bypass - admin can view stats without explicit permission
+        is_admin = user.role and user.role.role_name == 'admin'
+        
+        # Non-admin users need system.users.read permission
+        if not is_admin:
+            if not PermissionManager.user_has_permission(current_user_id, 'system.users.read'):
+                return jsonify({
+                    'error': 'Insufficient permissions',
+                    'message': 'This action requires the "system.users.read" permission'
+                }), 403
+        
+        # STRICT TENANT ISOLATION: Automatic tenant filtering
+        # Total users in tenant
+        total_users = tenant_query(User).count()
         
         # Active users (if is_active column exists)
         try:
-            active_users = User.query.filter_by(is_active=True).count()
+            active_users = tenant_query(User).filter_by(is_active=True).count()
         except:
             active_users = total_users  # Fallback if column doesn't exist
         
-        # Users by role
+        # Users by role within tenant
+        tenant_id = get_current_user_tenant_id()
         role_stats = db.session.query(
             Role.role_name,
             db.func.count(User.id).label('user_count')
-        ).outerjoin(User).group_by(Role.id, Role.role_name).all()
+        ).join(User).filter(
+            User.tenant_id == tenant_id  # Required for join query
+        ).group_by(Role.id, Role.role_name).all()
         
-        # Recent logins (last 7 days)
+        # Recent logins (last 7 days) within tenant
         try:
             from datetime import datetime, timedelta
             seven_days_ago = datetime.utcnow() - timedelta(days=7)
-            recent_logins = User.query.filter(
+            recent_logins = tenant_query(User).filter(
                 User.last_login >= seven_days_ago
             ).count()
         except:

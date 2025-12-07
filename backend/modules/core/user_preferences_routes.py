@@ -8,6 +8,7 @@ from app import db
 from .user_preferences_models import UserPreferences
 from .tenant_context import require_tenant
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +31,12 @@ def get_user_preferences():
             import jwt
             # Decode JWT token to get user info
             payload = jwt.decode(token, options={"verify_signature": False})
-            user_id = payload.get('sub') or payload.get('user_id') or 'user_1'
+            user_id = payload.get('sub') or payload.get('user_id')
+            if not user_id:
+                return jsonify({'status': 'error', 'message': 'Invalid token - no user ID found'}), 401
         except:
-            # Fallback for simple tokens
-            user_id = 'user_1'
+            # No fallback - require valid token
+            return jsonify({'status': 'error', 'message': 'Invalid token format'}), 401
         
         preferences = UserPreferences.get_user_preferences(user_id)
         
@@ -41,10 +44,10 @@ def get_user_preferences():
             # Create default preferences for new user
             preferences = UserPreferences.create_or_update(
                 user_id=user_id,
-                selected_modules=['financials', 'inventory', 'crm', 'procurement'],
-                industry='retail',
-                business_size='small',
-                company_name='My Company'
+                selected_modules=os.getenv('DEFAULT_MODULES', 'financials,inventory,crm,procurement').split(','),
+                industry=os.getenv('DEFAULT_INDUSTRY', 'retail'),
+                business_size=os.getenv('DEFAULT_BUSINESS_SIZE', 'small'),
+                company_name=os.getenv('DEFAULT_COMPANY_NAME', 'My Company')
             )
         
         return jsonify({
@@ -71,10 +74,12 @@ def update_user_preferences():
             import jwt
             # Decode JWT token to get user info
             payload = jwt.decode(token, options={"verify_signature": False})
-            user_id = payload.get('sub') or payload.get('user_id') or 'user_1'
+            user_id = payload.get('sub') or payload.get('user_id')
+            if not user_id:
+                return jsonify({'status': 'error', 'message': 'Invalid token - no user ID found'}), 401
         except:
-            # Fallback for simple tokens
-            user_id = 'user_1'
+            # No fallback - require valid token
+            return jsonify({'status': 'error', 'message': 'Invalid token format'}), 401
         
         data = request.get_json() or {}
         
@@ -104,7 +109,7 @@ def get_user_modules():
         
         if not preferences:
             # Return default modules for new user
-            default_modules = ['financials', 'inventory', 'crm', 'procurement']
+            default_modules = os.getenv('DEFAULT_MODULES', 'financials,inventory,crm,procurement').split(',')
             return jsonify({
                 'status': 'success',
                 'modules': default_modules,
@@ -222,15 +227,15 @@ def reset_user_preferences():
         # Reset to default preferences
         preferences = UserPreferences.create_or_update(
             user_id=user_id,
-            selected_modules=['financials', 'inventory', 'crm', 'procurement'],
-            industry='retail',
-            business_size='small',
-            company_name='My Company',
-            theme='light',
-            language='en',
-            default_currency='USD',
-            timezone='UTC',
-            date_format='YYYY-MM-DD',
+            selected_modules=os.getenv('DEFAULT_MODULES', 'financials,inventory,crm,procurement').split(','),
+            industry=os.getenv('DEFAULT_INDUSTRY', 'retail'),
+            business_size=os.getenv('DEFAULT_BUSINESS_SIZE', 'small'),
+            company_name=os.getenv('DEFAULT_COMPANY_NAME', 'My Company'),
+            theme=os.getenv('DEFAULT_THEME', 'light'),
+            language=os.getenv('DEFAULT_LANGUAGE', 'en'),
+            default_currency=os.getenv('DEFAULT_CURRENCY', 'USD'),
+            timezone=os.getenv('DEFAULT_TIMEZONE', 'UTC'),
+            date_format=os.getenv('DEFAULT_DATE_FORMAT', 'YYYY-MM-DD'),
             notifications_enabled=True,
             module_settings={},
             dashboard_layout={}

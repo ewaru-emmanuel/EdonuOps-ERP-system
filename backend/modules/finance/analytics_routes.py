@@ -4,7 +4,8 @@ Provides comprehensive reconciliation analytics and insights
 """
 
 from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from modules.core.permissions import require_permission
+from flask_jwt_extended import get_jwt_identity
 from datetime import datetime, timedelta
 import logging
 from .analytics_service import reconciliation_analytics
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/api/finance/analytics')
 
 @analytics_bp.route('/trends', methods=['GET'])
-@jwt_required()
+@require_permission('finance.reports.read')
 def get_trends():
     """Get reconciliation trends over time"""
     try:
@@ -50,7 +51,7 @@ def get_trends():
         return jsonify({'error': str(e)}), 500
 
 @analytics_bp.route('/account-performance', methods=['GET'])
-@jwt_required()
+@require_permission('finance.reports.read')
 def get_account_performance():
     """Get performance metrics for bank accounts"""
     try:
@@ -84,7 +85,7 @@ def get_account_performance():
         return jsonify({'error': str(e)}), 500
 
 @analytics_bp.route('/discrepancy-analysis', methods=['GET'])
-@jwt_required()
+@require_permission('finance.reports.read')
 def get_discrepancy_analysis():
     """Analyze reconciliation discrepancies"""
     try:
@@ -100,7 +101,7 @@ def get_discrepancy_analysis():
         return jsonify({'error': str(e)}), 500
 
 @analytics_bp.route('/matching-efficiency', methods=['GET'])
-@jwt_required()
+@require_permission('finance.reports.read')
 def get_matching_efficiency():
     """Analyze transaction matching efficiency"""
     try:
@@ -116,7 +117,7 @@ def get_matching_efficiency():
         return jsonify({'error': str(e)}), 500
 
 @analytics_bp.route('/optimization-recommendations', methods=['GET'])
-@jwt_required()
+@require_permission('finance.reports.read')
 def get_optimization_recommendations():
     """Get optimization recommendations"""
     try:
@@ -131,7 +132,7 @@ def get_optimization_recommendations():
         return jsonify({'error': str(e)}), 500
 
 @analytics_bp.route('/performance-metrics', methods=['GET'])
-@jwt_required()
+@require_permission('finance.reports.read')
 def get_performance_metrics():
     """Get system performance metrics"""
     try:
@@ -146,7 +147,7 @@ def get_performance_metrics():
         return jsonify({'error': str(e)}), 500
 
 @analytics_bp.route('/bottlenecks', methods=['GET'])
-@jwt_required()
+@require_permission('finance.reports.read')
 def get_bottlenecks():
     """Identify performance bottlenecks"""
     try:
@@ -161,7 +162,7 @@ def get_bottlenecks():
         return jsonify({'error': str(e)}), 500
 
 @analytics_bp.route('/cache-stats', methods=['GET'])
-@jwt_required()
+@require_permission('finance.reports.read')
 def get_cache_stats():
     """Get cache statistics"""
     try:
@@ -177,7 +178,7 @@ def get_cache_stats():
         return jsonify({'error': str(e)}), 500
 
 @analytics_bp.route('/dashboard-summary', methods=['GET'])
-@jwt_required()
+@require_permission('finance.reports.read')
 def get_dashboard_summary():
     """Get comprehensive dashboard summary"""
     try:
@@ -232,7 +233,7 @@ def get_dashboard_summary():
         return jsonify({'error': str(e)}), 500
 
 @analytics_bp.route('/export-report', methods=['POST'])
-@jwt_required()
+@require_permission('finance.reports.read')
 def export_report():
     """Export analytics report"""
     try:
@@ -278,7 +279,7 @@ def export_report():
         return jsonify({'error': str(e)}), 500
 
 @analytics_bp.route('/quick-actions', methods=['GET'])
-@jwt_required()
+@require_permission('finance.reports.read')
 def get_quick_actions():
     """Get quick actions for mobile interface"""
     try:

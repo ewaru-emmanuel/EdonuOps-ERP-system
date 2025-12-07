@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from modules.core.permissions import require_permission
 from app import db
 from modules.inventory.advanced_models import (
     UnitOfMeasure, UOMConversion, ProductCategory, InventoryProduct, ProductVariant,
@@ -21,6 +22,7 @@ advanced_inventory_bp = Blueprint('advanced_inventory', __name__)
 
 # Unit of Measure Routes
 @advanced_inventory_bp.route('/uom', methods=['GET'])
+@require_permission('uom.uom.read')
 def get_uom():
     """Get all units of measure"""
     try:
@@ -36,6 +38,7 @@ def get_uom():
         return jsonify({'error': str(e)}), 500
 
 @advanced_inventory_bp.route('/uom', methods=['POST'])
+@require_permission('uom.uom.create')
 def create_uom():
     """Create new unit of measure"""
     try:
@@ -54,6 +57,7 @@ def create_uom():
         return jsonify({'error': str(e)}), 500
 
 @advanced_inventory_bp.route('/uom/<int:uom_id>', methods=['PUT'])
+@require_permission('uom.uom.update')
 def update_uom(uom_id):
     """Update unit of measure"""
     try:
@@ -72,6 +76,7 @@ def update_uom(uom_id):
         return jsonify({'error': str(e)}), 500
 
 @advanced_inventory_bp.route('/uom/<int:uom_id>', methods=['DELETE'])
+@require_permission('uom.uom.delete')
 def delete_uom(uom_id):
     """Delete UoM"""
     try:
@@ -85,6 +90,7 @@ def delete_uom(uom_id):
 
 # UoM Conversion Routes
 @advanced_inventory_bp.route('/uom-conversions', methods=['GET'])
+@require_permission('uom-conversions.uom-conversions.read')
 def get_uom_conversions():
     """Get all UoM conversions"""
     try:
@@ -99,6 +105,7 @@ def get_uom_conversions():
         return jsonify({'error': str(e)}), 500
 
 @advanced_inventory_bp.route('/uom-conversions', methods=['POST'])
+@require_permission('inventory.settings.create')
 def create_uom_conversion():
     """Create new UoM conversion"""
     try:
@@ -117,6 +124,7 @@ def create_uom_conversion():
 
 # Product Category Routes
 @advanced_inventory_bp.route('/categories', methods=['GET'])
+@require_permission('inventory.categories.read')
 def get_categories():
     """Get all product categories"""
     try:
@@ -132,6 +140,7 @@ def get_categories():
         return jsonify({'error': str(e)}), 500
 
 @advanced_inventory_bp.route('/categories', methods=['POST'])
+@require_permission('inventory.categories.create')
 def create_category():
     """Create new product category"""
     try:
@@ -151,6 +160,7 @@ def create_category():
 
 # Update Category
 @advanced_inventory_bp.route('/categories/<int:category_id>', methods=['PUT'])
+@require_permission('inventory.categories.update')
 def update_category(category_id):
     """Update product category"""
     try:
@@ -170,6 +180,7 @@ def update_category(category_id):
 
 # Delete Category
 @advanced_inventory_bp.route('/categories/<int:category_id>', methods=['DELETE'])
+@require_permission('inventory.categories.delete')
 def delete_category(category_id):
     """Delete product category"""
     try:
@@ -189,6 +200,7 @@ def delete_category(category_id):
 
 # Product Routes
 @advanced_inventory_bp.route('/products', methods=['GET'])
+@require_permission('inventory.products.read')
 def get_products():
     """Get all products with variants"""
     try:
@@ -233,6 +245,7 @@ def get_products():
         return jsonify({'error': str(e)}), 500
 
 @advanced_inventory_bp.route('/products/<int:product_id>', methods=['GET'])
+@require_permission('inventory.products.read')
 def get_product(product_id):
     """Get a specific product by ID"""
     try:
@@ -276,6 +289,7 @@ def get_product(product_id):
         return jsonify({'error': str(e)}), 500
 
 @advanced_inventory_bp.route('/products', methods=['POST'])
+@require_permission('inventory.products.create')
 def create_product():
     """Create new product"""
     try:
@@ -310,6 +324,7 @@ def create_product():
         return jsonify({'error': str(e)}), 500
 
 @advanced_inventory_bp.route('/products/<int:product_id>', methods=['PUT'])
+@require_permission('inventory.products.update')
 def update_product(product_id):
     """Update product"""
     try:
@@ -330,6 +345,7 @@ def update_product(product_id):
         return jsonify({'error': str(e)}), 500
 
 @advanced_inventory_bp.route('/products/<int:product_id>', methods=['DELETE'])
+@require_permission('inventory.products.delete')
 def delete_product(product_id):
     """Delete a product"""
     try:
@@ -352,6 +368,7 @@ def delete_product(product_id):
 
 # Product Variant Routes
 @advanced_inventory_bp.route('/products/<int:product_id>/variants', methods=['POST'])
+@require_permission('inventory.products.create')
 def create_product_variant(product_id):
     """Create new product variant"""
     try:
@@ -371,6 +388,7 @@ def create_product_variant(product_id):
 
 # Stock Levels Routes
 @advanced_inventory_bp.route('/stock-levels', methods=['GET'])
+@require_permission('inventory.stock.read')
 def get_stock_levels():
     """Get all stock levels"""
     try:
@@ -395,6 +413,7 @@ def get_stock_levels():
         return jsonify({'error': str(e)}), 500
 
 @advanced_inventory_bp.route('/stock-levels', methods=['POST'])
+@require_permission('inventory.stock.update')
 def add_stock():
     """Add stock to a product"""
     try:
@@ -476,6 +495,7 @@ def add_stock():
         return jsonify({'error': f'Error adding stock: {str(e)}'}), 500
 
 @advanced_inventory_bp.route('/stock-take', methods=['POST'])
+@require_permission('inventory.stock.update')
 def record_stock_take():
     """Record a stock take/adjustment"""
     try:
@@ -551,6 +571,7 @@ def record_stock_take():
 
 # Pick Lists Routes
 @advanced_inventory_bp.route('/pick-lists', methods=['GET'])
+@require_permission('inventory.warehouses.read')
 def get_pick_lists():
     """Get all pick lists"""
     try:
@@ -574,6 +595,7 @@ def get_pick_lists():
 
 # Warehouse Activity Routes
 @advanced_inventory_bp.route('/warehouse-activity', methods=['GET'])
+@require_permission('inventory.warehouses.read')
 def get_warehouse_activity():
     """Get warehouse activity"""
     try:
@@ -597,6 +619,7 @@ def get_warehouse_activity():
 
 # Predictive Stockouts Routes
 @advanced_inventory_bp.route('/predictive-stockouts', methods=['GET'])
+@require_permission('inventory.reports.read')
 def get_predictive_stockouts():
     """Get predictive stockouts"""
     try:
@@ -620,6 +643,7 @@ def get_predictive_stockouts():
 
 # Picker Performance Routes
 @advanced_inventory_bp.route('/picker-performance', methods=['GET'])
+@require_permission('inventory.reports.read')
 def get_picker_performance():
     """Get picker performance"""
     try:
@@ -645,6 +669,7 @@ def get_picker_performance():
 
 # Warehouse Map Routes
 @advanced_inventory_bp.route('/warehouse-map', methods=['GET'])
+@require_permission('inventory.warehouses.read')
 def get_warehouse_map():
     """Get warehouse map data"""
     try:
@@ -674,6 +699,7 @@ def get_warehouse_map():
 
 # Live Activity Routes
 @advanced_inventory_bp.route('/live-activity', methods=['GET'])
+@require_permission('inventory.warehouses.read')
 def get_live_activity():
     """Get live warehouse activity"""
     try:
@@ -695,6 +721,7 @@ def get_live_activity():
 
 # Warehouse Zones Routes
 @advanced_inventory_bp.route('/warehouse-zones', methods=['GET'])
+@require_permission('inventory.warehouses.read')
 def get_warehouse_zones():
     """Get all warehouse zones"""
     try:
@@ -742,6 +769,7 @@ def get_warehouse_zones():
         return jsonify({'error': str(e)}), 500
 
 @advanced_inventory_bp.route('/warehouse-zones', methods=['POST'])
+@require_permission('inventory.warehouses.create')
 def create_warehouse_zone():
     """Create a new warehouse zone"""
     try:
@@ -796,6 +824,7 @@ mock_aisles = [
 ]
 
 @advanced_inventory_bp.route('/warehouse-aisles', methods=['GET'])
+@require_permission('inventory.warehouses.read')
 def get_warehouse_aisles():
     """Get all warehouse aisles"""
     try:
@@ -804,6 +833,7 @@ def get_warehouse_aisles():
         return jsonify({'error': str(e)}), 500
 
 @advanced_inventory_bp.route('/warehouse-aisles', methods=['POST'])
+@require_permission('inventory.warehouses.create')
 def create_warehouse_aisle():
     """Create a new warehouse aisle"""
     try:
@@ -826,6 +856,7 @@ def create_warehouse_aisle():
 
 # Warehouse Locations Routes
 @advanced_inventory_bp.route('/warehouse-locations', methods=['GET'])
+@require_permission('inventory.warehouses.read')
 def get_warehouse_locations():
     """Get all warehouse locations"""
     try:
@@ -861,6 +892,7 @@ def get_warehouse_locations():
         return jsonify({'error': str(e)}), 500
 
 @advanced_inventory_bp.route('/warehouse-locations', methods=['POST'])
+@require_permission('inventory.warehouses.create')
 def create_warehouse_location():
     """Create a new warehouse location"""
     try:

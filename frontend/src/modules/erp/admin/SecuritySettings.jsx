@@ -89,26 +89,71 @@ const SecuritySettings = () => {
   
   useEffect(() => {
     if (policiesData) {
-      // Load policies into state
-      const passwordPolicyData = policiesData.find(p => p.policy_name === 'password_policy');
-      const sessionPolicyData = policiesData.find(p => p.policy_name === 'session_policy');
-      const loginPolicyData = policiesData.find(p => p.policy_name === 'login_policy');
+      // Handle response structure: {success: true, data: [...]} or direct array
+      let policiesArray = [];
+      if (Array.isArray(policiesData)) {
+        policiesArray = policiesData;
+      } else if (policiesData.data && Array.isArray(policiesData.data)) {
+        policiesArray = policiesData.data;
+      } else if (policiesData.success && policiesData.data && Array.isArray(policiesData.data)) {
+        policiesArray = policiesData.data;
+      }
       
+      // Load policies into state
+      // Backend returns policies with 'name' field (e.g., 'password_policy', 'session_policy', 'login_policy')
+      // or we can use the first policy if no specific names match
+      const passwordPolicyData = policiesArray.find(p => 
+        (p.policy_name === 'password_policy' || p.name === 'password_policy') ||
+        (p.name && p.name.toLowerCase().includes('password'))
+      );
+      const sessionPolicyData = policiesArray.find(p => 
+        (p.policy_name === 'session_policy' || p.name === 'session_policy') ||
+        (p.name && p.name.toLowerCase().includes('session'))
+      );
+      const loginPolicyData = policiesArray.find(p => 
+        (p.policy_name === 'login_policy' || p.name === 'login_policy') ||
+        (p.name && p.name.toLowerCase().includes('login'))
+      );
+      
+      // If no policies found, use the first policy or create defaults from the policy object
       if (passwordPolicyData) {
-        setPasswordPolicy(prev => ({ ...prev, ...passwordPolicyData.configuration }));
+        // SecurityPolicy model returns fields directly (password_min_length, etc.), not in a 'configuration' object
+        setPasswordPolicy(prev => ({
+          ...prev,
+          min_length: passwordPolicyData.password_min_length || prev.min_length,
+          require_uppercase: passwordPolicyData.password_require_uppercase ?? prev.require_uppercase,
+          require_lowercase: passwordPolicyData.password_require_lowercase ?? prev.require_lowercase,
+          require_numbers: passwordPolicyData.password_require_numbers ?? prev.require_numbers,
+          require_special_chars: passwordPolicyData.password_require_special ?? prev.require_special_chars,
+          password_expiry_days: passwordPolicyData.password_expiry_days || prev.password_expiry_days
+        }));
       }
       if (sessionPolicyData) {
-        setSessionPolicy(prev => ({ ...prev, ...sessionPolicyData.configuration }));
+        setSessionPolicy(prev => ({
+          ...prev,
+          session_timeout_minutes: sessionPolicyData.session_timeout_minutes || prev.session_timeout_minutes
+        }));
       }
       if (loginPolicyData) {
-        setLoginPolicy(prev => ({ ...prev, ...loginPolicyData.configuration }));
+        setLoginPolicy(prev => ({
+          ...prev,
+          max_failed_attempts: loginPolicyData.max_login_attempts || prev.max_failed_attempts,
+          lockout_duration_minutes: loginPolicyData.lockout_duration_minutes || prev.lockout_duration_minutes
+        }));
       }
     }
   }, [policiesData]);
   
   useEffect(() => {
     if (twoFactorData) {
-      setTwoFactorStatus(twoFactorData);
+      // Handle response structure: {success: true, data: {...}} or direct data
+      if (twoFactorData.data) {
+        setTwoFactorStatus(twoFactorData.data);
+      } else if (twoFactorData.success && twoFactorData.data) {
+        setTwoFactorStatus(twoFactorData.data);
+      } else {
+        setTwoFactorStatus(twoFactorData);
+      }
     }
   }, [twoFactorData]);
   

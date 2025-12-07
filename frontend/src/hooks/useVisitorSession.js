@@ -7,7 +7,7 @@ export const useVisitorSession = () => {
   // In development, use full URL to backend; in production, use relative URLs
   const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
   const API_BASE = process.env.REACT_APP_API_BASE || process.env.REACT_APP_API_URL || 
-                  (isDevelopment ? 'http://localhost:5000/api' : '/api');
+                  (isDevelopment ? `${process.env.REACT_APP_API_URL || ''}/api` : '/api');
 
   useEffect(() => {
     // Generate or retrieve unique visitor ID

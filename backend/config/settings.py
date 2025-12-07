@@ -5,7 +5,7 @@ load_dotenv()
 
 class Config:
     # Database Configuration
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'postgresql://edonuops:password@localhost:5432/edonuops_erp')
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', '')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_size': 20,
@@ -19,10 +19,12 @@ class Config:
     REDIS_CACHE_TTL = 3600  # 1 hour default
     
     # Security Configuration
-    SECRET_KEY = os.getenv('SECRET_KEY', 'your-secret-key-change-in-production')
-    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'your-jwt-secret-key-change-in-production')
-    JWT_ACCESS_TOKEN_EXPIRES = 3600  # 1 hour
-    JWT_REFRESH_TOKEN_EXPIRES = 86400  # 24 hours
+    SECRET_KEY = os.getenv('SECRET_KEY', '')
+    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', '')
+    # Industry Standard: 1 hour access tokens (SAP, Oracle, Microsoft standard)
+    # Refresh tokens handle seamless re-authentication without user interruption
+    JWT_ACCESS_TOKEN_EXPIRES = 3600  # 1 hour - Industry standard for ERP systems
+    JWT_REFRESH_TOKEN_EXPIRES = 604800  # 7 days - Standard refresh token lifetime
     
     # API Configuration
     API_RATE_LIMIT = '1000 per hour'
@@ -63,17 +65,20 @@ class Config:
 
 class DevelopmentConfig(Config):
     DEBUG = True
-    # Use absolute path for SQLite database
-    import os
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'edonuops.db')
-    SQLALCHEMY_DATABASE_URI = os.getenv('DEV_DATABASE_URL', f'sqlite:///{db_path}')
+    # Use PostgreSQL for development (AWS RDS)
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', '')
     REDIS_URL = os.getenv('DEV_REDIS_URL', 'redis://localhost:6379/1')
-    # SQLite-specific settings for proper transaction handling
+    
+    # Development: Longer tokens for convenience during testing
+    JWT_ACCESS_TOKEN_EXPIRES = 86400  # 24 hours (convenient for development)
+    # PostgreSQL-specific settings for proper connection handling
     SQLALCHEMY_ENGINE_OPTIONS = {
-        'isolation_level': 'SERIALIZABLE',  # Highest isolation level
+        'pool_size': 10,
+        'pool_recycle': 3600,
+        'pool_pre_ping': True,
+        'max_overflow': 20,
         'connect_args': {
-            'timeout': 30,  # Connection timeout
-            'check_same_thread': False,  # Allow multi-threading
+            'sslmode': 'require'  # AWS RDS requires SSL
         }
     }
 
@@ -87,12 +92,16 @@ class ProductionConfig(Config):
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     
+    # Production: Strict token expiration (industry standard)
+    JWT_ACCESS_TOKEN_EXPIRES = 3600  # 1 hour - Industry standard (SAP, Oracle, Microsoft)
+    JWT_REFRESH_TOKEN_EXPIRES = 604800  # 7 days
+    
     # Production logging
     LOG_LEVEL = 'WARNING'
 
 class TestingConfig(Config):
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = os.getenv('TEST_DATABASE_URL', 'postgresql://edonuops:password@localhost:5432/edonuops_test')
+    SQLALCHEMY_DATABASE_URI = os.getenv('TEST_DATABASE_URL', '')
     REDIS_URL = os.getenv('TEST_REDIS_URL', 'redis://localhost:6379/2')
     WTF_CSRF_ENABLED = False
 

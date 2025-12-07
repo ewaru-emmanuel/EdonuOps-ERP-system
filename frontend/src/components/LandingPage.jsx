@@ -1,26 +1,25 @@
 import React, { useState } from 'react';
 import {
   Box, Container, Typography, Button, Grid, Card, CardContent,
-  Avatar, Chip, Paper, useTheme, useMediaQuery, AppBar, Toolbar,
-  IconButton, Drawer, List, ListItem, ListItemText, ListItemIcon,
+  Avatar, Chip, Paper, useTheme, useMediaQuery,
   Divider, Stack, Alert, Snackbar
 } from '@mui/material';
 import {
   Business, AccountBalance, Inventory, People, TrendingUp,
-  CheckCircle, Star, Security, Speed, Support, Menu, Close,
+  CheckCircle, Star, Security, Speed, Support,
   ArrowForward, ArrowDownward, Visibility, VisibilityOff,
   Email, Lock, Person
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import DashboardMockup from './DashboardMockup';
+import TopNav from './TopNav';
 
 const LandingPage = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [signupData, setSignupData] = useState({
     name: '',
@@ -75,28 +74,7 @@ const LandingPage = () => {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Navigation */}
-      <AppBar position="fixed" color="transparent" elevation={0} sx={{ bgcolor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(10px)' }}>
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 'bold', color: 'primary.main' }}>
-            EdonuOps
-          </Typography>
-          
-          {!isMobile ? (
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <Button color="inherit" onClick={() => handleModuleClick('financials')}>Financials</Button>
-              <Button color="inherit" onClick={() => handleModuleClick('inventory')}>Inventory</Button>
-              <Button color="inherit" onClick={() => handleModuleClick('crm')}>CRM</Button>
-              <Button color="inherit" onClick={() => navigate('/login')}>Login</Button>
-              <Button variant="outlined" sx={{ color: 'primary.main', borderColor: 'primary.main' }} onClick={() => navigate('/register')}>Sign Up</Button>
-              <Button variant="contained" onClick={handleStartTrial}>Start Free Trial</Button>
-            </Box>
-          ) : (
-            <IconButton onClick={() => setMobileMenuOpen(true)}>
-              <Menu />
-            </IconButton>
-          )}
-        </Toolbar>
-      </AppBar>
+      <TopNav onModuleClick={handleModuleClick} />
 
       {/* Hero Section */}
       <Box sx={{ pt: 10, pb: 8, bgcolor: 'primary.main', color: 'white' }}>
@@ -122,7 +100,7 @@ const LandingPage = () => {
                 }}
               >
                 <Typography variant="body2">
-                  🔒 <strong>Secure Enterprise ERP</strong> - Authentication required for all business operations
+                  <strong>Secure Enterprise ERP</strong> - Authentication required for all business operations
                 </Typography>
               </Alert>
               

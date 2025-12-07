@@ -311,7 +311,7 @@ const WorkflowBasedUX = ({ onWorkflowComplete, accounts = [] }) => {
                 return (
                   <Chip
                     key={accountCode}
-                    label={`${accountCode} - ${account?.name || 'Unknown'}`}
+                    label={account?.name || 'Unknown'}
                     size="small"
                     variant="outlined"
                   />

@@ -34,7 +34,7 @@ const AuditFilters = () => {
       description: 'Filter for critical security-related events',
       severity: ['Critical', 'Error'],
       modules: ['Authentication', 'User Management'],
-      users: ['admin@company.com'],
+      users: [process.env.REACT_APP_DEFAULT_ADMIN_EMAIL || 'admin@company.com'],
       active: true
     },
     {
@@ -52,7 +52,7 @@ const AuditFilters = () => {
       description: 'Track system-level events and backups',
       severity: ['Info'],
       modules: ['System'],
-      users: ['system@company.com'],
+      users: [process.env.REACT_APP_SYSTEM_USER || 'system@company.com'],
       active: false
     }
   ]);

@@ -22,7 +22,7 @@ const CoATree = ({ onSelect }) => {
         label={
           <Stack direction="row" alignItems="center" spacing={1}>
             <Typography variant="body2">
-              {account.code} - {account.name}
+              {account.name}
             </Typography>
             <Chip 
               label={account.type} 

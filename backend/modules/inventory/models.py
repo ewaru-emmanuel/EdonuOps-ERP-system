@@ -1,6 +1,5 @@
 from app import db
 from datetime import datetime
-# Remove PostgreSQL-specific import for SQLite compatibility
 
 class Category(db.Model):
     __tablename__ = 'product_categories'
@@ -9,8 +8,7 @@ class Category(db.Model):
     description = db.Column(db.Text)
     parent_id = db.Column(db.Integer, db.ForeignKey('product_categories.id'))
     is_active = db.Column(db.Boolean, default=True)
-    user_id = db.Column(db.Integer)  # Standardized user identification)  # User isolation
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # User isolation - Multi-tenancy support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Self-referential relationship
@@ -33,8 +31,8 @@ class Product(db.Model):
     max_stock = db.Column(db.Float, default=0.0)
     is_active = db.Column(db.Boolean, default=True)
     status = db.Column(db.String(20), default='active')  # active, inactive, discontinued
-    user_id = db.Column(db.Integer)  # Standardized user identification)  # User isolation
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide products
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -54,8 +52,8 @@ class BasicInventoryTransaction(db.Model):
     reference_id = db.Column(db.Integer)  # ID of the reference document
     warehouse_id = db.Column(db.Integer, db.ForeignKey('warehouses.id'), default=1)
     notes = db.Column(db.Text)
-    user_id = db.Column(db.Integer)  # Standardized user identification)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide transactions
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -75,8 +73,8 @@ class StockMovement(db.Model):
     from_warehouse_id = db.Column(db.Integer, db.ForeignKey('warehouses.id'))  # For transfers
     to_warehouse_id = db.Column(db.Integer, db.ForeignKey('warehouses.id'))  # For transfers
     notes = db.Column(db.Text)
-    user_id = db.Column(db.Integer)  # Standardized user identification)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide movements
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -92,6 +90,6 @@ class Warehouse(db.Model):
     location = db.Column(db.String(200))  # Added location field
     capacity = db.Column(db.Integer)  # Added capacity field
     is_active = db.Column(db.Boolean, default=True)
-    user_id = db.Column(db.Integer)  # Standardized user identification)  # User isolation
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide warehouses
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

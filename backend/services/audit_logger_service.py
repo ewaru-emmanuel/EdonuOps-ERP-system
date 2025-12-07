@@ -92,27 +92,40 @@ class AuditLoggerService:
             if not changes_summary and old_values and new_values:
                 changes_summary = cls._generate_changes_summary(old_values, new_values)
             
+            # Build details JSON with all additional information
+            details_dict = {
+                'username': user_context.get('username'),
+                'user_role': user_context.get('user_role'),
+                'request_method': request_context.get('request_method'),
+                'request_url': request_context.get('request_url'),
+                'old_values': old_values,
+                'new_values': new_values,
+                'changes_summary': changes_summary,
+                'source': source,
+                'success': success,
+                'error_message': error_message,
+                'session_id': request_context.get('session_id'),
+                'correlation_id': correlation_id
+            }
+            # Remove None values to keep JSON clean
+            details_dict = {k: v for k, v in details_dict.items() if v is not None}
+            
+            # Get tenant_id from user context if available
+            tenant_id = user_context.get('tenant_id')
+            
+            # Map fields to match AuditLog model structure
             audit_log = AuditLog(
                 timestamp=datetime.utcnow(),
-                user_id=user_context['user_id'],
-                username=user_context['username'],
-                user_role=user_context['user_role'],
+                tenant_id=tenant_id,
+                user_id=user_context.get('user_id'),
                 action=action,
-                entity_type=entity_type,
-                entity_id=entity_id,
-                ip_address=request_context['ip_address'],
-                user_agent=request_context['user_agent'],
-                request_method=request_context['request_method'],
-                request_url=request_context['request_url'],
-                old_values=old_values,
-                new_values=new_values,
-                changes_summary=changes_summary,
+                resource=entity_type,  # Map entity_type to resource field
+                resource_id=str(entity_id) if entity_id else None,
+                details=json.dumps(details_dict) if details_dict else None,
+                ip_address=request_context.get('ip_address'),
+                user_agent=request_context.get('user_agent'),
                 module=module,
-                source=source,
-                success=success,
-                error_message=error_message,
-                session_id=request_context['session_id'],
-                correlation_id=correlation_id
+                severity='ERROR' if not success else 'INFO'
             )
             
             db.session.add(audit_log)
@@ -128,32 +141,45 @@ class AuditLoggerService:
     @classmethod
     def log_login(cls, 
                   user_id: int,
-                  username: str,
+                  username: str = None,
                   action: str = 'LOGIN',
                   success: bool = True,
                   failure_reason: Optional[str] = None,
                   is_suspicious: bool = False):
         """
-        Log login/logout events
+        Log login/logout events to LoginHistory table
+        Note: LoginHistory model uses login_time (not timestamp), and doesn't have username, action, session_id, or is_suspicious
         """
         try:
             request_context = cls.get_request_context()
             
+            # LoginHistory model structure: user_id, login_time, ip_address, user_agent, success, failure_reason, tenant_id
             login_history = LoginHistory(
-                timestamp=datetime.utcnow(),
                 user_id=user_id,
-                username=username,
-                action=action,
-                ip_address=request_context['ip_address'],
-                user_agent=request_context['user_agent'],
-                session_id=request_context['session_id'],
+                login_time=datetime.utcnow(),  # Use login_time, not timestamp
+                ip_address=request_context.get('ip_address'),
+                user_agent=request_context.get('user_agent'),
                 success=success,
                 failure_reason=failure_reason,
-                is_suspicious=is_suspicious
+                tenant_id=request_context.get('tenant_id')
             )
             
             db.session.add(login_history)
             db.session.commit()
+            
+            # Also log to AuditLog for comprehensive audit trail
+            try:
+                cls.log_action(
+                    action=action,
+                    entity_type='user',
+                    entity_id=str(user_id),
+                    module='auth',
+                    success=success,
+                    error_message=failure_reason,
+                    user_id=user_id if success else None
+                )
+            except:
+                pass  # Don't fail if audit log fails
             
             return login_history.id
             
@@ -350,10 +376,10 @@ class AuditLoggerService:
             from datetime import timedelta
             cutoff_date = datetime.utcnow() - timedelta(days=days)
             
-            # Failed logins
+            # Failed logins (LoginHistory uses login_time, not timestamp)
             failed_logins = db.session.query(LoginHistory).filter(
                 and_(
-                    LoginHistory.timestamp >= cutoff_date,
+                    LoginHistory.login_time >= cutoff_date,
                     LoginHistory.success == False
                 )
             ).count()
@@ -361,22 +387,24 @@ class AuditLoggerService:
             # Successful logins
             successful_logins = db.session.query(LoginHistory).filter(
                 and_(
-                    LoginHistory.timestamp >= cutoff_date,
+                    LoginHistory.login_time >= cutoff_date,
                     LoginHistory.success == True
                 )
             ).count()
             
-            # Suspicious activities
+            # Suspicious activities (check for multiple failed logins from same IP)
+            # Note: LoginHistory doesn't have is_suspicious, so we'll count failed logins from unique IPs
             suspicious_activities = db.session.query(LoginHistory).filter(
                 and_(
-                    LoginHistory.timestamp >= cutoff_date,
-                    LoginHistory.is_suspicious == True
+                    LoginHistory.login_time >= cutoff_date,
+                    LoginHistory.success == False,
+                    LoginHistory.ip_address.isnot(None)
                 )
-            ).count()
+            ).distinct(LoginHistory.ip_address).count()
             
-            # Permission changes
+            # Permission changes (PermissionChange uses changed_at, not timestamp)
             permission_changes = db.session.query(PermissionChange).filter(
-                PermissionChange.timestamp >= cutoff_date
+                PermissionChange.changed_at >= cutoff_date
             ).count()
             
             # Recent activity

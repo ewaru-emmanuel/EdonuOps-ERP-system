@@ -25,6 +25,8 @@ class Vendor(db.Model):
     quality_score = db.Column(db.Float, default=0.0)
     performance_notes = db.Column(db.Text)
     last_reviewed_at = db.Column(db.DateTime)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide vendors
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -43,7 +45,8 @@ class PurchaseOrder(db.Model):
     total_amount = db.Column(db.Float, default=0.0)
     tax_amount = db.Column(db.Float, default=0.0)
     notes = db.Column(db.Text)
-    user_id = db.Column(db.Integer)  # Standardized user identification)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide POs
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     approved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     approved_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

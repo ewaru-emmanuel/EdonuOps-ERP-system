@@ -2,8 +2,9 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from app import db
 from modules.dashboard.models import UserModules, Dashboard, DashboardWidget, WidgetTemplate, DashboardTemplate
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
-module_activation_bp = Blueprint('module_activation', __name__, url_prefix='/api/dashboard/modules')
+module_activation_bp = Blueprint('module_activation', __name__)  # Prefix set during registration
 
 # Available modules configuration
 AVAILABLE_MODULES = {
@@ -39,24 +40,29 @@ AVAILABLE_MODULES = {
     }
 }
 
-@module_activation_bp.route('/available', methods=['GET'])
+@module_activation_bp.route('/available', methods=['GET', 'OPTIONS'])
+@jwt_required()
 def get_available_modules():
-    """Get all available modules"""
+    """Get all available modules - JWT REQUIRED"""
+    # Handle CORS preflight
+    if request.method == 'OPTIONS':
+        return ('', 200)
     try:
-        # Get user ID from request headers or JWT token
-        user_id = request.headers.get('X-User-ID')
-        if not user_id:
-            # Try to get from JWT token as fallback
-            from flask_jwt_extended import get_jwt_identity
-            try:
-                user_id = get_jwt_identity()
-            except:
-                pass
+        # SECURITY: Get user ID from verified JWT token only
+        user_id_str = get_jwt_identity()
         
-        # If still no user_id, return empty array (for development)
-        if not user_id:
-            print("Warning: No user context found for available modules, returning empty results")
-            return jsonify([]), 200
+        if not user_id_str:
+            print("❌ SECURITY: No user identity in JWT token")
+            return jsonify({
+                'error': 'Authentication required',
+                'message': 'User identity not found in JWT token'
+            }), 401
+        
+        # Convert to int (JWT identity is stored as string)
+        try:
+            user_id = int(user_id_str)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID in token'}), 400
         
         # Get user's current modules
         user_modules = UserModules.get_user_modules(user_id)
@@ -79,27 +85,38 @@ def get_available_modules():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@module_activation_bp.route('/user', methods=['GET'])
+@module_activation_bp.route('/user', methods=['GET', 'OPTIONS'])
+@jwt_required()
 def get_user_modules():
-    """Get user's activated modules"""
+    """Get user's activated modules - JWT REQUIRED"""
+    # Handle CORS preflight
+    if request.method == 'OPTIONS':
+        return ('', 200)
+    
     try:
-        # Get user ID from request headers or JWT token
-        user_id = request.headers.get('X-User-ID')
-        if not user_id:
-            # Try to get from JWT token as fallback
-            from flask_jwt_extended import get_jwt_identity
-            try:
-                user_id = get_jwt_identity()
-            except:
-                pass
+        # SECURITY: Get user ID from verified JWT token only
+        from flask_jwt_extended import get_jwt_identity
+        user_id_str = get_jwt_identity()
         
-        # If still no user_id, return empty array (for development)
-        if not user_id:
-            print("Warning: No user context found for user modules, returning empty results")
-            return jsonify([]), 200
+        if not user_id_str:
+            print("❌ SECURITY: No user identity in JWT token")
+            return jsonify({
+                'error': 'Authentication required',
+                'message': 'User identity not found in JWT token'
+            }), 401
         
-        # Get user's modules
+        # Convert to int (JWT identity is stored as string)
+        try:
+            user_id = int(user_id_str)
+            print(f'✅ get_user_modules - User ID from JWT: {user_id}')
+        except (ValueError, TypeError) as e:
+            print(f'❌ get_user_modules - Invalid user ID format: {user_id_str}, error: {e}')
+            return jsonify({'error': 'Invalid user ID in token'}), 400
+        
+        # SECURITY: Get user's modules (strict user isolation - model filters by user_id)
+        print(f'🔍 Fetching modules for user_id={user_id}')
         user_modules = UserModules.get_user_modules(user_id)
+        print(f'📊 Found {len(user_modules)} active modules for user {user_id}')
         
         modules_data = []
         for user_module in user_modules:
@@ -116,46 +133,67 @@ def get_user_modules():
                 'created_at': user_module.created_at.isoformat()
             })
         
+        print(f'✅ Returning {len(modules_data)} modules for user {user_id}')
         return jsonify(modules_data), 200
         
     except Exception as e:
+        print(f'❌ Error in get_user_modules: {str(e)}')
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @module_activation_bp.route('/activate', methods=['POST'])
+@jwt_required()
 def activate_module():
-    """Activate a module for the current user"""
+    """Activate a module for the current user - JWT REQUIRED"""
     try:
-        # Get user ID from request headers or JWT token
-        user_id = request.headers.get('X-User-ID')
-        if not user_id:
-            # Try to get from JWT token as fallback
-            from flask_jwt_extended import get_jwt_identity
-            try:
-                user_id = get_jwt_identity()
-            except:
-                pass
+        # SECURITY: Get user ID from verified JWT token only
+        user_id_str = get_jwt_identity()
         
-        # If still no user_id, use a default for development
-        if not user_id:
-            user_id = 1  # Default user for development
+        if not user_id_str:
+            print('❌ No user identity in JWT token')
+            return jsonify({
+                'status': 'error',
+                'message': 'User identity not found in JWT token'
+            }), 401
+        
+        # Convert to int (JWT identity is stored as string)
+        try:
+            user_id = int(user_id_str)
+            print(f'✅ Activate module - User ID from JWT: {user_id}')
+        except (ValueError, TypeError) as e:
+            print(f'❌ Invalid user ID format: {user_id_str}, error: {e}')
+            return jsonify({'error': 'Invalid user ID in token'}), 400
         
         data = request.get_json()
         module_id = data.get('module_id')
         permissions = data.get('permissions')
         
+        print(f'📦 Activation request: user_id={user_id}, module_id={module_id}, permissions={permissions}')
+        
         if not module_id:
+            print('❌ No module_id provided')
             return jsonify({'error': 'module_id is required'}), 400
+        
+        # SECURITY: Validate module_id (prevent injection)
+        if not isinstance(module_id, str) or len(module_id) > 50:
+            print(f'❌ Invalid module_id format: {module_id}')
+            return jsonify({'error': 'Invalid module_id format'}), 400
         
         # Check if module is available
         if module_id not in AVAILABLE_MODULES:
+            print(f'❌ Module not available: {module_id}')
             return jsonify({'error': f'Module {module_id} is not available'}), 400
         
-        # Activate module
+        # SECURITY: Activate module (strict user isolation - model filters by user_id)
+        print(f'💾 Saving module activation to database: user_id={user_id}, module_id={module_id}')
         user_module = UserModules.enable_module(
             user_id=user_id,
             module_id=module_id,
             permissions=permissions
         )
+        
+        print(f'✅ Module activated successfully: user_id={user_id}, module_id={module_id}, is_active={user_module.is_active}, is_enabled={user_module.is_enabled}')
         
         module_info = AVAILABLE_MODULES[module_id]
         
@@ -174,26 +212,31 @@ def activate_module():
         }), 200
         
     except Exception as e:
+        print(f'❌ Error activating module: {str(e)}')
+        import traceback
+        traceback.print_exc()
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
 @module_activation_bp.route('/deactivate', methods=['POST'])
+@jwt_required()
 def deactivate_module():
-    """Deactivate a module for the current user"""
+    """Deactivate a module for the current user - JWT REQUIRED"""
     try:
-        # Get user ID from request headers or JWT token
-        user_id = request.headers.get('X-User-ID')
-        if not user_id:
-            # Try to get from JWT token as fallback
-            from flask_jwt_extended import get_jwt_identity
-            try:
-                user_id = get_jwt_identity()
-            except:
-                pass
+        # SECURITY: Get user ID from verified JWT token only
+        user_id_str = get_jwt_identity()
         
-        # If still no user_id, use a default for development
-        if not user_id:
-            user_id = 1  # Default user for development
+        if not user_id_str:
+            return jsonify({
+                'status': 'error',
+                'message': 'User identity not found in JWT token'
+            }), 401
+        
+        # Convert to int (JWT identity is stored as string)
+        try:
+            user_id = int(user_id_str)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID in token'}), 400
         
         data = request.get_json()
         module_id = data.get('module_id')
@@ -201,7 +244,11 @@ def deactivate_module():
         if not module_id:
             return jsonify({'error': 'module_id is required'}), 400
         
-        # Deactivate module
+        # SECURITY: Validate module_id (prevent injection)
+        if not isinstance(module_id, str) or len(module_id) > 50:
+            return jsonify({'error': 'Invalid module_id format'}), 400
+        
+        # SECURITY: Deactivate module (strict user isolation - model filters by user_id)
         success = UserModules.disable_module(user_id=user_id, module_id=module_id)
         
         if not success:
@@ -219,26 +266,26 @@ def deactivate_module():
         return jsonify({'error': str(e)}), 500
 
 @module_activation_bp.route('/check/<module_id>', methods=['GET'])
+@jwt_required()
 def check_module_access(module_id):
-    """Check if user has access to a specific module"""
+    """Check if user has access to a specific module - JWT REQUIRED"""
     try:
-        # Get user ID from request headers or JWT token
-        user_id = request.headers.get('X-User-ID')
-        if not user_id:
-            # Try to get from JWT token as fallback
-            from flask_jwt_extended import get_jwt_identity
-            try:
-                user_id = get_jwt_identity()
-            except:
-                pass
+        # SECURITY: Get user ID from verified JWT token only
+        user_id_str = get_jwt_identity()
         
-        # If still no user_id, return false (for development)
-        if not user_id:
+        if not user_id_str:
             return jsonify({
                 'has_access': False,
                 'module_id': module_id,
-                'user_id': None
-            }), 200
+                'user_id': None,
+                'error': 'User identity not found in JWT token'
+            }), 401
+        
+        # Convert to int (JWT identity is stored as string)
+        try:
+            user_id = int(user_id_str)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID in token'}), 400
         
         # Check module access
         has_access = UserModules.is_module_enabled(user_id, module_id)
@@ -253,22 +300,24 @@ def check_module_access(module_id):
         return jsonify({'error': str(e)}), 500
 
 @module_activation_bp.route('/bulk-activate', methods=['POST'])
+@jwt_required()
 def bulk_activate_modules():
-    """Activate multiple modules for the current user"""
+    """Activate multiple modules for the current user - JWT REQUIRED"""
     try:
-        # Get user ID from request headers or JWT token
-        user_id = request.headers.get('X-User-ID')
-        if not user_id:
-            # Try to get from JWT token as fallback
-            from flask_jwt_extended import get_jwt_identity
-            try:
-                user_id = get_jwt_identity()
-            except:
-                pass
+        # SECURITY: Get user ID from verified JWT token only
+        user_id_str = get_jwt_identity()
         
-        # If still no user_id, use a default for development
-        if not user_id:
-            user_id = 1  # Default user for development
+        if not user_id_str:
+            return jsonify({
+                'status': 'error',
+                'message': 'User identity not found in JWT token'
+            }), 401
+        
+        # Convert to int (JWT identity is stored as string)
+        try:
+            user_id = int(user_id_str)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID in token'}), 400
         
         data = request.get_json()
         module_ids = data.get('module_ids', [])

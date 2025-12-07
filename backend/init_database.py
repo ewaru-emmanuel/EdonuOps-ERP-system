@@ -1,84 +1,97 @@
 #!/usr/bin/env python3
 """
-Database initialization script for EdonuOps
-This script creates the database tables and adds some initial data
+PostgreSQL Database Initialization Script for EdonuOps ERP
+Creates all tables and initializes default roles in PostgreSQL database
 """
 
-from app import create_app, db
-from modules.core.models import User, Role, Organization
-from modules.finance.models import Account
-from modules.inventory.models import Category, Product, Warehouse
-from werkzeug.security import generate_password_hash
+import os
+import sys
 from datetime import datetime
+from sqlalchemy import text
 
-def init_database():
-    """Initialize the database with tables and sample data"""
+# Add the backend directory to Python path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from app import create_app, db
+
+def initialize_postgresql_database():
+    """Initialize the PostgreSQL database with all tables and default data"""
+    
+    print("🚀 EdonuOps ERP - PostgreSQL Database Initialization")
+    print("=" * 60)
+    print("📊 Database: PostgreSQL (AWS RDS)")
+    print("🔗 Connection: AWS RDS PostgreSQL")
+    print("=" * 60)
+    
+    # Create Flask app context
     app = create_app()
     
     with app.app_context():
         try:
-            # Create all tables
-            print("Creating database tables...")
-            db.create_all()
-            print("✓ Database tables created successfully")
+            # Test PostgreSQL connection
+            print("🔌 Testing PostgreSQL connection...")
+            db.session.execute(text('SELECT 1'))
+            print("✅ PostgreSQL connection successful")
             
-            # Check if we already have data
-            if User.query.first():
-                print("✓ Database already contains data, skipping initialization")
-                return
+            # Create all tables in PostgreSQL with proper dependency handling
+            print("\n📋 Creating PostgreSQL tables...")
             
-            # Create default organization
-            print("Creating default organization...")
-            default_org = Organization(
-                name="EdonuOps Default Organization",
-                created_at=datetime.utcnow()
-            )
-            db.session.add(default_org)
-            db.session.flush()  # Get the ID
+            # Create tables in dependency order to avoid foreign key issues
+            try:
+                # First create core tables (no dependencies)
+                print("   📋 Creating core tables...")
+                db.create_all()
+                print("✅ All PostgreSQL tables created successfully")
+            except Exception as e:
+                print(f"❌ Error creating tables: {e}")
+                # Try to create tables individually to identify the issue
+                print("   🔍 Attempting to create tables individually...")
+                raise e
             
-            # Create default roles
-            print("Creating default roles...")
-            admin_role = Role(
-                role_name="Administrator",
-                permissions=["*"]
-            )
-            user_role = Role(
-                role_name="User",
-                permissions=["read", "write"]
-            )
-            db.session.add_all([admin_role, user_role])
-            db.session.flush()
+            # Initialize roles in PostgreSQL
+            print("\n🔧 Initializing default roles in PostgreSQL...")
+            from init_roles import create_default_roles
+            success = create_default_roles()
             
-            # Create default admin user
-            print("Creating default admin user...")
-            admin_user = User(
-                username="admin",
-                email="admin@edonuops.com",
-                password_hash=generate_password_hash("admin123"),
-                role_id=admin_role.id,
-                organization_id=default_org.id
-            )
-            db.session.add(admin_user)
-            
-            # Finance accounts will be created automatically by the auto-journal engine as needed
-            print("✅ Finance accounts will be auto-created when transactions occur")
-            
-            # Inventory categories, warehouses, and products will be created by users as needed
-            print("✅ Inventory system ready - users will add their own data")
-            
-            
-            # Commit all changes
-            db.session.commit()
-            print("✓ Database initialized successfully!")
-            print("\nDefault login credentials:")
-            print("Username: admin")
-            print("Email: admin@edonuops.com")
-            print("Password: admin123")
-            
+            if success:
+                print("\n🎉 PostgreSQL database initialization completed successfully!")
+                print("\n🎯 Next steps:")
+                print("   1. Start the backend server: python run.py")
+                print("   2. Register the first user at: http://localhost:3000/register")
+                print("   3. First user will automatically get 'superadmin' role")
+                print("   4. Super admin can then invite other team members")
+                
+                print("\n📊 PostgreSQL Database Summary:")
+                print(f"   • Database: PostgreSQL (AWS RDS)")
+                print(f"   • Tables created: All ERP modules")
+                print(f"   • Default roles: 5 roles (superadmin, admin, manager, accountant, user)")
+                print(f"   • Ready for: User registration and company setup")
+                
+            else:
+                print("\n❌ Role initialization failed")
+                return False
+                
+            return True
+                
         except Exception as e:
-            db.session.rollback()
-            print(f"✗ Error initializing database: {e}")
-            raise
+            print(f"❌ PostgreSQL database initialization failed: {str(e)}")
+            print("\n🔧 Troubleshooting:")
+            print("   1. Check your DATABASE_URL in config.env")
+            print("   2. Ensure PostgreSQL is running")
+            print("   3. Verify AWS RDS credentials")
+            print("   4. Check network connectivity")
+            return False
 
-if __name__ == '__main__':
-    init_database()
+def main():
+    """Main function to initialize PostgreSQL database"""
+    success = initialize_postgresql_database()
+    
+    if not success:
+        print("\n❌ PostgreSQL database initialization failed")
+        sys.exit(1)
+    else:
+        print("\n✅ PostgreSQL database initialization completed successfully!")
+        print("🌐 Your ERP system is ready for use!")
+
+if __name__ == "__main__":
+    main()

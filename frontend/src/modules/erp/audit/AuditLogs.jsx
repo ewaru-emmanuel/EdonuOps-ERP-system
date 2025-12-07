@@ -37,7 +37,7 @@ const AuditLogs = () => {
     {
       id: 1,
       timestamp: '2024-01-15 14:30:25',
-      user: 'john.doe@company.com',
+      user: process.env.REACT_APP_DEMO_USER_1 || 'john.doe@company.com',
       action: 'User Login',
       module: 'Authentication',
       severity: 'Info',
@@ -47,7 +47,7 @@ const AuditLogs = () => {
     {
       id: 2,
       timestamp: '2024-01-15 14:28:15',
-      user: 'admin@company.com',
+      user: process.env.REACT_APP_DEFAULT_ADMIN_EMAIL || 'admin@company.com',
       action: 'Data Export',
       module: 'Finance',
       severity: 'Warning',
@@ -57,7 +57,7 @@ const AuditLogs = () => {
     {
       id: 3,
       timestamp: '2024-01-15 14:25:42',
-      user: 'jane.smith@company.com',
+      user: process.env.REACT_APP_DEMO_USER_2 || 'jane.smith@company.com',
       action: 'Record Deleted',
       module: 'CRM',
       severity: 'Critical',
@@ -67,7 +67,7 @@ const AuditLogs = () => {
     {
       id: 4,
       timestamp: '2024-01-15 14:20:18',
-      user: 'mike.johnson@company.com',
+      user: process.env.REACT_APP_DEMO_USER_3 || 'mike.johnson@company.com',
       action: 'Permission Changed',
       module: 'User Management',
       severity: 'Warning',
@@ -77,7 +77,7 @@ const AuditLogs = () => {
     {
       id: 5,
       timestamp: '2024-01-15 14:15:33',
-      user: 'system@company.com',
+      user: process.env.REACT_APP_SYSTEM_USER || 'system@company.com',
       action: 'System Backup',
       module: 'System',
       severity: 'Info',
@@ -87,7 +87,7 @@ const AuditLogs = () => {
     {
       id: 6,
       timestamp: '2024-01-15 14:10:55',
-      user: 'unknown@company.com',
+      user: process.env.REACT_APP_UNKNOWN_USER || 'unknown@company.com',
       action: 'Failed Login',
       module: 'Authentication',
       severity: 'Error',

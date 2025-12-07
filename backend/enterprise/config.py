@@ -47,8 +47,12 @@ class EnterpriseConfig:
                 'rate_limit': '1000/hour'
             },
             'database.json': {
-                'type': 'sqlite',
-                'path': 'edonuops.db',
+                'type': 'postgresql',
+                'host': 'localhost',
+                'port': 5432,
+                'database': 'edonuops',
+                'username': 'edonuops',
+                'password': os.getenv('DB_PASSWORD', ''),
                 'pool_size': 10,
                 'max_overflow': 20
             },
@@ -111,12 +115,10 @@ class EnterpriseConfig:
         return True
     
     def get_database_url(self) -> str:
-        """Get database URL based on configuration"""
+        """Get database URL based on configuration - PostgreSQL only"""
         db_config = self.database_config
         
-        if db_config.get('type') == 'sqlite':
-            return f"sqlite:///{db_config.get('path', 'edonuops.db')}"
-        elif db_config.get('type') == 'postgresql':
+        if db_config.get('type') == 'postgresql':
             host = db_config.get('host', 'localhost')
             port = db_config.get('port', 5432)
             database = db_config.get('database', 'edonuops')
@@ -125,7 +127,8 @@ class EnterpriseConfig:
             
             return f"postgresql://{username}:{password}@{host}:{port}/{database}"
         
-        return f"sqlite:///edonuops.db"
+        # Default to PostgreSQL
+        return f"postgresql://edonuops:password@localhost:5432/edonuops"
     
     def get_security_config(self) -> Dict[str, Any]:
         """Get security configuration"""

@@ -19,7 +19,7 @@ def require_superadmin(f):
         user_id = get_jwt_identity()
         user = User.query.get(user_id)
         
-        if not user or user.role_id != 1:  # Assuming role_id 1 is superadmin
+        if not user or not user.role or user.role.role_name != 'superadmin':
             return jsonify({"message": "Superadmin access required"}), 403
         
         return f(*args, **kwargs)

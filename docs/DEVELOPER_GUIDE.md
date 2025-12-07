@@ -98,6 +98,8 @@ EdonuOps/
    # Frontend (.env)
    REACT_APP_API_URL=http://localhost:5000/api
    ```
+   
+   **📖 For comprehensive URL configuration and deployment setup, see [URL Configuration Guide](URL_CONFIGURATION_GUIDE.md)**
 
 ### Development Commands
 
@@ -494,47 +496,7 @@ curl -X GET http://localhost:5000/api/yourmodule/yourmodels
    npm run build
    ```
 
-### Docker Deployment
-
-```dockerfile
-# Dockerfile
-FROM python:3.9-slim
-
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-
-COPY . .
-EXPOSE 5000
-
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "wsgi:app"]
-```
-
-```yaml
-# docker-compose.yml
-version: '3.8'
-services:
-  backend:
-    build: ./backend
-    ports:
-      - "5000:5000"
-    environment:
-      - DATABASE_URL=postgresql://user:pass@db:5432/edonuops
-    depends_on:
-      - db
-  
-  db:
-    image: postgres:13
-    environment:
-      - POSTGRES_DB=edonuops
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=pass
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-volumes:
-  postgres_data:
-```
+**📖 For detailed deployment instructions for AWS, GoDaddy, Render, Heroku, and other platforms, see [URL Configuration Guide](URL_CONFIGURATION_GUIDE.md)**
 
 ## Contributing
 

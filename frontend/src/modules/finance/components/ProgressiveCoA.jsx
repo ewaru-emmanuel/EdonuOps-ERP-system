@@ -1,259 +1,174 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import {
   Box,
-  Card,
-  CardContent,
   Typography,
-  Switch,
-  FormControlLabel,
-  Chip,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Divider,
-  Alert,
-  Tooltip,
-  IconButton,
-  TextField,
-  MenuItem,
-  Select,
-  FormControl,
-  InputLabel,
-  Menu,
-  Snackbar
+  Chip
 } from '@mui/material';
-import {
-  Visibility as VisibilityIcon,
-  VisibilityOff as VisibilityOffIcon,
-  Info as InfoIcon,
-  Business as BusinessIcon,
-  Settings as SettingsIcon,
-  ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon,
-  Add as AddIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  MoreVert as MoreVertIcon,
-  AccountBalance as AccountBalanceIcon,
-  AttachMoney as AttachMoneyIcon
-} from '@mui/icons-material';
 
-const ProgressiveCoA = ({ accounts, onAccountSelect, onModeChange }) => {
-  const [viewMode, setViewMode] = useState('basic'); // 'basic' or 'advanced'
-  const [selectedIndustry, setSelectedIndustry] = useState('retail');
-  const [showIndustrySelector, setShowIndustrySelector] = useState(false);
-  const [expandedSections, setExpandedSections] = useState({
-    assets: true,
-    liabilities: true,
-    equity: true,
-    revenue: true,
-    expenses: true
-  });
+const ProgressiveCoA = ({ accounts, onAccountSelect, onModeChange, showAccountCodes = false }) => {
 
-  // Account management state
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [showEditDialog, setShowEditDialog] = useState(false);
-  const [editingAccount, setEditingAccount] = useState(null);
-  const [accountMenuAnchor, setAccountMenuAnchor] = useState(null);
-  const [selectedAccount, setSelectedAccount] = useState(null);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-  
-  // Form state
-  const [formData, setFormData] = useState({
-    code: '',
-    name: '',
-    category: '',
-    type: '',
-    description: '',
-    isActive: true
-  });
-
-  const industries = [
-    { id: 'retail', name: 'Retail Business', description: 'Inventory-heavy businesses' },
-    { id: 'services', name: 'Services Business', description: 'Consulting, agencies, etc.' },
-    { id: 'manufacturing', name: 'Manufacturing', description: 'Production businesses' },
-    { id: 'freelancer', name: 'Freelancer', description: 'Solo entrepreneurs' }
-  ];
-
-  // Filter accounts based on view mode
-  const filteredAccounts = (accounts || []).filter(account => {
-    if (viewMode === 'basic') {
-      return account.is_core !== false; // Show core accounts in basic mode
-    }
-    return true; // Show all accounts in advanced mode
-  });
-
-  // Group accounts by category
-  const groupedAccounts = filteredAccounts.reduce((groups, account) => {
-    const category = account.account_type ? account.account_type.toLowerCase() : 'unknown';
-    if (!groups[category]) {
-      groups[category] = [];
-    }
-    groups[category].push(account);
-    return groups;
-  }, {});
-
-  const accountTypeConfig = {
-    asset: { 
-      label: 'Assets', 
-      color: 'success', 
-      icon: '💰',
-      description: 'What your business owns'
-    },
-    liability: { 
-      label: 'Liabilities', 
-      color: 'error', 
-      icon: '📋',
-      description: 'What your business owes'
-    },
-    equity: { 
-      label: 'Equity', 
-      color: 'primary', 
-      icon: '👤',
-      description: 'Owner\'s stake in the business'
-    },
-    revenue: { 
-      label: 'Revenue', 
-      color: 'info', 
-      icon: '📈',
-      description: 'Money coming into your business'
-    },
-    expense: { 
-      label: 'Expenses', 
-      color: 'warning', 
-      icon: '💸',
-      description: 'Money going out of your business'
-    }
+  // Format amount helper
+  const formatAmount = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount || 0);
   };
 
-  const handleModeChange = (event) => {
-    const newMode = event.target.checked ? 'advanced' : 'basic';
-    setViewMode(newMode);
-    onModeChange?.(newMode);
-  };
+  // Show all accounts (no filtering - user starts with 25 defaults, then adds/removes as needed)
+  const filteredAccounts = useMemo(() => {
+    if (!accounts || accounts.length === 0) return [];
+    return accounts; // Always show all accounts
+  }, [accounts]);
 
-  const toggleSection = (section) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [section]: !prev[section]
-    }));
-  };
-
-  const handleIndustryChange = (industryId) => {
-    setSelectedIndustry(industryId);
-    setShowIndustrySelector(false);
-    // This would trigger a reload of accounts for the new industry
-    // onIndustryChange?.(industryId);
-  };
-
-  const renderAccountItem = (account) => (
-    <ListItem
-      key={account.id}
-      button
-      onClick={() => onAccountSelect?.(account)}
-      sx={{
-        pl: 2,
-        '&:hover': { backgroundColor: 'action.hover' }
-      }}
-    >
-      <ListItemIcon>
-        <AccountBalanceIcon color="primary" />
-      </ListItemIcon>
-      <ListItemText
-        primary={account.name}
-        secondary={
-          <Box component="span" sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
-            {account.required_tags?.map(tag => (
-              <Chip
-                key={tag}
-                label={tag}
-                size="small"
-                variant="outlined"
-                color="primary"
-              />
-            ))}
-            {account.is_core === false && (
-              <Chip
-                label="Advanced"
-                size="small"
-                variant="outlined"
-                color="secondary"
-              />
-            )}
-          </Box>
-        }
-      />
-      <Tooltip title={account.description || `${account.name} account`}>
-        <IconButton size="small">
-          <InfoIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
-    </ListItem>
-  );
-
-  const renderAccountSection = (category, accounts) => {
-    const config = accountTypeConfig[category] || {
-      label: category.charAt(0).toUpperCase() + category.slice(1),
-      color: 'default',
-      icon: '📊',
-      description: `${category} accounts`
+  // Group accounts by type with proper type detection
+  const groupedAccounts = useMemo(() => {
+    const groups = {
+      asset: [],
+      liability: [],
+      equity: [],
+      revenue: [],
+      expense: [],
+      other: [] // Catch-all for accounts that don't match any category
     };
-    const isExpanded = expandedSections[category];
-    
+
+    filteredAccounts.forEach(account => {
+      // Try multiple ways to get account type
+      const accountType = (account.account_type || account.type || '').toLowerCase();
+      
+      if (accountType === 'asset' || accountType === 'assets') {
+        groups.asset.push(account);
+      } else if (accountType === 'liability' || accountType === 'liabilities') {
+        groups.liability.push(account);
+      } else if (accountType === 'equity') {
+        groups.equity.push(account);
+      } else if (accountType === 'revenue' || accountType === 'income') {
+        groups.revenue.push(account);
+      } else if (accountType === 'expense' || accountType === 'expenses') {
+        groups.expense.push(account);
+      } else {
+        // Account doesn't match any known type - add to "other" category so it's still shown
+        console.warn(`Account ${account.code || account.id} has unknown type: "${accountType || 'missing'}" - adding to "other" category`);
+        groups.other.push(account);
+      }
+    });
+
+    return groups;
+  }, [filteredAccounts]);
+
+  // Account type configuration
+  const accountTypeConfig = {
+    asset: { color: '#4caf50' },
+    liability: { color: '#f44336' },
+    equity: { color: '#2196f3' },
+    revenue: { color: '#9c27b0' },
+    expense: { color: '#ff9800' },
+    other: { color: '#9e9e9e' } // Gray for unknown types
+  };
+
+  const renderAccountItem = (account) => {
+    const accountName = account.account_name || account.name || 'Unnamed Account';
+    const accountType = (account.account_type || account.type || '').toLowerCase();
+    const balance = account.balance || 0;
+    const isActive = account.is_active !== false;
+    const config = accountTypeConfig[accountType];
+
     return (
-      <Card key={category} sx={{ mb: 2 }}>
-        <CardContent sx={{ p: 0 }}>
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              p: 2,
-              cursor: 'pointer',
-              '&:hover': { backgroundColor: 'action.hover' }
+      <Box
+        key={account.id}
+        onClick={() => onAccountSelect?.(account)}
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          py: 1.5,
+          px: 2,
+          borderLeft: `3px solid ${config?.color || '#ccc'}`,
+          cursor: 'pointer',
+          '&:hover': {
+            backgroundColor: accountType === 'asset' ? 'rgba(46, 125, 50, 0.04)' :
+                           accountType === 'liability' ? 'rgba(198, 40, 40, 0.04)' :
+                           accountType === 'equity' ? 'rgba(21, 101, 192, 0.04)' :
+                           accountType === 'revenue' ? 'rgba(123, 31, 162, 0.04)' :
+                           'rgba(230, 81, 0, 0.04)',
+            transform: 'translateX(2px)'
+          },
+          transition: 'all 0.2s ease',
+          opacity: isActive ? 1 : 0.6
+        }}
+      >
+        {showAccountCodes && account.code && (
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              fontFamily: 'monospace',
+              fontWeight: 500,
+              color: 'text.secondary',
+              minWidth: 80,
+              mr: 2
             }}
-            onClick={() => toggleSection(category)}
           >
-            <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography variant="h6" component="span">
-                <span>{config.icon}</span>
-                {config.label}
-              </Typography>
-              <Chip
-                label={accounts.length}
-                size="small"
-                color={config.color}
-                variant="outlined"
-              />
-            </Box>
-            <Typography variant="body2" color="text.secondary" sx={{ mr: 2 }}>
-              {config.description}
-            </Typography>
-            {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-          </Box>
-          
-          {isExpanded && (
-            <>
-              <Divider />
-              <List sx={{ maxHeight: 300, overflow: 'auto' }}>
-                {accounts.map(renderAccountItem)}
-              </List>
-            </>
-          )}
-        </CardContent>
-      </Card>
+            {account.code}
+          </Typography>
+        )}
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            flexGrow: 1,
+            fontWeight: 'medium',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          {accountName}
+        </Typography>
+        <Chip 
+          label={accountType} 
+          size="small"
+          sx={{
+            minWidth: 80,
+            bgcolor: 
+              accountType === 'asset' ? '#e8f5e9' :
+              accountType === 'liability' ? '#ffebee' :
+              accountType === 'equity' ? '#e3f2fd' :
+              accountType === 'revenue' ? '#f3e5f5' :
+              '#fff3e0',
+            color:
+              accountType === 'asset' ? '#2e7d32' :
+              accountType === 'liability' ? '#c62828' :
+              accountType === 'equity' ? '#1565c0' :
+              accountType === 'revenue' ? '#7b1fa2' :
+              '#e65100',
+            fontWeight: 600,
+            border: 'none',
+            mr: 2
+          }}
+        />
+        <Typography 
+          variant="body2" 
+          color={balance >= 0 ? 'text.primary' : 'error.main'}
+          fontWeight="medium"
+          sx={{ minWidth: 100, textAlign: 'right', mr: 2 }}
+        >
+          {formatAmount(balance)}
+        </Typography>
+        <Chip
+          label={isActive ? 'Active' : 'Inactive'}
+          size="small"
+          color={isActive ? 'success' : 'error'}
+          variant="outlined"
+          sx={{ height: 24, fontSize: '0.7rem', minWidth: 70 }}
+        />
+      </Box>
     );
   };
 
-  // Show loading state if accounts are not loaded yet
+  // Show loading state
   if (!accounts) {
     return (
-      <Box sx={{ p: 3, textAlign: 'center' }}>
+      <Box sx={{ p: 4, textAlign: 'center' }}>
         <Typography variant="h6" color="text.secondary">
           Loading Chart of Accounts...
         </Typography>
@@ -261,10 +176,10 @@ const ProgressiveCoA = ({ accounts, onAccountSelect, onModeChange }) => {
     );
   }
 
-  // Show empty state if no accounts
+  // Show empty state
   if (accounts.length === 0) {
     return (
-      <Box sx={{ p: 3, textAlign: 'center' }}>
+      <Box sx={{ p: 4, textAlign: 'center' }}>
         <Typography variant="h6" color="text.secondary" gutterBottom>
           No accounts found
         </Typography>
@@ -275,97 +190,60 @@ const ProgressiveCoA = ({ accounts, onAccountSelect, onModeChange }) => {
     );
   }
 
+  const totalAccounts = filteredAccounts.length;
+
+  // Calculate totals for display
+  const totalGrouped = Object.values(groupedAccounts).reduce((sum, arr) => sum + arr.length, 0);
+  const missingAccounts = filteredAccounts.length - totalGrouped;
+
   return (
     <Box>
-      {/* Header with Mode Toggle */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h5" component="h2">
-              Chart of Accounts
+      {filteredAccounts.length === 0 ? (
+        <Box sx={{ p: 4, textAlign: 'center' }}>
+          <Typography variant="body1" color="text.secondary">
+            No accounts found
+          </Typography>
+        </Box>
+      ) : (
+        <Box>
+          {/* Summary header */}
+          <Box sx={{ px: 2, py: 1.5, bgcolor: 'grey.50', borderBottom: '1px solid', borderColor: 'divider' }}>
+            <Typography variant="subtitle2" color="text.secondary">
+              Showing {filteredAccounts.length} account{filteredAccounts.length !== 1 ? 's' : ''}
+              {missingAccounts > 0 && (
+                <Typography component="span" variant="caption" color="warning.main" sx={{ ml: 1 }}>
+                  (Warning: {missingAccounts} account{missingAccounts !== 1 ? 's' : ''} could not be categorized)
+                </Typography>
+              )}
             </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Button
-                variant="outlined"
-                startIcon={<BusinessIcon />}
-                onClick={() => setShowIndustrySelector(true)}
-              >
-                {industries.find(i => i.id === selectedIndustry)?.name}
-              </Button>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={viewMode === 'advanced'}
-                    onChange={handleModeChange}
-                    color="primary"
-                  />
-                }
-                label={
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    {viewMode === 'basic' ? <VisibilityIcon /> : <VisibilityOffIcon />}
-                    {viewMode === 'basic' ? 'Basic Mode' : 'Advanced Mode'}
-                  </Box>
-                }
-              />
-            </Box>
           </Box>
           
-          <Alert severity="info" sx={{ mb: 2 }}>
-            <Typography variant="body2">
-              <strong>Basic Mode:</strong> Shows 30 core accounts essential for your business type.
-              <br />
-              <strong>Advanced Mode:</strong> Shows all accounts including specialized ones.
-            </Typography>
-          </Alert>
-          
-          <Typography variant="body2" color="text.secondary">
-            {viewMode === 'basic' 
-              ? `Showing ${filteredAccounts.length} core accounts for ${industries.find(i => i.id === selectedIndustry)?.name}`
-              : `Showing all ${filteredAccounts.length} accounts`
-            }
-          </Typography>
-        </CardContent>
-      </Card>
-
-      {/* Account Sections */}
-      {Object.entries(groupedAccounts).map(([category, accounts]) => 
-        renderAccountSection(category, accounts)
-      )}
-
-      {/* Industry Selector Dialog */}
-      <Dialog 
-        open={showIndustrySelector} 
-        onClose={() => setShowIndustrySelector(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Select Business Type</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Choose the business type that best matches your company. This will customize your Chart of Accounts.
-          </Typography>
-          <List>
-            {industries.map(industry => (
-              <ListItem
-                key={industry.id}
-                button
-                onClick={() => handleIndustryChange(industry.id)}
-                selected={selectedIndustry === industry.id}
-              >
-                <ListItemText
-                  primary={industry.name}
-                  secondary={industry.description}
-                />
-              </ListItem>
+          {Object.entries(groupedAccounts)
+            .filter(([category, accounts]) => accounts.length > 0)
+            .map(([category, accounts]) => (
+              <Box key={category}>
+                <Typography 
+                  variant="overline" 
+                  sx={{ 
+                    px: 2, 
+                    py: 1, 
+                    display: 'block', 
+                    fontWeight: 600,
+                    color: accountTypeConfig[category]?.color || '#666',
+                    textTransform: 'uppercase',
+                    borderBottom: `2px solid ${accountTypeConfig[category]?.color || '#ccc'}`,
+                    bgcolor: 'grey.50'
+                  }}
+                >
+                  {category === 'other' ? 'Other / Unclassified' : category} ({accounts.length})
+                </Typography>
+                {accounts
+                  .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
+                  .map(renderAccountItem)}
+              </Box>
             ))}
-          </List>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowIndustrySelector(false)}>
-            Cancel
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </Box>
+      )}
     </Box>
   );
 };

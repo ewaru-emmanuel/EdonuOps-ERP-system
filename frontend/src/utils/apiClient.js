@@ -1,7 +1,7 @@
 // In development, use full URL to backend; in production, use relative URLs
 const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
 const BASE_URL = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_API_URL || 
-                (isDevelopment ? 'http://localhost:5000' : '');
+                (isDevelopment ? process.env.REACT_APP_API_URL || '' : '');
 
 const getHeaders = () => {
   const token = localStorage.getItem('access_token');
@@ -32,7 +32,9 @@ export const apiClient = {
     });
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Network error');
+      const error = new Error(errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      error.response = { status: response.status, statusText: response.statusText, data: errorData };
+      throw error;
     }
     return response.json();
   },

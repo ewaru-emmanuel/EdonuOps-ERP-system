@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Stale Session</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #1565c0;
+        }
+        .info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Clear Stale Session</h1>
+        <div class="info">
+            <p><strong>Problem:</strong> After deleting all users from the database, your browser still has the old session token stored.</p>
+            <p><strong>Solution:</strong> Clear the stale session data.</p>
+        </div>
+        
+        <button onclick="clearSession()">Clear Session & Redirect to Login</button>
+        
+        <h3>Or manually clear in console:</h3>
+        <pre style="background: #f5f5f5; padding: 15px; border-radius: 4px;">
+localStorage.clear();
+location.reload();
+        </pre>
+    </div>
+    
+    <script>
+        function clearSession() {
+            // Clear all localStorage
+            localStorage.clear();
+            alert('Session cleared! Redirecting to login...');
+            // Redirect to login
+            window.location.href = '/login';
+        }
+        
+        // Show current session status
+        window.onload = function() {
+            const token = localStorage.getItem('sessionToken');
+            const userId = localStorage.getItem('userId');
+            
+            if (token || userId) {
+                document.querySelector('.info').innerHTML += 
+                    '<p style="color: red;"><strong>⚠️ Stale session detected!</strong> Clear it now.</p>';
+            } else {
+                document.querySelector('.info').innerHTML += 
+                    '<p style="color: green;"><strong>✅ No session data found.</strong> You\'re good to go!</p>';
+            }
+        };
+    </script>
+</body>
+</html>
+

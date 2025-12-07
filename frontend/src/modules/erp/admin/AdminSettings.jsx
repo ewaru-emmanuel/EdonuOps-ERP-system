@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   Typography,
@@ -17,7 +17,8 @@ import {
   Button,
   Divider,
   Alert,
-  Snackbar
+  Snackbar,
+  CircularProgress
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -34,6 +35,7 @@ import PermissionTester from '../../../components/PermissionTester';
 import AuditDashboard from './AuditDashboard';
 import SecuritySettings from './SecuritySettings';
 import BankAccountManagement from './BankAccountManagement';
+import PermissionManagement from './PermissionManagement';
 
 // Constants
 const AVAILABLE_CURRENCIES = [
@@ -64,9 +66,11 @@ const SectionCard = ({ title, icon, children, onSave, onReset, saving }) => (
 const AdminSettings = () => {
   const [tab, setTab] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
-  // Sections state - Initialize with empty/neutral defaults
+  // Sections state - Initialize with empty defaults (will be populated from database)
   const [currency, setCurrency] = useState({ base_currency: '', allowed_currencies: [], rate_source: '', rounding: 2 });
   const [tax, setTax] = useState({ default_rate: 0, tax_inclusive: false, jurisdiction: '' });
   const [documents, setDocuments] = useState({ invoice_prefix: '', po_prefix: '', so_prefix: '', default_terms_days: 0 });
@@ -82,35 +86,120 @@ const AdminSettings = () => {
     enableAuditTrail: false
   });
 
-  const loadSection = useCallback(async (section, setter, transform) => {
+  // Fetch all settings from database - matching CoA pattern
+  const fetchSettings = async () => {
     try {
-      const res = await apiClient.getSettingsSection(section);
-      const data = res?.data || res;
-      if (data && Object.keys(data).length > 0) {
-        setter(prevState => ({ ...prevState, ...(transform ? transform(data) : data) }));
+      setLoading(true);
+      setError(null);
+      
+      console.log('🔍 Fetching settings from database...');
+      
+      // Fetch all sections in parallel (like CoA fetches accounts)
+      const [currencyRes, taxRes, documentsRes, emailRes, securityRes, localizationRes, featuresRes, userPermissionsRes] = await Promise.all([
+        apiClient.getSettingsSection('currency').catch((e) => {
+          console.error('❌ Error fetching currency:', e);
+          return { data: {} };
+        }),
+        apiClient.getSettingsSection('tax').catch((e) => {
+          console.error('❌ Error fetching tax:', e);
+          return { data: {} };
+        }),
+        apiClient.getSettingsSection('documents').catch((e) => {
+          console.error('❌ Error fetching documents:', e);
+          return { data: {} };
+        }),
+        apiClient.getSettingsSection('email').catch((e) => {
+          console.error('❌ Error fetching email:', e);
+          return { data: {} };
+        }),
+        apiClient.getSettingsSection('security').catch((e) => {
+          console.error('❌ Error fetching security:', e);
+          return { data: {} };
+        }),
+        apiClient.getSettingsSection('localization').catch((e) => {
+          console.error('❌ Error fetching localization:', e);
+          return { data: {} };
+        }),
+        apiClient.getSettingsSection('features').catch((e) => {
+          console.error('❌ Error fetching features:', e);
+          return { data: {} };
+        }),
+        apiClient.getSettingsSection('userPermissions').catch((e) => {
+          console.error('❌ Error fetching userPermissions:', e);
+          return { data: {} };
+        })
+      ]);
+
+      console.log('📦 Raw API responses:', {
+        currency: currencyRes,
+        tax: taxRes,
+        documents: documentsRes,
+        email: emailRes,
+        security: securityRes,
+        localization: localizationRes,
+        features: featuresRes,
+        userPermissions: userPermissionsRes
+      });
+
+      // Extract data from responses (backend returns {data: {...}, version: 1, section: '...'})
+      // Directly set state from database (like CoA does with setApiAccounts)
+      if (currencyRes?.data && typeof currencyRes.data === 'object' && Object.keys(currencyRes.data).length > 0) {
+        console.log('✅ Setting currency:', currencyRes.data);
+        setCurrency(prev => ({ ...prev, ...currencyRes.data }));
+      } else {
+        console.log('⚠️ Currency data empty or invalid:', currencyRes);
       }
-      // If no data, keep existing defaults
-    } catch (e) {
-      // Keep defaults - don't overwrite state
+      
+      if (taxRes?.data && typeof taxRes.data === 'object' && Object.keys(taxRes.data).length > 0) {
+        console.log('✅ Setting tax:', taxRes.data);
+        setTax(prev => ({ ...prev, ...taxRes.data }));
+      }
+      
+      if (documentsRes?.data && typeof documentsRes.data === 'object' && Object.keys(documentsRes.data).length > 0) {
+        console.log('✅ Setting documents:', documentsRes.data);
+        setDocuments(prev => ({ ...prev, ...documentsRes.data }));
+      }
+      
+      if (emailRes?.data && typeof emailRes.data === 'object' && Object.keys(emailRes.data).length > 0) {
+        console.log('✅ Setting email:', emailRes.data);
+        setEmail(prev => ({ ...prev, ...emailRes.data }));
+      }
+      
+      if (securityRes?.data && typeof securityRes.data === 'object' && Object.keys(securityRes.data).length > 0) {
+        console.log('✅ Setting security:', securityRes.data);
+        setSecurity(prev => ({ ...prev, ...securityRes.data }));
+      }
+      
+      if (localizationRes?.data && typeof localizationRes.data === 'object' && Object.keys(localizationRes.data).length > 0) {
+        console.log('✅ Setting localization:', localizationRes.data);
+        setLocalization(prev => ({ ...prev, ...localizationRes.data }));
+      }
+      
+      if (featuresRes?.data && typeof featuresRes.data === 'object' && Object.keys(featuresRes.data).length > 0) {
+        console.log('✅ Setting features:', featuresRes.data);
+        setFeatures(prev => ({ ...prev, ...featuresRes.data }));
+      }
+      
+      if (userPermissionsRes?.data && typeof userPermissionsRes.data === 'object' && Object.keys(userPermissionsRes.data).length > 0) {
+        console.log('✅ Setting userPermissions:', userPermissionsRes.data);
+        setUserPermissions(prev => ({ ...prev, ...userPermissionsRes.data }));
+      }
+
+      console.log('✅ Settings loaded from database');
+    } catch (err) {
+      const errorMsg = err.message || 'Failed to load settings';
+      setError(errorMsg);
+      console.error('❌ Error loading settings:', err);
+      console.error('❌ Error stack:', err.stack);
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  };
 
-  const loadAll = useCallback(async () => {
-    await Promise.all([
-      loadSection('currency', setCurrency),
-      loadSection('tax', setTax),
-      loadSection('documents', setDocuments),
-      loadSection('email', setEmail),
-      loadSection('security', setSecurity),
-      loadSection('localization', setLocalization),
-      loadSection('features', setFeatures),
-      loadSection('userPermissions', setUserPermissions)
-    ]);
-  }, [loadSection]);
-
+  // Load settings on mount (like CoA does)
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    fetchSettings();
+  }, []); // Only run once on mount
 
   const saveSection = async (section, data) => {
     try {
@@ -130,6 +219,31 @@ const AdminSettings = () => {
     }
   };
 
+  // Show loading state (like CoA does)
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+        <Typography variant="h6" sx={{ ml: 2 }}>Loading Admin Settings...</Typography>
+      </Box>
+    );
+  }
+
+  // Show error state (like CoA does)
+  if (error) {
+    return (
+      <Box p={3}>
+        <Alert severity="error" action={
+          <Button color="inherit" size="small" onClick={fetchSettings}>
+            Retry
+          </Button>
+        }>
+          Error loading settings: {error}
+        </Alert>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -138,6 +252,7 @@ const AdminSettings = () => {
 
       <Tabs value={tab} onChange={(e, v) => setTab(v)} sx={{ mb: 2 }}>
         <Tab label="User Management" />
+        <Tab label="Permissions" />
         <Tab label="Audit Dashboard" />
         <Tab label="Security Settings" />
         <Tab label="Permission Testing" />
@@ -157,10 +272,14 @@ const AdminSettings = () => {
       )}
 
       {tab === 1 && (
-        <AuditDashboard />
+        <PermissionManagement />
       )}
 
       {tab === 2 && (
+        <AuditDashboard />
+      )}
+
+      {tab === 3 && (
         <SecuritySettings />
       )}
 
@@ -177,7 +296,7 @@ const AdminSettings = () => {
           title="User Permissions & Smart Entry Settings"
           icon={<SecurityIcon color="primary" />}
           onSave={() => saveSection('userPermissions', userPermissions)}
-          onReset={loadAll}
+          onReset={fetchSettings}
           saving={saving}
         >
           <Alert severity="info" sx={{ mb: 2 }}>
@@ -285,7 +404,7 @@ const AdminSettings = () => {
           title="Currency & FX"
           icon={<CurrencyExchangeIcon color="primary" />}
           onSave={() => saveSection('currency', currency)}
-          onReset={loadAll}
+          onReset={fetchSettings}
           saving={saving}
         >
           <Grid container spacing={2}>
@@ -344,7 +463,7 @@ const AdminSettings = () => {
           title="Tax Settings"
           icon={<ReceiptLongIcon color="primary" />}
           onSave={() => saveSection('tax', tax)}
-          onReset={loadAll}
+          onReset={fetchSettings}
           saving={saving}
         >
           <Grid container spacing={2}>
@@ -380,7 +499,7 @@ const AdminSettings = () => {
           title="Document Settings"
           icon={<ReceiptLongIcon color="primary" />}
           onSave={() => saveSection('documents', documents)}
-          onReset={loadAll}
+          onReset={fetchSettings}
           saving={saving}
         >
           <Grid container spacing={2}>
@@ -397,7 +516,7 @@ const AdminSettings = () => {
           title="Email Settings"
           icon={<EmailIcon color="primary" />}
           onSave={() => saveSection('email', email)}
-          onReset={loadAll}
+          onReset={fetchSettings}
           saving={saving}
         >
           <Grid container spacing={2}>
@@ -427,7 +546,7 @@ const AdminSettings = () => {
           title="Security Settings"
           icon={<SecurityIcon color="primary" />}
           onSave={() => saveSection('security', security)}
-          onReset={loadAll}
+          onReset={fetchSettings}
           saving={saving}
         >
           <Grid container spacing={2}>
@@ -453,7 +572,7 @@ const AdminSettings = () => {
           title="Localization"
           icon={<PublicIcon color="primary" />}
           onSave={() => saveSection('localization', localization)}
-          onReset={loadAll}
+          onReset={fetchSettings}
           saving={saving}
         >
           <Grid container spacing={2}>
@@ -469,7 +588,7 @@ const AdminSettings = () => {
           title="Features"
           icon={<SettingsIcon color="primary" />}
           onSave={() => saveSection('features', features)}
-          onReset={loadAll}
+          onReset={fetchSettings}
           saving={saving}
         >
           <FormControlLabel control={<Switch checked={!!features.enable_ai} onChange={(e) => setFeatures({ ...features, enable_ai: e.target.checked })} />} label="Enable AI" />

@@ -245,19 +245,9 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
   const refresh = async () => { 
     try {
       console.log('🔄 Loading GL entries from API...');
-      const response = await apiClient.get('/api/finance/advanced/general-ledger');
+      // Use double-entry journal entries endpoint which is working
+      const response = await apiClient.get('/api/finance/double-entry/journal-entries');
       console.log('📡 API response for loading entries:', response);
-      console.log('📊 Response type:', typeof response);
-      console.log('📊 Response.data type:', typeof response.data);
-      console.log('📊 Response.data is array:', Array.isArray(response.data));
-      console.log('📊 Response.data length:', response.data?.length);
-      
-      // Additional debugging for the actual response structure
-      console.log('🔍 Full response object keys:', Object.keys(response));
-      if (response.data) {
-        console.log('🔍 Response.data keys:', Object.keys(response.data));
-        console.log('🔍 First few items of response.data:', response.data.slice(0, 2));
-      }
       
       // Check if response and data exist
       if (!response) {
@@ -267,31 +257,44 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
       }
       
       // Handle different response structures
-      let dataArray = [];
+      let entriesArray = [];
       if (response.data) {
         if (Array.isArray(response.data)) {
-          dataArray = response.data;
-          console.log('Using response.data as array, length:', dataArray.length);
-        } else if (response.data.data && Array.isArray(response.data.data)) {
-          dataArray = response.data.data;
-          console.log('Using response.data.data as array, length:', dataArray.length);
-        } else if (response.data.entries && Array.isArray(response.data.entries)) {
-          dataArray = response.data.entries;
-          console.log('Using response.data.entries as array, length:', dataArray.length);
-        } else {
-          console.warn('Unexpected response structure:', response.data);
-          dataArray = [];
+          entriesArray = response.data;
+        } else if (Array.isArray(response)) {
+          entriesArray = response;
         }
       } else if (Array.isArray(response)) {
-        dataArray = response;
-        console.log('Using response directly as array, length:', dataArray.length);
+        entriesArray = response;
       }
       
-      console.log('📋 Final data array:', dataArray);
-      console.log('📊 Data array length:', dataArray.length);
+      // Transform journal entries with lines into individual GL entries
+      // Each journal line becomes a GL entry
+      const dataArray = [];
+      entriesArray.forEach(entry => {
+        if (entry.lines && Array.isArray(entry.lines)) {
+          entry.lines.forEach(line => {
+            dataArray.push({
+              id: line.id || `${entry.id}-${line.account_id}`,
+              journal_header_id: entry.id,
+              entry_date: entry.date || entry.doc_date,
+              reference: entry.reference || '',
+              description: line.description || entry.description || '',
+              account_id: line.account_id,
+              account_name: line.account_name || '',
+              debit_amount: line.debit_amount || 0,
+              credit_amount: line.credit_amount || 0,
+              balance: (line.debit_amount || 0) - (line.credit_amount || 0),
+              status: entry.status || 'posted',
+              journal_type: 'manual',
+              fiscal_period: null,
+              created_at: entry.created_at || new Date().toISOString()
+            });
+          });
+        }
+      });
       
-      // The backend returns individual General Ledger entries directly
-      // No need to flatten - each entry is already a GL entry
+      console.log('📋 Transformed GL entries:', dataArray.length);
       const entries = dataArray.map(entry => ({
         id: entry.id,
         entry_id: entry.id,
@@ -1224,7 +1227,9 @@ const SmartGeneralLedger = ({ isMobile, isTablet }) => {
                     label="Account"
                     required
                   >
-                    {chartOfAccounts?.map((account) => (
+                    {chartOfAccounts
+                      ?.filter(account => account.is_active !== false)
+                      .map((account) => (
                       <MenuItem key={account.id} value={account.id}>
                         {account.name}
                       </MenuItem>

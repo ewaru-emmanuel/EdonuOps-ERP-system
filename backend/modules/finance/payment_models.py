@@ -30,9 +30,10 @@ class PaymentMethod(db.Model):
     is_system = db.Column(db.Boolean, default=False)  # System methods can't be deleted
     
     # Audit fields
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    user_id = db.Column(db.Integer)  # Standardized user identification)
     
     def __repr__(self):
         return f'<PaymentMethod {self.code}: {self.name}>'
@@ -64,7 +65,7 @@ class BankAccount(db.Model):
     currency = db.Column(db.String(3), default='USD')
     
     # Integration
-    gl_account_id = db.Column(db.Integer, db.ForeignKey('advanced_chart_of_accounts.id'))  # Link to GL account
+    # gl_account_id = db.Column(db.Integer, db.ForeignKey('advanced_chart_of_accounts.id'))  # Link to GL account - Temporarily disabled
     
     # Configuration
     is_default = db.Column(db.Boolean, default=False)  # Default account for new payments
@@ -89,12 +90,13 @@ class BankAccount(db.Model):
     sync_frequency = db.Column(db.String(20), default='daily')  # daily, weekly, monthly
     
     # Audit fields
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    user_id = db.Column(db.Integer)  # Standardized user identification)
     
     # Relationships
-    gl_account = db.relationship('ChartOfAccounts', backref='bank_accounts')
+    # gl_account = db.relationship('ChartOfAccounts', backref='bank_accounts')  # Temporarily disabled
     
     def __repr__(self):
         return f'<BankAccount {self.account_name} ({self.account_type})>'
@@ -145,7 +147,7 @@ class PaymentTransaction(db.Model):
     
     # Fee tracking
     processing_fee = db.Column(db.Float, default=0.0)
-    fee_account_id = db.Column(db.Integer, db.ForeignKey('advanced_chart_of_accounts.id'))  # GL account for fees
+    # fee_account_id = db.Column(db.Integer, db.ForeignKey('advanced_chart_of_accounts.id'))  # GL account for fees - Temporarily disabled
     net_amount = db.Column(db.Float)  # Amount after fees
     
     # Transaction type and linking
@@ -169,7 +171,7 @@ class PaymentTransaction(db.Model):
     # Relationships
     payment_method = db.relationship('PaymentMethod', backref='transactions')
     bank_account = db.relationship('BankAccount', backref='transactions')
-    fee_account = db.relationship('ChartOfAccounts', backref='fee_transactions')
+    # fee_account = db.relationship('ChartOfAccounts', backref='fee_transactions')  # Temporarily disabled
     
     # Indexes for performance
     __table_args__ = (
@@ -194,100 +196,6 @@ class PaymentTransaction(db.Model):
         db.session.add(self)
         db.session.commit()
         return self
-
-
-class ExchangeRate(db.Model):
-    """
-    Exchange rates for multi-currency support
-    Historical rates for accurate reporting
-    """
-    __tablename__ = 'exchange_rates'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    from_currency = db.Column(db.String(3), nullable=False)  # Base currency
-    to_currency = db.Column(db.String(3), nullable=False)    # Target currency
-    rate = db.Column(db.Float, nullable=False)               # Exchange rate
-    rate_date = db.Column(db.Date, nullable=False)          # Date of the rate
-    
-    # Source information
-    source = db.Column(db.String(50), default='manual')     # 'manual', 'api', 'bank'
-    source_reference = db.Column(db.String(100))            # API reference or bank name
-    
-    # Audit fields
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    user_id = db.Column(db.Integer)  # Standardized user identification)
-    
-    # Indexes for performance
-    __table_args__ = (
-        Index('idx_exchange_rates_currency_date', 'from_currency', 'to_currency', 'rate_date'),
-        Index('idx_exchange_rates_date', 'rate_date'),
-    )
-    
-    def __repr__(self):
-        return f'<ExchangeRate {self.from_currency}/{self.to_currency} = {self.rate} on {self.rate_date}>'
-    
-    @classmethod
-    def get_rate(cls, from_currency, to_currency, rate_date=None):
-        """Get exchange rate for currency pair on specific date"""
-        if rate_date is None:
-            rate_date = date.today()
-        
-        # Try exact date first
-        rate = cls.query.filter_by(
-            from_currency=from_currency,
-            to_currency=to_currency,
-            rate_date=rate_date
-        ).first()
-        
-        if rate:
-            return rate.rate
-        
-        # If no exact date, get most recent rate before the date
-        rate = cls.query.filter(
-            cls.from_currency == from_currency,
-            cls.to_currency == to_currency,
-            cls.rate_date <= rate_date
-        ).order_by(cls.rate_date.desc()).first()
-        
-        if rate:
-            return rate.rate
-        
-        # If no historical rate, return 1.0 for same currency or None
-        if from_currency == to_currency:
-            return 1.0
-        
-        return None
-    
-    @classmethod
-    def set_rate(cls, from_currency, to_currency, rate, rate_date=None, source='manual', created_by=None):
-        """Set exchange rate for currency pair"""
-        if rate_date is None:
-            rate_date = date.today()
-        
-        # Check if rate already exists for this date
-        existing = cls.query.filter_by(
-            from_currency=from_currency,
-            to_currency=to_currency,
-            rate_date=rate_date
-        ).first()
-        
-        if existing:
-            existing.rate = rate
-            existing.source = source
-            existing.created_by = created_by
-        else:
-            new_rate = cls(
-                from_currency=from_currency,
-                to_currency=to_currency,
-                rate=rate,
-                rate_date=rate_date,
-                source=source,
-                created_by=created_by
-            )
-            db.session.add(new_rate)
-        
-        db.session.commit()
-        return existing or new_rate
 
 
 class PartialPayment(db.Model):
@@ -448,3 +356,136 @@ class ReconciliationSession(db.Model):
     
     def __repr__(self):
         return f'<ReconciliationSession {self.bank_account.account_name} - {self.statement_date}>'
+
+        return f'<ExchangeRate {self.from_currency}/{self.to_currency} = {self.rate} on {self.rate_date}>'
+
+    
+
+    @classmethod
+
+    def get_rate(cls, from_currency, to_currency, rate_date=None):
+
+        """Get exchange rate for currency pair on specific date"""
+
+        if rate_date is None:
+
+            rate_date = date.today()
+
+        
+
+        # Try exact date first
+
+        rate = cls.query.filter_by(
+
+            from_currency=from_currency,
+
+            to_currency=to_currency,
+
+            rate_date=rate_date
+
+        ).first()
+
+        
+
+        if rate:
+
+            return rate.rate
+
+        
+
+        # If no exact date, get most recent rate before the date
+
+        rate = cls.query.filter(
+
+            cls.from_currency == from_currency,
+
+            cls.to_currency == to_currency,
+
+            cls.rate_date <= rate_date
+
+        ).order_by(cls.rate_date.desc()).first()
+
+        
+
+        if rate:
+
+            return rate.rate
+
+        
+
+        # If no historical rate, return 1.0 for same currency or None
+
+        if from_currency == to_currency:
+
+            return 1.0
+
+        
+
+        return None
+
+    
+
+    @classmethod
+
+    def set_rate(cls, from_currency, to_currency, rate, rate_date=None, source='manual', created_by=None):
+
+        """Set exchange rate for currency pair"""
+
+        if rate_date is None:
+
+            rate_date = date.today()
+
+        
+
+        # Check if rate already exists for this date
+
+        existing = cls.query.filter_by(
+
+            from_currency=from_currency,
+
+            to_currency=to_currency,
+
+            rate_date=rate_date
+
+        ).first()
+
+        
+
+        if existing:
+
+            existing.rate = rate
+
+            existing.source = source
+
+            existing.created_by = created_by
+
+        else:
+
+            new_rate = cls(
+
+                from_currency=from_currency,
+
+                to_currency=to_currency,
+
+                rate=rate,
+
+                rate_date=rate_date,
+
+                source=source,
+
+                created_by=created_by
+
+            )
+
+            db.session.add(new_rate)
+
+        
+
+        db.session.commit()
+
+        return existing or new_rate
+
+
+
+
+

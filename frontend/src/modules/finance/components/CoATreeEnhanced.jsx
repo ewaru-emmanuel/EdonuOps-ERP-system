@@ -4,11 +4,6 @@ import {
   Typography,
   Chip,
   Checkbox,
-  IconButton,
-  Tooltip,
-  Collapse,
-  Paper,
-  alpha,
   useTheme,
   Menu,
   MenuItem,
@@ -17,100 +12,87 @@ import {
   Divider
 } from '@mui/material';
 import {
-  ExpandMore as ExpandMoreIcon,
-  ChevronRight as ChevronRightIcon,
-  AccountBalance as AssetIcon,
-  CreditCard as LiabilityIcon,
-  AccountBalanceWallet as EquityIcon,
-  TrendingUp as RevenueIcon,
-  TrendingDown as ExpenseIcon,
-  Folder as FolderIcon,
-  FolderOpen as FolderOpenIcon,
-  Description as AccountIcon,
-  MoreHoriz as MoreIcon,
-  Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
-  FileCopy as CopyIcon
+  FileCopy as CopyIcon,
+  Add as AddIcon
 } from '@mui/icons-material';
 
 import { useCoA } from '../context/CoAContext';
 
-const CoATreeEnhanced = ({ onSelect, selectedAccounts = new Set(), onSelectAccount }) => {
+const CoATreeEnhanced = ({ onSelect, selectedAccounts = new Set(), onSelectAccount, accounts: accountsProp }) => {
   const theme = useTheme();
-  const { accounts } = useCoA();
-  const [expandedNodes, setExpandedNodes] = useState(new Set(['asset', 'liability', 'equity', 'revenue', 'expense']));
-  const [hoveredNode, setHoveredNode] = useState(null);
+  const { accounts: contextAccounts } = useCoA();
   const [contextMenu, setContextMenu] = useState(null);
 
-  // Use real account data from context
+  // Use accounts from prop (API accounts) if provided, otherwise fall back to context
+  const accounts = accountsProp || contextAccounts || [];
+
+  // Use real account data from accounts
   const accountsData = useMemo(() => {
     return (accounts || []).map(acc => ({
       id: acc.id,
       code: acc.code,
       name: acc.account_name || acc.name,
       type: acc.account_type || acc.type,
-      parent_id: acc.parent_id,
       balance: acc.balance || 0,
       is_active: acc.is_active !== false
     }));
   }, [accounts]);
 
-  // Build tree structure
-  const accountTree = useMemo(() => {
-    const tree = {};
-    const accountMap = {};
-    
-    // First pass: create account map
+  // Build hierarchical tree structure based on parent-child relationships
+  const buildAccountTree = useMemo(() => {
+    const accountMap = new Map();
+    const rootAccounts = [];
+
+    // Create a map of all accounts with children array
     accountsData.forEach(account => {
-      accountMap[account.id] = { ...account, children: [] };
+      accountMap.set(account.id, { ...account, children: [] });
     });
-    
-    // Second pass: build tree structure
+
+    // Build the tree structure
     accountsData.forEach(account => {
-      if (account.parent_id === null) {
-        tree[account.id] = accountMap[account.id];
-      } else {
-        const parent = accountMap[account.parent_id];
+      const node = accountMap.get(account.id);
+      // Check if account has a parent_id (from the original account object)
+      const originalAccount = accounts.find(acc => acc.id === account.id);
+      const parentId = originalAccount?.parent_id;
+      
+      if (parentId) {
+        const parent = accountMap.get(parentId);
         if (parent) {
-          parent.children.push(accountMap[account.id]);
+          parent.children.push(node);
+        } else {
+          // Parent not found, add to root
+          rootAccounts.push(node);
         }
+      } else {
+        // No parent, add to root
+        rootAccounts.push(node);
       }
     });
-    
-    return tree;
-  }, [accountsData]);
 
-  // Group accounts by type for organized display
+    return rootAccounts;
+  }, [accountsData, accounts]);
+
+  // Group root accounts by type for organized display (when no parent-child relationships exist)
   const groupedAccounts = useMemo(() => {
     const groups = {
-      asset: { name: 'Assets', icon: <AssetIcon />, color: '#4caf50', accounts: [] },
-      liability: { name: 'Liabilities', icon: <LiabilityIcon />, color: '#f44336', accounts: [] },
-      equity: { name: 'Equity', icon: <EquityIcon />, color: '#2196f3', accounts: [] },
-      revenue: { name: 'Revenue', icon: <RevenueIcon />, color: '#9c27b0', accounts: [] },
-      expense: { name: 'Expenses', icon: <ExpenseIcon />, color: '#ff9800', accounts: [] }
+      asset: { accounts: [] },
+      liability: { accounts: [] },
+      equity: { accounts: [] },
+      revenue: { accounts: [] },
+      expense: { accounts: [] }
     };
     
-    Object.values(accountTree).forEach(account => {
+    buildAccountTree.forEach(account => {
       if (groups[account.type]) {
         groups[account.type].accounts.push(account);
       }
     });
     
     return groups;
-  }, [accountTree]);
-
-  const handleToggleExpand = (nodeId) => {
-    const newExpanded = new Set(expandedNodes);
-    if (newExpanded.has(nodeId)) {
-      newExpanded.delete(nodeId);
-    } else {
-      newExpanded.add(nodeId);
-    }
-    setExpandedNodes(newExpanded);
-  };
+  }, [buildAccountTree]);
 
   const handleContextMenu = (event, account) => {
     event.preventDefault();
@@ -125,300 +107,241 @@ const CoATreeEnhanced = ({ onSelect, selectedAccounts = new Set(), onSelectAccou
     setContextMenu(null);
   };
 
-  const getAccountIcon = (account) => {
-    const typeIcons = {
-      asset: <AssetIcon />,
-      liability: <LiabilityIcon />,
-      equity: <EquityIcon />,
-      revenue: <RevenueIcon />,
-      expense: <ExpenseIcon />
-    };
-    return typeIcons[account.type] || <AccountIcon />;
-  };
-
-  const formatBalance = (balance) => {
-    const formatted = Math.abs(balance).toLocaleString('en-US', {
+  const formatAmount = (amount) => {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
-    });
-    return balance < 0 ? `(${formatted})` : formatted;
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount || 0);
   };
 
-  const TreeNode = ({ account, level = 0, isLast = false, prefix = '' }) => {
-    const isExpanded = expandedNodes.has(account.id);
-    const hasChildren = account.children && account.children.length > 0;
+  const renderAccountItem = (account, depth = 0) => {
+    const accountName = account.name || 'Unnamed Account';
+    const accountType = account.type || '';
+    const balance = account.balance || 0;
+    const isActive = account.is_active !== false;
     const isSelected = selectedAccounts.has(account.id);
-    const isHovered = hoveredNode === account.id;
-
-    const nodeIndent = level * 24;
-    const lineHeight = '2.5rem';
+    const hasChildren = account.children && account.children.length > 0;
+    const indent = depth * 24; // 24px per level
 
     return (
       <Box key={account.id}>
-        {/* Main node */}
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            height: lineHeight,
-            pl: `${nodeIndent + 8}px`,
-            pr: 1,
-            cursor: 'pointer',
-            backgroundColor: isSelected 
-              ? alpha(theme.palette.primary.main, 0.08)
-              : 'transparent',
-            borderLeft: isSelected ? `3px solid ${theme.palette.primary.main}` : 'none',
-            position: 'relative',
-            transition: 'none', // Remove transition to eliminate lag
-            '&:hover': {
-              backgroundColor: alpha(theme.palette.action.hover, 0.02), // Extremely light hover
-              '& .tree-actions': {
-                opacity: 1
-              }
-            }
-          }}
-          onMouseEnter={() => setHoveredNode(account.id)}
-          onMouseLeave={() => setHoveredNode(null)}
+      <Box
+        onClick={() => onSelect && onSelect(account)}
           onContextMenu={(e) => handleContextMenu(e, account)}
-          onClick={() => onSelect && onSelect(account)}
-        >
-          {/* Tree structure lines */}
-          {level > 0 && (
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          py: 1.5,
+          px: 2,
+            pl: 2 + indent,
+          borderLeft: `3px solid ${
+            accountType === 'asset' ? '#4caf50' :
+            accountType === 'liability' ? '#f44336' :
+            accountType === 'equity' ? '#2196f3' :
+            accountType === 'revenue' ? '#9c27b0' :
+            '#ff9800'
+          }`,
+          cursor: 'pointer',
+          backgroundColor: isSelected ? 'rgba(25, 118, 210, 0.08)' : 'transparent',
+          '&:hover': {
+            backgroundColor: accountType === 'asset' ? 'rgba(46, 125, 50, 0.04)' :
+                           accountType === 'liability' ? 'rgba(198, 40, 40, 0.04)' :
+                           accountType === 'equity' ? 'rgba(21, 101, 192, 0.04)' :
+                           accountType === 'revenue' ? 'rgba(123, 31, 162, 0.04)' :
+                           'rgba(230, 81, 0, 0.04)',
+            transform: 'translateX(2px)'
+          },
+          transition: 'all 0.2s ease',
+          opacity: isActive ? 1 : 0.6
+        }}
+      >
+        {onSelectAccount && (
+          <Checkbox
+            size="small"
+            checked={isSelected}
+            onChange={(e) => {
+              e.stopPropagation();
+              onSelectAccount(account.id, e.target.checked);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            sx={{ mr: 1 }}
+          />
+        )}
+          {/* Indent indicator for child accounts */}
+          {depth > 0 && (
             <Box
               sx={{
-                position: 'absolute',
-                left: `${(level - 1) * 24 + 20}px`,
-                top: 0,
-                width: '1px',
-                height: lineHeight,
-                backgroundColor: alpha(theme.palette.divider, 0.3),
-                '&::before': {
-                  content: '""',
-                  position: 'absolute',
-                  top: '50%',
-                  left: 0,
-                  width: '12px',
-                  height: '1px',
-                  backgroundColor: alpha(theme.palette.divider, 0.3),
-                }
+                width: 16,
+                height: 1,
+                bgcolor: 'divider',
+                mr: 1
               }}
             />
           )}
-
-          {/* Expand/collapse button */}
-          <Box sx={{ width: 24, display: 'flex', justifyContent: 'center' }}>
-            {hasChildren ? (
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleToggleExpand(account.id);
-                }}
-                sx={{ p: 0.5 }}
-              >
-                {isExpanded ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
-              </IconButton>
-            ) : (
-              <Box sx={{ width: 24 }} />
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            fontFamily: 'monospace',
+            fontWeight: 500,
+            color: 'text.secondary',
+            minWidth: 80,
+            mr: 2
+          }}
+        >
+          {account.code}
+        </Typography>
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            flexGrow: 1,
+            fontWeight: 'medium',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          {accountName}
+            {hasChildren && (
+              <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                ({account.children.length} child{account.children.length !== 1 ? 'ren' : ''})
+              </Typography>
             )}
-          </Box>
-
-          {/* Checkbox */}
-          {onSelectAccount && (
-            <Checkbox
-              size="small"
-              checked={isSelected}
-              onChange={(e) => {
-                e.stopPropagation();
-                onSelectAccount(account.id, e.target.checked);
-              }}
-              sx={{ mr: 1, p: 0.5 }}
-            />
-          )}
-
-          {/* Account icon */}
-          <Box
-            sx={{
-              mr: 1,
-              color: groupedAccounts[account.type]?.color || theme.palette.text.secondary,
-              display: 'flex',
-              alignItems: 'center'
-            }}
-          >
-            {hasChildren ? (
-              isExpanded ? <FolderOpenIcon fontSize="small" /> : <FolderIcon fontSize="small" />
-            ) : (
-              getAccountIcon(account)
-            )}
-          </Box>
-
-          {/* Account code */}
-          <Typography
-            variant="body2"
-            sx={{
-              fontFamily: 'monospace',
-              fontWeight: 600,
-              color: theme.palette.text.primary,
-              minWidth: 60,
-              mr: 1
-            }}
-          >
-            {account.code}
-          </Typography>
-
-          {/* Account name */}
-          <Typography
-            variant="body2"
-            sx={{
-              flex: 1,
-              color: theme.palette.text.primary,
-              fontWeight: isSelected ? 600 : 400
-            }}
-          >
-            {account.name}
-          </Typography>
-
-          {/* Account type chip */}
-          <Chip
-            label={account.type}
-            size="small"
-            sx={{
-              height: 20,
-              fontSize: '0.7rem',
-              backgroundColor: alpha(groupedAccounts[account.type]?.color || '#gray', 0.1),
-              color: groupedAccounts[account.type]?.color || 'gray',
-              border: `1px solid ${alpha(groupedAccounts[account.type]?.color || '#gray', 0.3)}`,
-              mr: 1
-            }}
-          />
-
-          {/* Balance */}
-          <Typography
-            variant="body2"
-            sx={{
-              fontFamily: 'monospace',
-              fontWeight: 600,
-              color: account.balance >= 0 ? theme.palette.success.main : theme.palette.error.main,
-              minWidth: 80,
-              textAlign: 'right',
-              mr: 1
-            }}
-          >
-            {formatBalance(account.balance)}
-          </Typography>
-
-          {/* Actions */}
-          <Box
-            className="tree-actions"
-            sx={{
-              opacity: 0,
-              transition: 'opacity 0.2s',
-              display: 'flex',
-              gap: 0.5
-            }}
-          >
-            <Tooltip title="More actions">
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleContextMenu(e, account);
-                }}
-              >
-                <MoreIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Box>
+        </Typography>
+        <Chip 
+          label={accountType} 
+          size="small"
+          sx={{
+            minWidth: 80,
+            bgcolor: 
+              accountType === 'asset' ? '#e8f5e9' :
+              accountType === 'liability' ? '#ffebee' :
+              accountType === 'equity' ? '#e3f2fd' :
+              accountType === 'revenue' ? '#f3e5f5' :
+              '#fff3e0',
+            color:
+              accountType === 'asset' ? '#2e7d32' :
+              accountType === 'liability' ? '#c62828' :
+              accountType === 'equity' ? '#1565c0' :
+              accountType === 'revenue' ? '#7b1fa2' :
+              '#e65100',
+            fontWeight: 600,
+            border: 'none',
+            mr: 2
+          }}
+        />
+        <Typography 
+          variant="body2" 
+          color={balance >= 0 ? 'text.primary' : 'error.main'}
+          fontWeight="medium"
+          sx={{ minWidth: 100, textAlign: 'right', mr: 2 }}
+        >
+          {formatAmount(balance)}
+        </Typography>
+        <Chip
+          label={isActive ? 'Active' : 'Inactive'}
+          size="small"
+          color={isActive ? 'success' : 'error'}
+          variant="outlined"
+          sx={{ height: 24, fontSize: '0.7rem', minWidth: 70 }}
+        />
         </Box>
-
-        {/* Children */}
+        {/* Recursively render children */}
         {hasChildren && (
-          <Collapse in={isExpanded} timeout={200}>
-            <Box>
-              {account.children.map((child, index) => (
-                <TreeNode
-                  key={child.id}
-                  account={child}
-                  level={level + 1}
-                  isLast={index === account.children.length - 1}
-                  prefix={prefix + (isLast ? '    ' : '│   ')}
-                />
-              ))}
-            </Box>
-          </Collapse>
+          <Box>
+            {account.children
+              .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
+              .map(child => renderAccountItem(child, depth + 1))}
+          </Box>
         )}
       </Box>
     );
   };
 
-  const CategoryHeader = ({ type, group }) => {
-    const isExpanded = expandedNodes.has(type);
-    const accountCount = group.accounts.length;
-    const totalBalance = group.accounts.reduce((sum, acc) => sum + acc.balance, 0);
-
-    return (
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          p: 1.5,
-          backgroundColor: alpha(group.color, 0.05),
-          borderLeft: `4px solid ${group.color}`,
-          cursor: 'pointer',
-          transition: 'none', // Remove transition to eliminate lag
-          '&:hover': {
-            backgroundColor: alpha(group.color, 0.02) // Extremely light hover
-          }
-        }}
-        onClick={() => handleToggleExpand(type)}
-      >
-        <IconButton size="small" sx={{ mr: 1 }}>
-          {isExpanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
-        </IconButton>
-        
-        <Box sx={{ color: group.color, mr: 1 }}>
-          {group.icon}
-        </Box>
-        
-        <Typography variant="h6" sx={{ flex: 1, fontWeight: 600 }}>
-          {group.name}
-        </Typography>
-        
-        <Chip
-          label={`${accountCount} accounts`}
-          size="small"
-          sx={{ mr: 2 }}
-        />
-        
-        <Typography
-          variant="body2"
-          sx={{
-            fontFamily: 'monospace',
-            fontWeight: 600,
-            color: totalBalance >= 0 ? theme.palette.success.main : theme.palette.error.main
-          }}
-        >
-          {formatBalance(totalBalance)}
-        </Typography>
-      </Box>
-    );
-  };
+  // Check if we have any accounts
+  const hasAccounts = accountsData.length > 0;
+  const hasTreeAccounts = buildAccountTree.length > 0;
+  
+  // Check if any accounts have parent-child relationships
+  const hasHierarchy = buildAccountTree.some(account => account.children && account.children.length > 0);
 
   return (
-    <Paper sx={{ mt: 2, overflow: 'hidden' }}>
-      <Box sx={{ maxHeight: '70vh', overflow: 'auto' }}>
-        {Object.entries(groupedAccounts).map(([type, group]) => (
-          <Box key={type}>
-            <CategoryHeader type={type} group={group} />
-            <Collapse in={expandedNodes.has(type)} timeout={300}>
-              <Box sx={{ backgroundColor: alpha(theme.palette.background.paper, 0.5) }}>
-                {group.accounts.map((account) => (
-                  <TreeNode key={account.id} account={account} />
-                ))}
-              </Box>
-            </Collapse>
+    <>
+      <Box>
+        {!hasAccounts ? (
+          <Box sx={{ p: 4, textAlign: 'center' }}>
+            <Typography variant="body1" color="text.secondary">
+              No accounts found. Create your first account to get started.
+            </Typography>
+          </Box>
+        ) : !hasTreeAccounts ? (
+          <Box sx={{ p: 4, textAlign: 'center' }}>
+            <Typography variant="body1" color="text.secondary">
+              No accounts to display. Check your filters.
+            </Typography>
+          </Box>
+        ) : hasHierarchy ? (
+          // Show hierarchical tree structure when parent-child relationships exist
+          <>
+            <Box sx={{ mb: 2, px: 2, py: 1, bgcolor: 'info.light', borderRadius: 1 }}>
+              <Typography variant="caption" color="text.secondary">
+                💡 Tree View: Shows parent-child account relationships. Child accounts are indented under their parents.
+              </Typography>
+            </Box>
+            {Object.entries(groupedAccounts)
+              .filter(([_, group]) => group.accounts.length > 0)
+              .map(([type, group]) => (
+                <Box key={type} sx={{ mb: 3 }}>
+                  <Typography 
+                    variant="h6" 
+                    sx={{ 
+                      mb: 1, 
+                      px: 2,
+                      textTransform: 'capitalize',
+                      fontWeight: 600,
+                      color: 'text.primary'
+                    }}
+                  >
+                    {type} ({group.accounts.length})
+                  </Typography>
+                  {group.accounts
+                    .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
+                    .map((account) => renderAccountItem(account, 0))}
+                </Box>
+              ))}
+          </>
+        ) : (
+          // Show grouped by type when no hierarchy exists (fallback)
+          <>
+            <Box sx={{ mb: 2, px: 2, py: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
+              <Typography variant="caption" color="text.secondary">
+                ℹ️ No parent-child relationships found. Accounts are grouped by type. Create child accounts to see the tree structure.
+              </Typography>
+            </Box>
+            {Object.entries(groupedAccounts)
+              .filter(([_, group]) => group.accounts.length > 0)
+              .map(([type, group]) => (
+                <Box key={type} sx={{ mb: 3 }}>
+                  <Typography 
+                    variant="h6" 
+                    sx={{ 
+                      mb: 1, 
+                      px: 2,
+                      textTransform: 'capitalize',
+                      fontWeight: 600,
+                      color: 'text.primary'
+                    }}
+                  >
+                    {type} ({group.accounts.length})
+                  </Typography>
+                  {group.accounts
+                    .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
+                    .map((account) => renderAccountItem(account, 0))}
           </Box>
         ))}
+          </>
+        )}
       </Box>
 
       {/* Context Menu */}
@@ -454,7 +377,7 @@ const CoATreeEnhanced = ({ onSelect, selectedAccounts = new Set(), onSelectAccou
           <ListItemText>Delete Account</ListItemText>
         </MenuItem>
       </Menu>
-    </Paper>
+    </>
   );
 };
 

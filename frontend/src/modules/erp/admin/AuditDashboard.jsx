@@ -40,13 +40,25 @@ const AuditDashboard = () => {
 
   useEffect(() => {
     if (securityData) {
-      setSecuritySummary(securityData);
+      // Handle response structure: {success: true, data: {...}} or direct data
+      if (securityData.data) {
+        setSecuritySummary(securityData.data);
+      } else if (securityData.successful_logins !== undefined) {
+        // Direct data object
+        setSecuritySummary(securityData);
+      }
     }
   }, [securityData]);
 
   useEffect(() => {
     if (statsData) {
-      setAuditStats(statsData);
+      // Handle response structure: {success: true, data: {...}} or direct data
+      if (statsData.data) {
+        setAuditStats(statsData.data);
+      } else if (statsData.module_stats !== undefined) {
+        // Direct data object
+        setAuditStats(statsData);
+      }
     }
   }, [statsData]);
 
@@ -388,21 +400,29 @@ const AuditDashboard = () => {
               <Grid container spacing={2}>
                 <Grid item xs={12} md={6}>
                   <Typography variant="subtitle2">Top Modules by Activity:</Typography>
-                  {auditStats.module_stats?.slice(0, 5).map((stat, index) => (
-                    <Box key={index} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2">{stat.module}</Typography>
-                      <Chip label={stat.count} size="small" />
-                    </Box>
-                  ))}
+                  {auditStats.module_stats && auditStats.module_stats.length > 0 ? (
+                    auditStats.module_stats.slice(0, 5).map((stat, index) => (
+                      <Box key={index} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                        <Typography variant="body2">{stat.module || 'Unknown'}</Typography>
+                        <Chip label={stat.count || 0} size="small" />
+                      </Box>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">No module activity data available</Typography>
+                  )}
                 </Grid>
                 <Grid item xs={12} md={6}>
                   <Typography variant="subtitle2">Most Active Users:</Typography>
-                  {auditStats.top_users?.slice(0, 5).map((user, index) => (
-                    <Box key={index} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2">{user.username}</Typography>
-                      <Chip label={user.count} size="small" />
-                    </Box>
-                  ))}
+                  {auditStats.top_users && auditStats.top_users.length > 0 ? (
+                    auditStats.top_users.slice(0, 5).map((user, index) => (
+                      <Box key={index} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                        <Typography variant="body2">{user.username || `User ${user.user_id || index + 1}`}</Typography>
+                        <Chip label={user.count || 0} size="small" />
+                      </Box>
+                    ))
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">No user activity data available</Typography>
+                  )}
                 </Grid>
               </Grid>
             </Box>

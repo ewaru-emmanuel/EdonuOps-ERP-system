@@ -117,7 +117,7 @@ const CRMModule = () => {
   // In development, use full URL to backend; in production, use relative URLs
   const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
   const API_BASE = process.env.REACT_APP_API_BASE || process.env.REACT_APP_API_URL || 
-                  (isDevelopment ? 'http://localhost:5000' : '');
+                  (isDevelopment ? process.env.REACT_APP_API_URL || '' : '');
   
   // Form and dialog states
   const [formOpen, setFormOpen] = useState(false);

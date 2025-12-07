@@ -313,7 +313,8 @@ def get_reconciliation_sessions():
         bank_account_id = request.args.get('bank_account_id')
         status = request.args.get('status')
         
-        query = ReconciliationSession.query.filter_by(tenant_id=tenant_context.tenant_id)
+        from modules.core.tenant_query_helper import tenant_query
+        query = tenant_query(ReconciliationSession)
         
         if bank_account_id:
             query = query.filter_by(bank_account_id=bank_account_id)
@@ -463,7 +464,8 @@ def get_bank_transactions():
         end_date = request.args.get('end_date')
         matched = request.args.get('matched')
         
-        query = BankTransaction.query.filter_by(tenant_id=tenant_context.tenant_id)
+        from modules.core.tenant_query_helper import tenant_query
+        query = tenant_query(BankTransaction)
         
         if bank_account_id:
             query = query.filter_by(bank_account_id=bank_account_id)

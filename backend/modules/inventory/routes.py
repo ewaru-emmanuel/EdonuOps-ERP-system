@@ -22,15 +22,18 @@ def get_products():
             except:
                 pass
         
-        # If still no user_id, return empty array (for development)
+        # SECURITY: Require authentication - no anonymous access
         if not user_id:
-            print("Warning: No user context found for products, returning empty results")
-            return jsonify([]), 200
+            return jsonify({'error': 'Authentication required'}), 401
         
-        # Filter by user - include records with no user_id for backward compatibility
-        products = Product.query.filter(
-            (Product.user_id == int(user_id)) | (Product.user_id.is_(None))
-        ).all()
+        # SECURITY: Convert user_id to int and validate (prevent injection)
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        
+        # STRICT USER ISOLATION: Filter by user_id only (no backward compatibility)
+        products = Product.query.filter_by(user_id=user_id).all()
         return jsonify([{
             "id": product.id,
             "name": product.name,
@@ -50,18 +53,31 @@ def get_products():
         return jsonify({"error": "Failed to fetch products"}), 500
 
 @inventory_bp.route('/categories', methods=['GET'])
+@require_permission('inventory.categories.read')
 def get_categories():
     """Get all categories from database"""
     try:
-        # Get user ID from request headers
+        # Get user ID from request headers or JWT token
         user_id = request.headers.get('X-User-ID')
         if not user_id:
-            return jsonify([]), 200
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
         
-        # Filter by user - include records with no user_id for backward compatibility
-        categories = Category.query.filter(
-            (Category.user_id == int(user_id)) | (Category.user_id.is_(None))
-        ).all()
+        # SECURITY: Require authentication - no anonymous access
+        if not user_id:
+            return jsonify({'error': 'Authentication required'}), 401
+        
+        # SECURITY: Convert user_id to int and validate (prevent injection)
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        
+        # STRICT USER ISOLATION: Filter by user_id only (no backward compatibility)
+        categories = Category.query.filter_by(user_id=user_id).all()
         return jsonify([{
             "id": category.id,
             "name": category.name,
@@ -74,18 +90,31 @@ def get_categories():
         return jsonify({"error": "Failed to fetch categories"}), 500
 
 @inventory_bp.route('/warehouses', methods=['GET'])
+@require_permission('inventory.warehouses.read')
 def get_warehouses():
     """Get all warehouses from database"""
     try:
-        # Get user ID from request headers
+        # Get user ID from request headers or JWT token
         user_id = request.headers.get('X-User-ID')
         if not user_id:
-            return jsonify([]), 200
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
         
-        # Filter by user - include records with no user_id for backward compatibility
-        warehouses = Warehouse.query.filter(
-            (Warehouse.user_id == int(user_id)) | (Warehouse.user_id.is_(None))
-        ).all()
+        # SECURITY: Require authentication - no anonymous access
+        if not user_id:
+            return jsonify({'error': 'Authentication required'}), 401
+        
+        # SECURITY: Convert user_id to int and validate (prevent injection)
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        
+        # STRICT USER ISOLATION: Filter by user_id only (no backward compatibility)
+        warehouses = Warehouse.query.filter_by(user_id=user_id).all()
         return jsonify([{
             "id": warehouse.id,
             "name": warehouse.name,
@@ -99,18 +128,31 @@ def get_warehouses():
         return jsonify({"error": "Failed to fetch warehouses"}), 500
 
 @inventory_bp.route('/transactions', methods=['GET'])
+@require_permission('inventory.transactions.read')
 def get_transactions():
     """Get all inventory transactions from database"""
     try:
-        # Get user ID from request headers
+        # Get user ID from request headers or JWT token
         user_id = request.headers.get('X-User-ID')
         if not user_id:
-            return jsonify([]), 200
+            from flask_jwt_extended import get_jwt_identity
+            try:
+                user_id = get_jwt_identity()
+            except:
+                pass
         
-        # Filter by user - include records with no user_id for backward compatibility
-        transactions = BasicInventoryTransaction.query.filter(
-            (BasicInventoryTransaction.user_id == int(user_id)) | (BasicInventoryTransaction.user_id.is_(None))
-        ).all()
+        # SECURITY: Require authentication - no anonymous access
+        if not user_id:
+            return jsonify({'error': 'Authentication required'}), 401
+        
+        # SECURITY: Convert user_id to int and validate (prevent injection)
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        
+        # STRICT USER ISOLATION: Filter by user_id only (no backward compatibility)
+        transactions = BasicInventoryTransaction.query.filter_by(user_id=user_id).all()
         return jsonify([{
             "id": transaction.id,
             "product_id": transaction.product_id,
@@ -297,6 +339,7 @@ def delete_product(product_id):
         return jsonify({"error": "Failed to delete product"}), 500
 
 @inventory_bp.route('/categories', methods=['POST'])
+@require_permission('inventory.categories.create')
 def create_category():
     """Create a new category in database"""
     try:
@@ -331,6 +374,7 @@ def create_category():
         return jsonify({"error": "Failed to create category"}), 500
 
 @inventory_bp.route('/categories/<int:category_id>', methods=['PUT'])
+@require_permission('inventory.categories.update')
 def update_category(category_id):
     """Update a category in database"""
     try:
@@ -357,6 +401,7 @@ def update_category(category_id):
         return jsonify({"error": "Failed to update category"}), 500
 
 @inventory_bp.route('/categories/<int:category_id>', methods=['DELETE'])
+@require_permission('inventory.categories.delete')
 def delete_category(category_id):
     """Delete a category from database"""
     try:
@@ -370,6 +415,7 @@ def delete_category(category_id):
         return jsonify({"error": "Failed to delete category"}), 500
 
 @inventory_bp.route('/warehouses', methods=['POST'])
+@require_permission('inventory.warehouses.create')
 def create_warehouse():
     """Create a new warehouse in database"""
     try:
@@ -406,6 +452,7 @@ def create_warehouse():
         return jsonify({"error": "Failed to create warehouse"}), 500
 
 @inventory_bp.route('/warehouses/<int:warehouse_id>', methods=['PUT'])
+@require_permission('inventory.warehouses.update')
 def update_warehouse(warehouse_id):
     """Update a warehouse in database"""
     try:
@@ -434,6 +481,7 @@ def update_warehouse(warehouse_id):
         return jsonify({"error": "Failed to update warehouse"}), 500
 
 @inventory_bp.route('/warehouses/<int:warehouse_id>', methods=['DELETE'])
+@require_permission('inventory.warehouses.delete')
 def delete_warehouse(warehouse_id):
     """Delete a warehouse from database"""
     try:

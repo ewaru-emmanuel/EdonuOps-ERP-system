@@ -51,20 +51,40 @@ class DatabaseFirstPersistence {
       // Load from database
       const { default: apiClient } = await import('./apiClient');
       
+      console.log(`🔍 Loading ${dataType} for user ${userId} from database...`);
       const response = await apiClient.get(`/api/user-data/load/${dataType}?user_id=${userId}`);
       
-      // Check if the response indicates success and has data
-      if ((response.status === 200 || response.success || response.data?.success) && (response.data || response.data?.data)) {
-        const data = response.data || response.data?.data;
+      console.log(`📦 Response for ${dataType}:`, {
+        response,
+        type: typeof response,
+        hasData: !!response,
+        isObject: typeof response === 'object',
+        keys: typeof response === 'object' ? Object.keys(response) : []
+      });
+      
+      // apiClient.get() returns the JSON directly, not wrapped
+      // The backend returns: { success: true, data: {...} } or { error: ... }
+      if (response && response.success && response.data) {
+        const data = response.data;
         // Update cache
         this.updateCache(userId, dataType, data);
-        console.log(`📂 Loaded ${dataType} from database for user ${userId}`);
+        console.log(`✅ Loaded ${dataType} from database for user ${userId}:`, data);
         return data;
       }
       
+      // If response is the data directly (some endpoints might return data directly)
+      if (response && typeof response === 'object' && !response.error && !response.success) {
+        // This might be the data itself
+        this.updateCache(userId, dataType, response);
+        console.log(`✅ Loaded ${dataType} from database (direct) for user ${userId}:`, response);
+        return response;
+      }
+      
+      console.log(`⚠️ No data found for ${dataType} for user ${userId}`);
       return null;
     } catch (error) {
       console.error(`❌ Failed to load ${dataType} from database:`, error);
+      // Don't throw - return null so calling code can handle gracefully
       return null;
     }
   }

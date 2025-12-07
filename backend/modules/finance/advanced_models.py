@@ -15,6 +15,8 @@ class ChartOfAccounts(db.Model):
     parent_account_id = db.Column(db.Integer, db.ForeignKey('advanced_chart_of_accounts.id'))
     description = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -38,8 +40,8 @@ class GeneralLedgerEntry(db.Model):
     status = db.Column(db.String(20), default='posted')  # draft, posted, void
     journal_type = db.Column(db.String(50))  # manual, system, recurring
     fiscal_period = db.Column(db.String(10))  # YYYY-MM
-    created_by = db.Column(db.String(100))  # Keep for backward compatibility
-    user_id = db.Column(db.Integer)  # Standardized user identification
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     approved_by = db.Column(db.String(100))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -70,10 +72,10 @@ class PostingRule(db.Model):
     priority = db.Column(db.Integer, default=1)  # For multiple rules per event
     valid_from = db.Column(db.Date, default=datetime.utcnow)
     valid_to = db.Column(db.Date)  # NULL = active indefinitely
-    company_id = db.Column(db.Integer)  # For multi-company support
     business_unit = db.Column(db.String(50))  # For different BU rules
     is_active = db.Column(db.Boolean, default=True)
-    user_id = db.Column(db.Integer)  # Standardized user identification)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -106,7 +108,8 @@ class JournalHeader(db.Model):
     approval_status = db.Column(db.String(20), default='pending')  # pending, approved, rejected
     
     # User metadata
-    user_id = db.Column(db.Integer)  # Standardized user identification)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     posted_by = db.Column(db.String(100))
     approved_by = db.Column(db.String(100))
     reversed_by = db.Column(db.String(100))
@@ -136,6 +139,8 @@ class CompanySettings(db.Model):
     setting_type = db.Column(db.String(20), default='string')  # string, number, boolean, json
     description = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -170,8 +175,8 @@ class AccountsPayable(db.Model):
     actual_payment_amount = db.Column(db.Float)  # Amount actually paid (may differ from total)
     payment_notes = db.Column(db.Text)
     
-    user_id = db.Column(db.Integer)  # Standardized user identification)  # User isolation
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -211,8 +216,8 @@ class AccountsReceivable(db.Model):
     net_amount_received = db.Column(db.Float)  # Amount after processing fees
     payment_notes = db.Column(db.Text)
     
-    user_id = db.Column(db.Integer)  # Standardized user identification)  # User isolation
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -247,7 +252,8 @@ class FixedAsset(db.Model):
     disposal_value = db.Column(db.Float)
     insurance_info = db.Column(db.Text)
     warranty_info = db.Column(db.Text)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -270,7 +276,8 @@ class Budget(db.Model):
     status = db.Column(db.String(20), default='active')  # active, inactive, archived
     approved_by = db.Column(db.String(100))
     approved_at = db.Column(db.DateTime)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -296,7 +303,8 @@ class TaxRecord(db.Model):
     filing_reference = db.Column(db.String(50))
     payment_reference = db.Column(db.String(50))
     notes = db.Column(db.Text)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -318,7 +326,8 @@ class BankReconciliation(db.Model):
     reconciled_by = db.Column(db.String(100))
     reconciled_at = db.Column(db.DateTime)
     notes = db.Column(db.Text)
-    user_id = db.Column(db.Integer)  # Standardized user identification)  # User isolation
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -335,7 +344,8 @@ class APPayment(db.Model):
     payment_reference = db.Column(db.String(50))
     bank_account = db.Column(db.String(50))
     status = db.Column(db.String(20), default='pending')  # pending, processed, cleared, void
-    user_id = db.Column(db.Integer)  # Standardized user identification)  # User isolation
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -351,7 +361,8 @@ class ARPayment(db.Model):
     payment_reference = db.Column(db.String(50))
     bank_account = db.Column(db.String(50))
     status = db.Column(db.String(20), default='pending')  # pending, processed, cleared, void
-    user_id = db.Column(db.Integer)  # Standardized user identification)  # User isolation
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -370,7 +381,8 @@ class FinanceVendor(db.Model):
     payment_terms = db.Column(db.String(50))
     credit_limit = db.Column(db.Float)
     status = db.Column(db.String(20), default='active')
-    user_id = db.Column(db.Integer)  # Standardized user identification)  # User isolation
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -388,7 +400,8 @@ class FinanceCustomer(db.Model):
     payment_terms = db.Column(db.String(50))
     credit_limit = db.Column(db.Float)
     status = db.Column(db.String(20), default='active')
-    user_id = db.Column(db.Integer)  # Standardized user identification)  # User isolation
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -402,36 +415,14 @@ class AuditTrail(db.Model):
     action = db.Column(db.String(20), nullable=False)  # create, update, delete
     old_values = db.Column(db.Text)  # JSON string
     new_values = db.Column(db.Text)  # JSON string
-    user_id = db.Column(db.String(100))
+    tenant_id = db.Column(db.String(50), nullable=True, index=True)  # Company/tenant identifier
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     ip_address = db.Column(db.String(45))
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
-# Multi-Currency Support
-class Currency(db.Model):
-    __tablename__ = 'advanced_currencies'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    currency_code = db.Column(db.String(3), unique=True, nullable=False)
-    currency_name = db.Column(db.String(50), nullable=False)
-    symbol = db.Column(db.String(5))
-    is_base_currency = db.Column(db.Boolean, default=False)
-    is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+# Currency model moved to currency_models.py to avoid conflicts
 
-class ExchangeRate(db.Model):
-    __tablename__ = 'advanced_exchange_rates'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    from_currency = db.Column(db.String(3), nullable=False)  # USD, EUR, GBP, etc.
-    to_currency = db.Column(db.String(3), nullable=False)
-    rate = db.Column(db.Float, nullable=False)
-    effective_date = db.Column(db.Date, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Composite unique constraint
-    __table_args__ = (
-        db.UniqueConstraint('from_currency', 'to_currency', 'effective_date', name='unique_exchange_rate'),
-    )
+# ExchangeRate model moved to currency_models.py to avoid conflicts
 
 # Depreciation Schedule
 class DepreciationSchedule(db.Model):
@@ -445,6 +436,8 @@ class DepreciationSchedule(db.Model):
     book_value = db.Column(db.Float, nullable=False)
     is_posted = db.Column(db.Boolean, default=False)
     posted_date = db.Column(db.Date)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -467,6 +460,8 @@ class InvoiceLineItem(db.Model):
     discount_amount = db.Column(db.Float, default=0.0)
     total_amount = db.Column(db.Float, nullable=False)
     account_id = db.Column(db.Integer, db.ForeignKey('advanced_chart_of_accounts.id'))
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -485,6 +480,8 @@ class FinancialPeriod(db.Model):
     is_closed = db.Column(db.Boolean, default=False)
     closed_by = db.Column(db.String(100))
     closed_at = db.Column(db.DateTime)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 # Maintenance Records for Fixed Assets
@@ -505,6 +502,8 @@ class MaintenanceRecord(db.Model):
     parts_used = db.Column(db.Text)  # JSON string for parts list
     labor_hours = db.Column(db.Float, default=0.0)
     notes = db.Column(db.Text)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -527,6 +526,8 @@ class TaxFilingHistory(db.Model):
     filing_method = db.Column(db.String(50))  # electronic, paper
     confirmation_number = db.Column(db.String(100))
     notes = db.Column(db.Text)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -548,6 +549,8 @@ class ComplianceReport(db.Model):
     recommendations = db.Column(db.Text)
     auditor = db.Column(db.String(100))
     next_review_date = db.Column(db.Date)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -569,6 +572,7 @@ class UserActivity(db.Model):
     last_activity = db.Column(db.DateTime, default=datetime.utcnow)
     action_count = db.Column(db.Integer, default=1)
     status = db.Column(db.String(20), default='active')  # active, inactive, suspended
+    tenant_id = db.Column(db.String(50), nullable=True, index=True)  # Company/tenant identifier
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -591,6 +595,8 @@ class BankStatement(db.Model):
     reconciled_date = db.Column(db.Date)
     reconciled_by = db.Column(db.String(100))
     notes = db.Column(db.Text)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -611,6 +617,8 @@ class FinancialReport(db.Model):
     approved_by = db.Column(db.String(100))
     approved_at = db.Column(db.DateTime)
     notes = db.Column(db.Text)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -632,5 +640,7 @@ class KPI(db.Model):
     trend = db.Column(db.String(20))  # increasing, decreasing, stable
     status = db.Column(db.String(20), default='active')  # active, inactive, archived
     last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

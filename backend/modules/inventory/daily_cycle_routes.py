@@ -268,7 +268,7 @@ def get_daily_inventory_balances(date_str=None):
         # Get user's product IDs for multi-tenancy
         from modules.inventory.advanced_models import InventoryProduct
         user_product_ids = [p.id for p in InventoryProduct.query.filter(
-            (InventoryProduct.user_id == user_id_int) | (InventoryProduct.user_id.is_(None))
+            InventoryProduct.user_id == user_id_int
         ).all()]
         
         # Build query with multi-tenancy

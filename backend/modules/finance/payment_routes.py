@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from app import db
-from .payment_models import PaymentMethod, BankAccount, PaymentTransaction, ExchangeRate, PartialPayment
+from .payment_models import PaymentMethod, BankAccount, PaymentTransaction, PartialPayment
+from .currency_models import ExchangeRate
 from .advanced_models import ChartOfAccounts
 from datetime import datetime, date
 import json
@@ -23,15 +24,18 @@ def get_payment_methods():
             except:
                 pass
         
-        # If still no user_id, return empty array (for development)
+        # SECURITY: Require authentication - no anonymous access
         if not user_id:
-            print("Warning: No user context found for payment methods, returning empty results")
-            return jsonify([]), 200
+            return jsonify({'error': 'Authentication required'}), 401
         
-        # Filter by user - include records with no created_by for backward compatibility
-        methods = PaymentMethod.query.filter(
-            (PaymentMethod.created_by == user_id) | (PaymentMethod.created_by.is_(None))
-        ).filter_by(is_active=True).all()
+        # STRICT USER ISOLATION: Convert and validate user_id
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        
+        # STRICT USER ISOLATION: Filter by user_id only (no backward compatibility)
+        methods = PaymentMethod.query.filter_by(user_id=user_id, is_active=True).all()
         return jsonify([{
             'id': method.id,
             'code': method.code,
@@ -150,15 +154,18 @@ def get_bank_accounts():
             except:
                 pass
         
-        # If still no user_id, return empty array (for development)
+        # SECURITY: Require authentication - no anonymous access
         if not user_id:
-            print("Warning: No user context found for bank accounts, returning empty results")
-            return jsonify([]), 200
+            return jsonify({'error': 'Authentication required'}), 401
         
-        # Filter by user - include records with no created_by for backward compatibility
-        accounts = BankAccount.query.filter(
-            (BankAccount.created_by == user_id) | (BankAccount.created_by.is_(None))
-        ).filter_by(is_active=True).all()
+        # STRICT USER ISOLATION: Convert and validate user_id
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        
+        # STRICT USER ISOLATION: Filter by user_id only (no backward compatibility)
+        accounts = BankAccount.query.filter_by(user_id=user_id, is_active=True).all()
         return jsonify([{
             'id': account.id,
             'account_name': account.account_name,
@@ -194,15 +201,18 @@ def get_deposit_accounts():
             except:
                 pass
         
-        # If still no user_id, return empty array (for development)
+        # SECURITY: Require authentication - no anonymous access
         if not user_id:
-            print("Warning: No user context found for deposit accounts, returning empty results")
-            return jsonify([]), 200
+            return jsonify({'error': 'Authentication required'}), 401
         
-        # Filter by user - include records with no created_by for backward compatibility
-        accounts = BankAccount.query.filter(
-            (BankAccount.created_by == user_id) | (BankAccount.created_by.is_(None))
-        ).filter_by(can_receive_deposits=True).all()
+        # STRICT USER ISOLATION: Convert and validate user_id
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        
+        # STRICT USER ISOLATION: Filter by user_id only (no backward compatibility)
+        accounts = BankAccount.query.filter_by(user_id=user_id, can_receive_deposits=True).all()
         return jsonify([{
             'id': account.id,
             'account_name': account.account_name,
@@ -228,15 +238,18 @@ def get_withdrawal_accounts():
             except:
                 pass
         
-        # If still no user_id, return empty array (for development)
+        # SECURITY: Require authentication - no anonymous access
         if not user_id:
-            print("Warning: No user context found for withdrawal accounts, returning empty results")
-            return jsonify([]), 200
+            return jsonify({'error': 'Authentication required'}), 401
         
-        # Filter by user - include records with no created_by for backward compatibility
-        accounts = BankAccount.query.filter(
-            (BankAccount.created_by == user_id) | (BankAccount.created_by.is_(None))
-        ).filter_by(can_make_payments=True).all()
+        # STRICT USER ISOLATION: Convert and validate user_id
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid user ID'}), 400
+        
+        # STRICT USER ISOLATION: Filter by user_id only (no backward compatibility)
+        accounts = BankAccount.query.filter_by(user_id=user_id, can_make_payments=True).all()
         return jsonify([{
             'id': account.id,
             'account_name': account.account_name,

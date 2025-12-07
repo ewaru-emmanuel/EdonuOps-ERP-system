@@ -111,6 +111,8 @@ def create_vendor():
         return jsonify({"error": f"Failed to create vendor: {str(e)}"}), 500
 
 @bp.route('/vendors/<int:vendor_id>', methods=['GET'])
+@require_permission('procurement.vendors.read')
+
 def get_vendor(vendor_id: int):
     vendor = Vendor.query.get(vendor_id)
     if not vendor:
@@ -118,6 +120,8 @@ def get_vendor(vendor_id: int):
     return jsonify(_serialize_vendor(vendor))
 
 @bp.route('/vendors/<int:vendor_id>', methods=['PUT'])
+@require_permission('procurement.vendors.read')
+
 def update_vendor(vendor_id):
     """Update a vendor"""
     data = request.get_json() or {}
@@ -157,6 +161,8 @@ def update_vendor(vendor_id):
     return jsonify(_serialize_vendor(vendor))
 
 @bp.route('/vendors/<int:vendor_id>', methods=['DELETE'])
+@require_permission('procurement.vendors.read')
+
 def delete_vendor(vendor_id: int):
     vendor = Vendor.query.get(vendor_id)
     if not vendor:
@@ -175,6 +181,8 @@ def delete_vendor(vendor_id: int):
     return jsonify({"message": "Vendor deleted"})
 
 @bp.route('/vendors/<int:vendor_id>/performance', methods=['PUT'])
+@require_permission('procurement.vendors.update')
+
 def update_vendor_performance(vendor_id: int):
     data = request.get_json() or {}
     vendor = Vendor.query.get(vendor_id)
@@ -200,6 +208,8 @@ def update_vendor_performance(vendor_id: int):
     return jsonify(_serialize_vendor(vendor))
 
 @bp.route('/vendors/<int:vendor_id>/documents', methods=['GET'])
+@require_permission('procurement.vendors.read')
+
 def list_vendor_documents(vendor_id: int):
     vendor = Vendor.query.get(vendor_id)
     if not vendor:
@@ -208,6 +218,8 @@ def list_vendor_documents(vendor_id: int):
     return jsonify([_serialize_vendor_document(d) for d in docs])
 
 @bp.route('/vendors/<int:vendor_id>/documents', methods=['POST'])
+@require_permission('procurement.vendors.read')
+
 def upload_vendor_document(vendor_id: int):
     vendor = Vendor.query.get(vendor_id)
     if not vendor:
@@ -241,6 +253,8 @@ def upload_vendor_document(vendor_id: int):
     return jsonify(_serialize_vendor_document(doc)), 201
 
 @bp.route('/vendors/<int:vendor_id>/documents/<int:doc_id>', methods=['DELETE'])
+@require_permission('procurement.vendors.delete')
+
 def delete_vendor_document(vendor_id: int, doc_id: int):
     doc = VendorDocument.query.filter_by(id=doc_id, vendor_id=vendor_id).first()
     if not doc:
@@ -255,6 +269,8 @@ def delete_vendor_document(vendor_id: int, doc_id: int):
     return jsonify({"message": "Document deleted"})
 
 @bp.route('/vendors/<int:vendor_id>/communications', methods=['GET'])
+@require_permission('procurement.vendors.read')
+
 def list_vendor_communications(vendor_id: int):
     vendor = Vendor.query.get(vendor_id)
     if not vendor:
@@ -263,6 +279,8 @@ def list_vendor_communications(vendor_id: int):
     return jsonify([_serialize_vendor_communication(c) for c in comms])
 
 @bp.route('/vendors/<int:vendor_id>/communications', methods=['POST'])
+@require_permission('procurement.vendors.read')
+
 def create_vendor_communication(vendor_id: int):
     data = request.get_json() or {}
     vendor = Vendor.query.get(vendor_id)
@@ -293,16 +311,34 @@ def create_vendor_communication(vendor_id: int):
 
 # Purchase Order endpoints
 @bp.route('/purchase-orders', methods=['GET', 'OPTIONS'])
+@require_permission('procurement.purchase_orders.read')
+
 def get_purchase_orders():
     if request.method == 'OPTIONS':
         return ('', 200)
-    """Get all purchase orders with filters"""
+    """Get all purchase orders with filters - STRICT USER ISOLATION"""
     try:
+        # SECURITY: Get user ID from JWT token first (strict user isolation)
+        user_id = None
+        from flask_jwt_extended import get_jwt_identity
+        try:
+            user_id = get_jwt_identity()
+        except:
+            pass
+        
+        # Fallback to request headers if JWT not available
+        if not user_id:
+            user_id = request.headers.get('X-User-ID')
+        
+        # SECURITY: Require authentication - no anonymous access
+        if not user_id:
+            return jsonify({'error': 'Authentication required'}), 401
+        
         vendor_id = request.args.get('vendor_id', type=int)
         status = request.args.get('status')
         
-        # Query purchase orders from database
-        query = PurchaseOrder.query
+        # SECURITY: Query purchase orders from database filtered by user_id (strict user isolation)
+        query = PurchaseOrder.query.filter_by(user_id=int(user_id))
         
         if vendor_id:
             query = query.filter(PurchaseOrder.vendor_id == vendor_id)
@@ -347,12 +383,31 @@ def get_purchase_orders():
         return jsonify({"error": f"Failed to fetch purchase orders: {str(e)}"}), 500
 
 @bp.route('/purchase-orders/<int:po_id>', methods=['GET', 'OPTIONS'])
+@require_permission('procurement.purchase_orders.read')
+
 def get_purchase_order(po_id):
     if request.method == 'OPTIONS':
         return ('', 200)
-    """Get a specific purchase order by ID"""
+    """Get a specific purchase order by ID - STRICT USER ISOLATION"""
     try:
-        po = PurchaseOrder.query.get(po_id)
+        # SECURITY: Get user ID from JWT token first (strict user isolation)
+        user_id = None
+        from flask_jwt_extended import get_jwt_identity
+        try:
+            user_id = get_jwt_identity()
+        except:
+            pass
+        
+        # Fallback to request headers if JWT not available
+        if not user_id:
+            user_id = request.headers.get('X-User-ID')
+        
+        # SECURITY: Require authentication - no anonymous access
+        if not user_id:
+            return jsonify({'error': 'Authentication required'}), 401
+        
+        # SECURITY: Query purchase order filtered by user_id (strict user isolation)
+        po = PurchaseOrder.query.filter_by(id=po_id, user_id=int(user_id)).first()
         if not po:
             return jsonify({"error": "Purchase order not found"}), 404
         
@@ -550,6 +605,8 @@ def create_purchase_order():
     return jsonify(response_data), 201
 
 @bp.route('/purchase-orders/<int:po_id>', methods=['PUT', 'OPTIONS'])
+@require_permission('procurement.purchase_orders.read')
+
 def update_purchase_order(po_id):
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -578,6 +635,8 @@ def update_purchase_order(po_id):
     return jsonify({"error": "Purchase Order not found"}), 404
 
 @bp.route('/purchase-orders/<int:po_id>', methods=['DELETE', 'OPTIONS'])
+@require_permission('procurement.purchase_orders.read')
+
 def delete_purchase_order(po_id):
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -628,6 +687,8 @@ def approve_purchase_order(po_id):
     return jsonify({"error": "Purchase Order not found"}), 404
 
 @bp.route('/purchase-orders/<int:po_id>/reject', methods=['POST', 'OPTIONS'])
+@require_permission('procurement.purchase_orders.approve')
+
 def reject_purchase_order(po_id):
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -655,6 +716,8 @@ def reject_purchase_order(po_id):
 
 # File upload endpoint for PO attachments
 @bp.route('/purchase-orders/<int:po_id>/attachments', methods=['POST'])
+@require_permission('procurement.purchase_orders.read')
+
 def upload_po_attachment(po_id):
     """Upload attachment for a purchase order"""
     if 'file' not in request.files:
@@ -802,6 +865,8 @@ def receive_purchase_order(po_id: int):
 
 # Reporting summary endpoint
 @bp.route('/reporting/summary', methods=['GET', 'OPTIONS'])
+@require_permission('procurement.reports.read')
+
 def procurement_reporting_summary():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -850,6 +915,8 @@ def procurement_reporting_summary():
 
 # ERP integration endpoints
 @bp.route('/erp/export-po', methods=['POST', 'OPTIONS'])
+@require_permission('procurement.purchase_orders.read')
+
 def erp_export_po():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -869,6 +936,8 @@ def erp_export_po():
 
 
 @bp.route('/erp/update-po-status', methods=['POST', 'OPTIONS'])
+@require_permission('procurement.purchase_orders.update')
+
 def erp_update_po_status():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -896,6 +965,8 @@ def erp_update_po_status():
 
 
 @bp.route('/erp/pending-pos', methods=['GET', 'OPTIONS'])
+@require_permission('procurement.purchase_orders.read')
+
 def erp_pending_pos():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -908,15 +979,61 @@ def integration_gaps():
     """Report simple integration gaps after purchases: missing product mapping, pending finance sync."""
     if request.method == 'OPTIONS':
         return ('', 200)
-    gaps = []
-    for po in purchase_orders:
-        for it in (po.get('items') or []):
-            if (it.get('received_quantity') or 0) > 0 and not it.get('product_id'):
-                gaps.append({'po_number': po.get('po_number'), 'item_id': it.get('id'), 'type': 'missing_product'})
-    return jsonify({'gaps': gaps}), 200
+    
+    # Apply permission check after OPTIONS check
+    @require_permission('procurement.integration.read')
+    def _authenticated_function():
+        try:
+            # SECURITY: Get user ID from verified JWT token only
+            from flask_jwt_extended import get_jwt_identity
+            user_id_str = get_jwt_identity()
+            
+            if not user_id_str:
+                return jsonify({'error': 'Authentication required', 'message': 'User identity not found in JWT token'}), 401
+            
+            # Convert to int (JWT identity is stored as string)
+            try:
+                user_id = int(user_id_str)
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid user ID in token'}), 400
+        
+            # SECURITY: Query purchase orders from database filtered by tenant_id (tenant isolation)
+            from modules.procurement.models import PurchaseOrder, PurchaseOrderItem
+            from modules.core.tenant_helpers import get_current_user_tenant_id
+            
+            tenant_id = get_current_user_tenant_id()
+            if not tenant_id:
+                return jsonify({'error': 'Tenant context required'}), 400
+            
+            from modules.core.tenant_query_helper import tenant_query
+            user_pos = tenant_query(PurchaseOrder).all()
+            
+            gaps = []
+            for po in user_pos:
+                for item in po.items:
+                    # Check for missing product mapping
+                    if (item.received_quantity or 0) > 0 and not item.product_id:
+                        gaps.append({
+                            'po_number': po.po_number,
+                            'po_id': po.id,
+                            'item_id': item.id,
+                            'type': 'missing_product',
+                            'description': item.description
+                        })
+            
+            return jsonify({'gaps': gaps, 'count': len(gaps)}), 200
+            
+        except Exception as e:
+            logger.error(f"Error fetching integration gaps: {str(e)}", exc_info=True)
+            return jsonify({'error': 'Failed to fetch integration gaps', 'message': str(e)}), 500
+    
+    # Call the authenticated function
+    return _authenticated_function()
 
 
 @bp.route('/purchase-orders/map-item-product', methods=['POST', 'OPTIONS'])
+@require_permission('procurement.purchase_orders.update')
+
 def map_po_item_product():
     """Map a product_id to a purchase order line item using po_number and item_id."""
     if request.method == 'OPTIONS':
@@ -941,6 +1058,8 @@ def map_po_item_product():
 
 # Analytics endpoints
 @bp.route('/analytics', methods=['GET'])
+@require_permission('procurement.reports.read')
+
 def get_procurement_analytics():
     """Get procurement analytics"""
     total_pos = len(purchase_orders)
@@ -959,12 +1078,16 @@ def get_procurement_analytics():
 
 # ---------------- RFx (RFQ) Endpoints ----------------
 @bp.route('/rfqs', methods=['GET'])
+@require_permission('procurement.rfqs.read')
+
 def list_rfqs():
     rfqs = RFQ.query.order_by(RFQ.created_at.desc()).all()
     return jsonify([_serialize_rfq(r) for r in rfqs])
 
 
 @bp.route('/rfqs', methods=['POST'])
+@require_permission('procurement.rfqs.read')
+
 def create_rfq():
     data = request.get_json() or {}
     rfq = RFQ(
@@ -990,6 +1113,8 @@ def create_rfq():
 
 
 @bp.route('/rfqs/<int:rfq_id>', methods=['GET'])
+@require_permission('procurement.rfqs.read')
+
 def get_rfq(rfq_id: int):
     rfq = RFQ.query.get(rfq_id)
     if not rfq:
@@ -998,6 +1123,8 @@ def get_rfq(rfq_id: int):
 
 
 @bp.route('/rfqs/<int:rfq_id>', methods=['PUT'])
+@require_permission('procurement.rfqs.read')
+
 def update_rfq(rfq_id: int):
     data = request.get_json() or {}
     rfq = RFQ.query.get(rfq_id)
@@ -1018,6 +1145,8 @@ def update_rfq(rfq_id: int):
 
 
 @bp.route('/rfqs/<int:rfq_id>/invite', methods=['POST'])
+@require_permission('procurement.rfqs.update')
+
 def invite_vendors_to_rfq(rfq_id: int):
     data = request.get_json() or {}
     vendor_ids = data.get('vendor_ids') or []
@@ -1038,6 +1167,8 @@ def invite_vendors_to_rfq(rfq_id: int):
 
 
 @bp.route('/rfqs/<int:rfq_id>/responses', methods=['POST'])
+@require_permission('procurement.rfqs.read')
+
 def submit_rfq_response(rfq_id: int):
     data = request.get_json() or {}
     rfq = RFQ.query.get(rfq_id)
@@ -1071,6 +1202,8 @@ def submit_rfq_response(rfq_id: int):
 
 
 @bp.route('/rfqs/<int:rfq_id>/score', methods=['POST'])
+@require_permission('procurement.rfqs.update')
+
 def score_rfq_responses(rfq_id: int):
     data = request.get_json() or {}
     rfq = RFQ.query.get(rfq_id)
@@ -1110,6 +1243,8 @@ def score_rfq_responses(rfq_id: int):
 
 
 @bp.route('/rfqs/<int:rfq_id>/award', methods=['POST'])
+@require_permission('procurement.rfqs.update')
+
 def award_rfq(rfq_id: int):
     data = request.get_json() or {}
     rfq = RFQ.query.get(rfq_id)
@@ -1166,6 +1301,8 @@ def award_rfq(rfq_id: int):
 
 # ---------------- Contracts (CLM v1) ----------------
 @bp.route('/contracts', methods=['GET'])
+@require_permission('procurement.contracts.read')
+
 def list_contracts():
     vendor_id = request.args.get('vendor_id', type=int)
     status = request.args.get('status')
@@ -1185,6 +1322,8 @@ def list_contracts():
 
 
 @bp.route('/contracts', methods=['POST'])
+@require_permission('procurement.contracts.read')
+
 def create_contract():
     data = request.get_json() or {}
     contract = Contract(
@@ -1206,6 +1345,8 @@ def create_contract():
 
 
 @bp.route('/contracts/<int:contract_id>', methods=['GET'])
+@require_permission('procurement.contracts.read')
+
 def get_contract(contract_id: int):
     contract = Contract.query.get(contract_id)
     if not contract:
@@ -1214,6 +1355,8 @@ def get_contract(contract_id: int):
 
 
 @bp.route('/contracts/<int:contract_id>', methods=['PUT'])
+@require_permission('procurement.contracts.read')
+
 def update_contract(contract_id: int):
     data = request.get_json() or {}
     contract = Contract.query.get(contract_id)
@@ -1236,6 +1379,8 @@ def update_contract(contract_id: int):
 
 
 @bp.route('/contracts/<int:contract_id>', methods=['DELETE'])
+@require_permission('procurement.contracts.read')
+
 def delete_contract(contract_id: int):
     contract = Contract.query.get(contract_id)
     if not contract:
@@ -1246,6 +1391,8 @@ def delete_contract(contract_id: int):
 
 
 @bp.route('/contracts/<int:contract_id>/documents', methods=['POST'])
+@require_permission('procurement.contracts.update')
+
 def upload_contract_document(contract_id: int):
     contract = Contract.query.get(contract_id)
     if not contract:

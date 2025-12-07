@@ -241,6 +241,7 @@ def update_customer(customer_id: int):
 
 # Invoice endpoints
 @bp.route('/invoices', methods=['GET'])
+@require_permission('sales.invoices.read')
 def get_invoices():
     """Get invoices with optional filters"""
     try:
@@ -283,6 +284,7 @@ def get_invoices():
         return jsonify({"error": f"Failed to fetch invoices: {str(e)}"}), 500
 
 @bp.route('/invoices', methods=['POST'])
+@require_permission('sales.invoices.create')
 def create_invoice():
     """Create a new invoice"""
     try:
@@ -362,6 +364,7 @@ def create_invoice():
 
 # Accounts Receivable summary endpoint
 @bp.route('/accounts-receivable', methods=['GET'])
+@require_permission('sales.invoices.read')
 def get_accounts_receivable():
     """Get accounts receivable summary"""
     try:

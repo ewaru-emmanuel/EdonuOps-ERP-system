@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import and_, or_, desc
 from app import db
 from modules.core.tenant_models import Tenant, TenantModule
+from modules.core.tenant_query_helper import tenant_query
 from modules.finance.advanced_models import ChartOfAccounts, GeneralLedgerEntry
 from modules.finance.payment_models import BankAccount, BankTransaction
 import json
@@ -160,10 +161,10 @@ class SubscriptionManagementService:
         """Get current usage metrics for tenant"""
         try:
             # Count current usage
-            accounts_count = ChartOfAccounts.query.filter_by(tenant_id=tenant_id).count()
+            accounts_count = tenant_query(ChartOfAccounts).count()
             users_count = 1  # Simplified - would need user_tenants table
-            gl_entries_count = GeneralLedgerEntry.query.filter_by(tenant_id=tenant_id).count()
-            bank_accounts_count = BankAccount.query.filter_by(tenant_id=tenant_id).count()
+            gl_entries_count = tenant_query(GeneralLedgerEntry).count()
+            bank_accounts_count = tenant_query(BankAccount).count()
             reconciliations_count = 0  # Would need reconciliation_sessions table
             
             # Get active modules

@@ -1,6 +1,5 @@
 from app import db
 from datetime import datetime
-# Use db.JSON for SQLite compatibility
 
 class SecurityRole(db.Model):
     """Security roles for granular permissions"""

@@ -367,9 +367,9 @@ const Dashboard = () => {
     <Box sx={{ 
       width: '100%', 
       height: '100%',
-      backgroundColor: '#f8f9fa',
+      backgroundColor: '#fafafa',
       overflow: 'auto',
-      p: 2,
+      p: { xs: 2, md: 3 },
       maxWidth: '100%',
       boxSizing: 'border-box'
     }}>
@@ -381,13 +381,23 @@ const Dashboard = () => {
               variant={isMobile ? "h4" : "h3"} 
               component="h1" 
               gutterBottom 
-              sx={{ fontWeight: 'bold' }}
+              sx={{ 
+                fontWeight: 600,
+                color: '#1a1a1a',
+                letterSpacing: '-0.01em',
+                mb: 1
+              }}
             >
               Dashboard
             </Typography>
             <Typography 
               variant={isMobile ? "body1" : "h6"} 
-              color="text.secondary" 
+              sx={{ 
+                color: '#5f6368',
+                fontWeight: 400,
+                letterSpacing: '0.01em',
+                lineHeight: 1.5
+              }}
               gutterBottom
             >
               {hasPreferences 
@@ -464,76 +474,188 @@ const Dashboard = () => {
       {/* Key Metrics */}
       <Grid container spacing={2} sx={{ mb: { xs: 2, md: 4 } }}>
         <Grid item xs={12} sm={6} md={3}>
-          <Card elevation={2}>
-            <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
+          <Card 
+            elevation={0}
+            sx={{
+              border: '1px solid rgba(0, 0, 0, 0.08)',
+              borderRadius: '12px',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              '&:hover': {
+                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                transform: 'translateY(-2px)'
+              }
+            }}
+          >
+            <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
                   <Typography 
                     variant={isMobile ? "h5" : "h4"} 
-                    color="primary" 
-                    sx={{ fontWeight: 'bold' }}
+                    sx={{ 
+                      fontWeight: 600,
+                      color: '#1976d2',
+                      letterSpacing: '-0.02em',
+                      mb: 0.5
+                    }}
                   >
                     {data.totalRevenue > 0 ? formatCurrency(data.totalRevenue) : '0'}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      color: '#5f6368',
+                      fontSize: '0.8125rem',
+                      fontWeight: 400
+                    }}
+                  >
                     Total Revenue
                   </Typography>
                 </Box>
-                <Avatar sx={{ bgcolor: 'primary.main', width: { xs: 40, md: 56 }, height: { xs: 40, md: 56 } }}>
+                <Avatar 
+                  sx={{ 
+                    bgcolor: 'rgba(25, 118, 210, 0.1)', 
+                    width: { xs: 44, md: 56 }, 
+                    height: { xs: 44, md: 56 },
+                    color: '#1976d2'
+                  }}
+                >
                   <FinanceIcon />
                 </Avatar>
               </Box>
               {data.totalRevenue > 0 && (
-                <LinearProgress variant="determinate" value={75} sx={{ mt: 2 }} />
+                <LinearProgress 
+                  variant="determinate" 
+                  value={75} 
+                  sx={{ 
+                    mt: 2,
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: 'rgba(25, 118, 210, 0.1)',
+                    '& .MuiLinearProgress-bar': {
+                      borderRadius: 2
+                    }
+                  }} 
+                />
               )}
             </CardContent>
           </Card>
         </Grid>
 
         <Grid item xs={12} sm={6} md={3}>
-          <Card elevation={2}>
-            <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
+          <Card 
+            elevation={0}
+            sx={{
+              border: '1px solid rgba(0, 0, 0, 0.08)',
+              borderRadius: '12px',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              '&:hover': {
+                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                transform: 'translateY(-2px)'
+              }
+            }}
+          >
+            <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
                   <Typography 
                     variant={isMobile ? "h5" : "h4"} 
-                    color="primary" 
-                    sx={{ fontWeight: 'bold' }}
+                    sx={{ 
+                      fontWeight: 600,
+                      color: '#2e7d32',
+                      letterSpacing: '-0.02em',
+                      mb: 0.5
+                    }}
                   >
                     {data.totalCustomers > 0 ? data.totalCustomers : 0}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      color: '#5f6368',
+                      fontSize: '0.8125rem',
+                      fontWeight: 400
+                    }}
+                  >
                     Active Customers
                   </Typography>
                 </Box>
-                <Avatar sx={{ bgcolor: 'success.main', width: { xs: 40, md: 56 }, height: { xs: 40, md: 56 } }}>
+                <Avatar 
+                  sx={{ 
+                    bgcolor: 'rgba(46, 125, 50, 0.1)', 
+                    width: { xs: 44, md: 56 }, 
+                    height: { xs: 44, md: 56 },
+                    color: '#2e7d32'
+                  }}
+                >
                   <PeopleIcon />
                 </Avatar>
               </Box>
               {data.totalCustomers > 0 && (
-                <LinearProgress variant="determinate" value={85} sx={{ mt: 2 }} />
+                <LinearProgress 
+                  variant="determinate" 
+                  value={85} 
+                  sx={{ 
+                    mt: 2,
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: 'rgba(46, 125, 50, 0.1)',
+                    '& .MuiLinearProgress-bar': {
+                      borderRadius: 2,
+                      backgroundColor: '#2e7d32'
+                    }
+                  }} 
+                />
               )}
             </CardContent>
           </Card>
         </Grid>
 
         <Grid item xs={12} sm={6} md={3}>
-          <Card elevation={2}>
-            <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
+          <Card 
+            elevation={0}
+            sx={{
+              border: '1px solid rgba(0, 0, 0, 0.08)',
+              borderRadius: '12px',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              '&:hover': {
+                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                transform: 'translateY(-2px)'
+              }
+            }}
+          >
+            <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
                   <Typography 
                     variant={isMobile ? "h5" : "h4"} 
-                    color="primary" 
-                    sx={{ fontWeight: 'bold' }}
+                    sx={{ 
+                      fontWeight: 600,
+                      color: '#ed6c02',
+                      letterSpacing: '-0.02em',
+                      mb: 0.5
+                    }}
                   >
                     {data.totalProducts > 0 ? data.totalProducts : 0}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      color: '#5f6368',
+                      fontSize: '0.8125rem',
+                      fontWeight: 400
+                    }}
+                  >
                     Total Products
                   </Typography>
                 </Box>
-                <Avatar sx={{ bgcolor: 'warning.main', width: { xs: 40, md: 56 }, height: { xs: 40, md: 56 } }}>
+                <Avatar 
+                  sx={{ 
+                    bgcolor: 'rgba(237, 108, 2, 0.1)', 
+                    width: { xs: 44, md: 56 }, 
+                    height: { xs: 44, md: 56 },
+                    color: '#ed6c02'
+                  }}
+                >
                   <ProductsIcon />
                 </Avatar>
               </Box>
@@ -545,22 +667,51 @@ const Dashboard = () => {
         </Grid>
 
         <Grid item xs={12} sm={6} md={3}>
-          <Card elevation={2}>
-            <CardContent sx={{ p: { xs: 1.5, md: 2 } }}>
+          <Card 
+            elevation={0}
+            sx={{
+              border: '1px solid rgba(0, 0, 0, 0.08)',
+              borderRadius: '12px',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              '&:hover': {
+                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                transform: 'translateY(-2px)'
+              }
+            }}
+          >
+            <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
                   <Typography 
                     variant={isMobile ? "h5" : "h4"} 
-                    color="primary" 
-                    sx={{ fontWeight: 'bold' }}
+                    sx={{ 
+                      fontWeight: 600,
+                      color: '#0288d1',
+                      letterSpacing: '-0.02em',
+                      mb: 0.5
+                    }}
                   >
                     {data.totalEmployees > 0 ? data.totalEmployees : 0}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      color: '#5f6368',
+                      fontSize: '0.8125rem',
+                      fontWeight: 400
+                    }}
+                  >
                     Employees
                   </Typography>
                 </Box>
-                <Avatar sx={{ bgcolor: 'info.main', width: { xs: 40, md: 56 }, height: { xs: 40, md: 56 } }}>
+                <Avatar 
+                  sx={{ 
+                    bgcolor: 'rgba(2, 136, 209, 0.1)', 
+                    width: { xs: 44, md: 56 }, 
+                    height: { xs: 44, md: 56 },
+                    color: '#0288d1'
+                  }}
+                >
                   <PeopleIcon />
                 </Avatar>
               </Box>
@@ -574,10 +725,28 @@ const Dashboard = () => {
 
       {/* Module Status */}
       {hasPreferences && (
-        <Card elevation={2} sx={{ mb: 3 }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+        <Card 
+          elevation={0}
+          sx={{ 
+            mb: 3,
+            border: '1px solid rgba(0, 0, 0, 0.08)',
+            borderRadius: '12px',
+            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+            '&:hover': {
+              boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+            }
+          }}
+        >
+          <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2.5 }}>
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  fontWeight: 600,
+                  color: '#1a1a1a',
+                  letterSpacing: '-0.01em'
+                }}
+              >
                 Your Module Status
               </Typography>
               <Chip 
@@ -652,9 +821,28 @@ const Dashboard = () => {
       {/* Quick Actions & System Status */}
       <Grid container spacing={2} sx={{ mb: { xs: 2, md: 4 } }}>
         <Grid item xs={12} md={6}>
-          <Card elevation={2}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+          <Card 
+            elevation={0}
+            sx={{
+              border: '1px solid rgba(0, 0, 0, 0.08)',
+              borderRadius: '12px',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              '&:hover': {
+                boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+              }
+            }}
+          >
+            <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
+              <Typography 
+                variant="h6" 
+                gutterBottom 
+                sx={{ 
+                  fontWeight: 600,
+                  color: '#1a1a1a',
+                  letterSpacing: '-0.01em',
+                  mb: 2
+                }}
+              >
                 Quick Actions
               </Typography>
               {quickActions.length > 0 ? (
@@ -702,9 +890,28 @@ const Dashboard = () => {
         </Grid>
 
         <Grid item xs={12} md={6}>
-          <Card elevation={2}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+          <Card 
+            elevation={0}
+            sx={{
+              border: '1px solid rgba(0, 0, 0, 0.08)',
+              borderRadius: '12px',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              '&:hover': {
+                boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+              }
+            }}
+          >
+            <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
+              <Typography 
+                variant="h6" 
+                gutterBottom 
+                sx={{ 
+                  fontWeight: 600,
+                  color: '#1a1a1a',
+                  letterSpacing: '-0.01em',
+                  mb: 2
+                }}
+              >
                 System Status
               </Typography>
               <List dense>
@@ -734,10 +941,27 @@ const Dashboard = () => {
       {/* Recent Activity */}
       <Grid container spacing={2}>
         <Grid item xs={12} md={8}>
-          <Card elevation={2}>
-            <CardContent>
+          <Card 
+            elevation={0}
+            sx={{
+              border: '1px solid rgba(0, 0, 0, 0.08)',
+              borderRadius: '12px',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              '&:hover': {
+                boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+              }
+            }}
+          >
+            <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                <Typography 
+                  variant="h6" 
+                  sx={{ 
+                    fontWeight: 600,
+                    color: '#1a1a1a',
+                    letterSpacing: '-0.01em'
+                  }}
+                >
                   Recent Activity
                 </Typography>
                 <IconButton size="small" onClick={handleRefresh} disabled={refreshing}>
@@ -777,9 +1001,28 @@ const Dashboard = () => {
         </Grid>
 
         <Grid item xs={12} md={4}>
-          <Card elevation={2}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+          <Card 
+            elevation={0}
+            sx={{
+              border: '1px solid rgba(0, 0, 0, 0.08)',
+              borderRadius: '12px',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              '&:hover': {
+                boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+              }
+            }}
+          >
+            <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
+              <Typography 
+                variant="h6" 
+                gutterBottom 
+                sx={{ 
+                  fontWeight: 600,
+                  color: '#1a1a1a',
+                  letterSpacing: '-0.01em',
+                  mb: 2
+                }}
+              >
                 Getting Started
               </Typography>
               
@@ -840,12 +1083,42 @@ const Dashboard = () => {
       </Grid>
 
       {/* Feedback Form */}
-      <Card elevation={2} sx={{ mb: 4 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', textAlign: 'center', mb: 3 }}>
+      <Card 
+        elevation={0}
+        sx={{ 
+          mb: 4,
+          border: '1px solid rgba(0, 0, 0, 0.08)',
+          borderRadius: '12px',
+          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          '&:hover': {
+            boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+          }
+        }}
+      >
+        <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+          <Typography 
+            variant="h6" 
+            gutterBottom 
+            sx={{ 
+              fontWeight: 600,
+              color: '#1a1a1a',
+              textAlign: 'center',
+              mb: 2,
+              letterSpacing: '-0.01em'
+            }}
+          >
             💬 We'd Love Your Feedback
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mb: 3 }}>
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              color: '#5f6368',
+              textAlign: 'center',
+              mb: 3,
+              fontSize: '0.875rem',
+              lineHeight: 1.6
+            }}
+          >
             Help us improve EdonuOps for your business needs
           </Typography>
           

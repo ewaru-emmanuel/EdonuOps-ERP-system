@@ -1,7 +1,8 @@
 from datetime import datetime, date
 from sqlalchemy import and_, func
 from app import db
-from modules.finance.advanced_models import ExchangeRate, CompanySettings, GeneralLedgerEntry, ChartOfAccounts
+from modules.finance.currency_models import ExchangeRate
+from modules.finance.advanced_models import CompanySettings, GeneralLedgerEntry, ChartOfAccounts
 from modules.inventory.advanced_models import InventoryProduct, InventoryTransaction, StockLevel
 
 class MultiCurrencyValuationEngine:

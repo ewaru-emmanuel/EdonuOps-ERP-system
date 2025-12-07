@@ -1,0 +1,12 @@
+# Pylint configuration for tenant query enforcement
+[MESSAGES CONTROL]
+# Enable custom checker
+load-plugins=pylint.extensions.check_ast
+
+[FORMAT]
+# Line length
+max-line-length=120
+
+# Custom rules would go here, but we'll use a pre-commit hook instead
+# since pylint doesn't have built-in support for this pattern
+

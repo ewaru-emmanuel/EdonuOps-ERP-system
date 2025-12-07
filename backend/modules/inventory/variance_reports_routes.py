@@ -174,7 +174,7 @@ def get_shrinkage_analysis():
                 InventoryTransaction.transaction_type == 'adjustment',
                 func.date(InventoryTransaction.transaction_date) >= start_date,
                 func.date(InventoryTransaction.transaction_date) <= end_date,
-                (InventoryTransaction.created_by == user_id) | (InventoryTransaction.created_by.is_(None))
+                InventoryTransaction.user_id == int(user_id)
             )
         ).all()
         

@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from app import db
-from .payment_models import PaymentMethod, BankAccount, PaymentTransaction, ExchangeRate, PartialPayment
+from .payment_models import PaymentMethod, BankAccount, PaymentTransaction, PartialPayment
+from .currency_models import ExchangeRate
 from .advanced_models import ChartOfAccounts
 from datetime import datetime, date
 import json
@@ -552,3 +553,1111 @@ def resolve_discrepancy(discrepancy_id):
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+        if not payment_method_id:
+
+            return jsonify({'error': 'payment_method_id is required'}), 400
+
+        
+
+        payment_method = PaymentMethod.query.get(payment_method_id)
+
+        if not payment_method:
+
+            return jsonify({'error': 'Payment method not found'}), 404
+
+        
+
+        processing_fee = 0.0
+
+        if payment_method.default_processing_fee_rate > 0:
+
+            processing_fee = amount * (payment_method.default_processing_fee_rate / 100)
+
+        
+
+        net_amount = amount - processing_fee
+
+        
+
+        return jsonify({
+
+            'amount': amount,
+
+            'payment_method': payment_method.name,
+
+            'processing_fee_rate': payment_method.default_processing_fee_rate,
+
+            'processing_fee': processing_fee,
+
+            'net_amount': net_amount
+
+        }), 200
+
+        
+
+    except Exception as e:
+
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+
+# ============= MULTI-CURRENCY SUPPORT =============
+
+
+
+@advanced_payment_bp.route('/currencies', methods=['GET'])
+
+def get_supported_currencies():
+
+    """Get list of supported currencies"""
+
+    try:
+
+        currencies = [
+
+            {'code': 'USD', 'name': 'US Dollar', 'symbol': '$'},
+
+            {'code': 'EUR', 'name': 'Euro', 'symbol': '€'},
+
+            {'code': 'GBP', 'name': 'British Pound', 'symbol': '£'},
+
+            {'code': 'JPY', 'name': 'Japanese Yen', 'symbol': '¥'},
+
+            {'code': 'CAD', 'name': 'Canadian Dollar', 'symbol': 'C$'},
+
+            {'code': 'AUD', 'name': 'Australian Dollar', 'symbol': 'A$'},
+
+            {'code': 'CHF', 'name': 'Swiss Franc', 'symbol': 'CHF'},
+
+            {'code': 'CNY', 'name': 'Chinese Yuan', 'symbol': '¥'},
+
+            {'code': 'INR', 'name': 'Indian Rupee', 'symbol': '₹'},
+
+            {'code': 'BRL', 'name': 'Brazilian Real', 'symbol': 'R$'},
+
+            {'code': 'MXN', 'name': 'Mexican Peso', 'symbol': '$'},
+
+            {'code': 'KRW', 'name': 'South Korean Won', 'symbol': '₩'},
+
+            {'code': 'SGD', 'name': 'Singapore Dollar', 'symbol': 'S$'},
+
+            {'code': 'HKD', 'name': 'Hong Kong Dollar', 'symbol': 'HK$'},
+
+            {'code': 'NOK', 'name': 'Norwegian Krone', 'symbol': 'kr'},
+
+            {'code': 'SEK', 'name': 'Swedish Krona', 'symbol': 'kr'},
+
+            {'code': 'DKK', 'name': 'Danish Krone', 'symbol': 'kr'},
+
+            {'code': 'PLN', 'name': 'Polish Zloty', 'symbol': 'zł'},
+
+            {'code': 'CZK', 'name': 'Czech Koruna', 'symbol': 'Kč'},
+
+            {'code': 'HUF', 'name': 'Hungarian Forint', 'symbol': 'Ft'}
+
+        ]
+
+        
+
+        return jsonify(currencies), 200
+
+        
+
+    except Exception as e:
+
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+
+# ============= AUTO-MATCHING & RECONCILIATION =============
+
+
+
+@advanced_payment_bp.route('/auto-matching/unmatched-transactions', methods=['GET'])
+
+def get_unmatched_transactions():
+
+    """Get unmatched bank transactions"""
+
+    try:
+
+        from .auto_matching_service import AutoMatchingService
+
+        
+
+        days_back = int(request.args.get('days_back', 30))
+
+        transactions = AutoMatchingService.get_unmatched_transactions(days_back)
+
+        
+
+        return jsonify({
+
+            'transactions': transactions,
+
+            'count': len(transactions),
+
+            'days_back': days_back
+
+        }), 200
+
+        
+
+    except Exception as e:
+
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+
+@advanced_payment_bp.route('/auto-matching/find-matches', methods=['POST'])
+
+def find_potential_matches():
+
+    """Find potential matches for a bank transaction"""
+
+    try:
+
+        from .auto_matching_service import AutoMatchingService
+
+        
+
+        data = request.get_json()
+
+        bank_transaction = data.get('transaction')
+
+        tolerance_days = data.get('tolerance_days', 3)
+
+        amount_tolerance = data.get('amount_tolerance', 0.01)
+
+        
+
+        if not bank_transaction:
+
+            return jsonify({'error': 'Transaction data is required'}), 400
+
+        
+
+        matches = AutoMatchingService.find_potential_matches(
+
+            bank_transaction, tolerance_days, amount_tolerance
+
+        )
+
+        
+
+        # Convert matches to JSON-serializable format
+
+        json_matches = []
+
+        for match in matches:
+
+            json_match = {
+
+                'type': match['type'],
+
+                'confidence': match['confidence'],
+
+                'match_reasons': match['match_reasons'],
+
+                'invoice': {
+
+                    'id': match['invoice'].id,
+
+                    'invoice_number': match['invoice'].invoice_number,
+
+                    'total_amount': match['invoice'].total_amount,
+
+                    'due_date': match['invoice'].due_date.isoformat(),
+
+                    'status': match['invoice'].status,
+
+                    'customer_name': getattr(match['invoice'], 'customer_name', None),
+
+                    'vendor_name': getattr(match['invoice'], 'vendor_name', None)
+
+                }
+
+            }
+
+            json_matches.append(json_match)
+
+        
+
+        return jsonify({
+
+            'matches': json_matches,
+
+            'count': len(json_matches),
+
+            'transaction': bank_transaction
+
+        }), 200
+
+        
+
+    except Exception as e:
+
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+
+@advanced_payment_bp.route('/auto-matching/match-transaction', methods=['POST'])
+
+def match_transaction():
+
+    """Match a bank transaction with an invoice"""
+
+    try:
+
+        from .auto_matching_service import AutoMatchingService
+
+        
+
+        data = request.get_json()
+
+        bank_transaction_id = data.get('bank_transaction_id')
+
+        invoice_id = data.get('invoice_id')
+
+        invoice_type = data.get('invoice_type')
+
+        confidence = data.get('confidence', 0.0)
+
+        
+
+        required_fields = ['bank_transaction_id', 'invoice_id', 'invoice_type']
+
+        for field in required_fields:
+
+            if field not in data:
+
+                return jsonify({'error': f'{field} is required'}), 400
+
+        
+
+        result = AutoMatchingService.auto_match_transaction(
+
+            bank_transaction_id, invoice_id, invoice_type, confidence
+
+        )
+
+        
+
+        if result['success']:
+
+            return jsonify(result), 200
+
+        else:
+
+            return jsonify(result), 400
+
+        
+
+    except Exception as e:
+
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+
+@advanced_payment_bp.route('/auto-matching/run-auto-matching', methods=['POST'])
+
+def run_auto_matching():
+
+    """Run auto-matching for all unmatched transactions"""
+
+    try:
+
+        from .auto_matching_service import AutoMatchingService
+
+        
+
+        data = request.get_json() or {}
+
+        confidence_threshold = data.get('confidence_threshold', 0.8)
+
+        
+
+        results = AutoMatchingService.run_auto_matching(confidence_threshold)
+
+        
+
+        return jsonify({
+
+            'message': 'Auto-matching completed',
+
+            'results': results,
+
+            'summary': {
+
+                'total_processed': len(results['details']),
+
+                'matched': results['matched'],
+
+                'potential_matches': results['potential_matches'],
+
+                'no_matches': results['no_matches']
+
+            }
+
+        }), 200
+
+        
+
+    except Exception as e:
+
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+
+# ============= DISCREPANCY RESOLUTION =============
+
+
+
+@advanced_payment_bp.route('/reconciliation/discrepancies', methods=['GET'])
+
+def get_reconciliation_discrepancies():
+
+    """Get reconciliation discrepancies that need resolution"""
+
+    try:
+
+        # Simulate discrepancy data - in real implementation, this would come from reconciliation engine
+
+        discrepancies = [
+
+            {
+
+                'id': 1,
+
+                'type': 'amount_mismatch',
+
+                'description': 'Bank transaction amount differs from invoice amount',
+
+                'bank_transaction': {
+
+                    'id': 'TXN001',
+
+                    'amount': 1485.00,
+
+                    'date': '2024-09-18',
+
+                    'reference': 'INV-2024-001'
+
+                },
+
+                'invoice': {
+
+                    'id': 15,
+
+                    'type': 'AR',
+
+                    'invoice_number': 'INV-2024-001',
+
+                    'amount': 1500.00,
+
+                    'customer_name': 'ABC Corp'
+
+                },
+
+                'difference': -15.00,
+
+                'suggested_resolution': 'Bank fees or discount applied',
+
+                'status': 'pending',
+
+                'created_date': '2024-09-18'
+
+            },
+
+            {
+
+                'id': 2,
+
+                'type': 'date_mismatch',
+
+                'description': 'Payment received outside expected date range',
+
+                'bank_transaction': {
+
+                    'id': 'TXN002',
+
+                    'amount': 2200.00,
+
+                    'date': '2024-09-15',
+
+                    'reference': 'WIRE-789'
+
+                },
+
+                'invoice': {
+
+                    'id': 23,
+
+                    'type': 'AR',
+
+                    'invoice_number': 'INV-2024-023',
+
+                    'amount': 2200.00,
+
+                    'customer_name': 'DEF Ltd'
+
+                },
+
+                'difference': 0.00,
+
+                'suggested_resolution': 'Early payment - confirm with customer',
+
+                'status': 'pending',
+
+                'created_date': '2024-09-15'
+
+            }
+
+        ]
+
+        
+
+        return jsonify({
+
+            'discrepancies': discrepancies,
+
+            'count': len(discrepancies),
+
+            'summary': {
+
+                'amount_mismatches': 1,
+
+                'date_mismatches': 1,
+
+                'pending_resolution': 2
+
+            }
+
+        }), 200
+
+        
+
+    except Exception as e:
+
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+
+@advanced_payment_bp.route('/reconciliation/discrepancies/<int:discrepancy_id>/resolve', methods=['POST'])
+
+def resolve_discrepancy(discrepancy_id):
+
+    """Resolve a reconciliation discrepancy"""
+
+    try:
+
+        data = request.get_json()
+
+        resolution_type = data.get('resolution_type')
+
+        notes = data.get('notes', '')
+
+        
+
+        if not resolution_type:
+
+            return jsonify({'error': 'resolution_type is required'}), 400
+
+        
+
+        # In real implementation, this would update the discrepancy record
+
+        # and potentially create adjusting entries
+
+        
+
+        return jsonify({
+
+            'message': 'Discrepancy resolved successfully',
+
+            'discrepancy_id': discrepancy_id,
+
+            'resolution_type': resolution_type,
+
+            'resolved_date': datetime.now().isoformat(),
+
+            'notes': notes
+
+        }), 200
+
+        
+
+    except Exception as e:
+
+        return jsonify({'error': str(e)}), 500
+
+
+
+        if not payment_method_id:
+
+            return jsonify({'error': 'payment_method_id is required'}), 400
+
+        
+
+        payment_method = PaymentMethod.query.get(payment_method_id)
+
+        if not payment_method:
+
+            return jsonify({'error': 'Payment method not found'}), 404
+
+        
+
+        processing_fee = 0.0
+
+        if payment_method.default_processing_fee_rate > 0:
+
+            processing_fee = amount * (payment_method.default_processing_fee_rate / 100)
+
+        
+
+        net_amount = amount - processing_fee
+
+        
+
+        return jsonify({
+
+            'amount': amount,
+
+            'payment_method': payment_method.name,
+
+            'processing_fee_rate': payment_method.default_processing_fee_rate,
+
+            'processing_fee': processing_fee,
+
+            'net_amount': net_amount
+
+        }), 200
+
+        
+
+    except Exception as e:
+
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+
+# ============= MULTI-CURRENCY SUPPORT =============
+
+
+
+@advanced_payment_bp.route('/currencies', methods=['GET'])
+
+def get_supported_currencies():
+
+    """Get list of supported currencies"""
+
+    try:
+
+        currencies = [
+
+            {'code': 'USD', 'name': 'US Dollar', 'symbol': '$'},
+
+            {'code': 'EUR', 'name': 'Euro', 'symbol': '€'},
+
+            {'code': 'GBP', 'name': 'British Pound', 'symbol': '£'},
+
+            {'code': 'JPY', 'name': 'Japanese Yen', 'symbol': '¥'},
+
+            {'code': 'CAD', 'name': 'Canadian Dollar', 'symbol': 'C$'},
+
+            {'code': 'AUD', 'name': 'Australian Dollar', 'symbol': 'A$'},
+
+            {'code': 'CHF', 'name': 'Swiss Franc', 'symbol': 'CHF'},
+
+            {'code': 'CNY', 'name': 'Chinese Yuan', 'symbol': '¥'},
+
+            {'code': 'INR', 'name': 'Indian Rupee', 'symbol': '₹'},
+
+            {'code': 'BRL', 'name': 'Brazilian Real', 'symbol': 'R$'},
+
+            {'code': 'MXN', 'name': 'Mexican Peso', 'symbol': '$'},
+
+            {'code': 'KRW', 'name': 'South Korean Won', 'symbol': '₩'},
+
+            {'code': 'SGD', 'name': 'Singapore Dollar', 'symbol': 'S$'},
+
+            {'code': 'HKD', 'name': 'Hong Kong Dollar', 'symbol': 'HK$'},
+
+            {'code': 'NOK', 'name': 'Norwegian Krone', 'symbol': 'kr'},
+
+            {'code': 'SEK', 'name': 'Swedish Krona', 'symbol': 'kr'},
+
+            {'code': 'DKK', 'name': 'Danish Krone', 'symbol': 'kr'},
+
+            {'code': 'PLN', 'name': 'Polish Zloty', 'symbol': 'zł'},
+
+            {'code': 'CZK', 'name': 'Czech Koruna', 'symbol': 'Kč'},
+
+            {'code': 'HUF', 'name': 'Hungarian Forint', 'symbol': 'Ft'}
+
+        ]
+
+        
+
+        return jsonify(currencies), 200
+
+        
+
+    except Exception as e:
+
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+
+# ============= AUTO-MATCHING & RECONCILIATION =============
+
+
+
+@advanced_payment_bp.route('/auto-matching/unmatched-transactions', methods=['GET'])
+
+def get_unmatched_transactions():
+
+    """Get unmatched bank transactions"""
+
+    try:
+
+        from .auto_matching_service import AutoMatchingService
+
+        
+
+        days_back = int(request.args.get('days_back', 30))
+
+        transactions = AutoMatchingService.get_unmatched_transactions(days_back)
+
+        
+
+        return jsonify({
+
+            'transactions': transactions,
+
+            'count': len(transactions),
+
+            'days_back': days_back
+
+        }), 200
+
+        
+
+    except Exception as e:
+
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+
+@advanced_payment_bp.route('/auto-matching/find-matches', methods=['POST'])
+
+def find_potential_matches():
+
+    """Find potential matches for a bank transaction"""
+
+    try:
+
+        from .auto_matching_service import AutoMatchingService
+
+        
+
+        data = request.get_json()
+
+        bank_transaction = data.get('transaction')
+
+        tolerance_days = data.get('tolerance_days', 3)
+
+        amount_tolerance = data.get('amount_tolerance', 0.01)
+
+        
+
+        if not bank_transaction:
+
+            return jsonify({'error': 'Transaction data is required'}), 400
+
+        
+
+        matches = AutoMatchingService.find_potential_matches(
+
+            bank_transaction, tolerance_days, amount_tolerance
+
+        )
+
+        
+
+        # Convert matches to JSON-serializable format
+
+        json_matches = []
+
+        for match in matches:
+
+            json_match = {
+
+                'type': match['type'],
+
+                'confidence': match['confidence'],
+
+                'match_reasons': match['match_reasons'],
+
+                'invoice': {
+
+                    'id': match['invoice'].id,
+
+                    'invoice_number': match['invoice'].invoice_number,
+
+                    'total_amount': match['invoice'].total_amount,
+
+                    'due_date': match['invoice'].due_date.isoformat(),
+
+                    'status': match['invoice'].status,
+
+                    'customer_name': getattr(match['invoice'], 'customer_name', None),
+
+                    'vendor_name': getattr(match['invoice'], 'vendor_name', None)
+
+                }
+
+            }
+
+            json_matches.append(json_match)
+
+        
+
+        return jsonify({
+
+            'matches': json_matches,
+
+            'count': len(json_matches),
+
+            'transaction': bank_transaction
+
+        }), 200
+
+        
+
+    except Exception as e:
+
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+
+@advanced_payment_bp.route('/auto-matching/match-transaction', methods=['POST'])
+
+def match_transaction():
+
+    """Match a bank transaction with an invoice"""
+
+    try:
+
+        from .auto_matching_service import AutoMatchingService
+
+        
+
+        data = request.get_json()
+
+        bank_transaction_id = data.get('bank_transaction_id')
+
+        invoice_id = data.get('invoice_id')
+
+        invoice_type = data.get('invoice_type')
+
+        confidence = data.get('confidence', 0.0)
+
+        
+
+        required_fields = ['bank_transaction_id', 'invoice_id', 'invoice_type']
+
+        for field in required_fields:
+
+            if field not in data:
+
+                return jsonify({'error': f'{field} is required'}), 400
+
+        
+
+        result = AutoMatchingService.auto_match_transaction(
+
+            bank_transaction_id, invoice_id, invoice_type, confidence
+
+        )
+
+        
+
+        if result['success']:
+
+            return jsonify(result), 200
+
+        else:
+
+            return jsonify(result), 400
+
+        
+
+    except Exception as e:
+
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+
+@advanced_payment_bp.route('/auto-matching/run-auto-matching', methods=['POST'])
+
+def run_auto_matching():
+
+    """Run auto-matching for all unmatched transactions"""
+
+    try:
+
+        from .auto_matching_service import AutoMatchingService
+
+        
+
+        data = request.get_json() or {}
+
+        confidence_threshold = data.get('confidence_threshold', 0.8)
+
+        
+
+        results = AutoMatchingService.run_auto_matching(confidence_threshold)
+
+        
+
+        return jsonify({
+
+            'message': 'Auto-matching completed',
+
+            'results': results,
+
+            'summary': {
+
+                'total_processed': len(results['details']),
+
+                'matched': results['matched'],
+
+                'potential_matches': results['potential_matches'],
+
+                'no_matches': results['no_matches']
+
+            }
+
+        }), 200
+
+        
+
+    except Exception as e:
+
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+
+# ============= DISCREPANCY RESOLUTION =============
+
+
+
+@advanced_payment_bp.route('/reconciliation/discrepancies', methods=['GET'])
+
+def get_reconciliation_discrepancies():
+
+    """Get reconciliation discrepancies that need resolution"""
+
+    try:
+
+        # Simulate discrepancy data - in real implementation, this would come from reconciliation engine
+
+        discrepancies = [
+
+            {
+
+                'id': 1,
+
+                'type': 'amount_mismatch',
+
+                'description': 'Bank transaction amount differs from invoice amount',
+
+                'bank_transaction': {
+
+                    'id': 'TXN001',
+
+                    'amount': 1485.00,
+
+                    'date': '2024-09-18',
+
+                    'reference': 'INV-2024-001'
+
+                },
+
+                'invoice': {
+
+                    'id': 15,
+
+                    'type': 'AR',
+
+                    'invoice_number': 'INV-2024-001',
+
+                    'amount': 1500.00,
+
+                    'customer_name': 'ABC Corp'
+
+                },
+
+                'difference': -15.00,
+
+                'suggested_resolution': 'Bank fees or discount applied',
+
+                'status': 'pending',
+
+                'created_date': '2024-09-18'
+
+            },
+
+            {
+
+                'id': 2,
+
+                'type': 'date_mismatch',
+
+                'description': 'Payment received outside expected date range',
+
+                'bank_transaction': {
+
+                    'id': 'TXN002',
+
+                    'amount': 2200.00,
+
+                    'date': '2024-09-15',
+
+                    'reference': 'WIRE-789'
+
+                },
+
+                'invoice': {
+
+                    'id': 23,
+
+                    'type': 'AR',
+
+                    'invoice_number': 'INV-2024-023',
+
+                    'amount': 2200.00,
+
+                    'customer_name': 'DEF Ltd'
+
+                },
+
+                'difference': 0.00,
+
+                'suggested_resolution': 'Early payment - confirm with customer',
+
+                'status': 'pending',
+
+                'created_date': '2024-09-15'
+
+            }
+
+        ]
+
+        
+
+        return jsonify({
+
+            'discrepancies': discrepancies,
+
+            'count': len(discrepancies),
+
+            'summary': {
+
+                'amount_mismatches': 1,
+
+                'date_mismatches': 1,
+
+                'pending_resolution': 2
+
+            }
+
+        }), 200
+
+        
+
+    except Exception as e:
+
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+
+@advanced_payment_bp.route('/reconciliation/discrepancies/<int:discrepancy_id>/resolve', methods=['POST'])
+
+def resolve_discrepancy(discrepancy_id):
+
+    """Resolve a reconciliation discrepancy"""
+
+    try:
+
+        data = request.get_json()
+
+        resolution_type = data.get('resolution_type')
+
+        notes = data.get('notes', '')
+
+        
+
+        if not resolution_type:
+
+            return jsonify({'error': 'resolution_type is required'}), 400
+
+        
+
+        # In real implementation, this would update the discrepancy record
+
+        # and potentially create adjusting entries
+
+        
+
+        return jsonify({
+
+            'message': 'Discrepancy resolved successfully',
+
+            'discrepancy_id': discrepancy_id,
+
+            'resolution_type': resolution_type,
+
+            'resolved_date': datetime.now().isoformat(),
+
+            'notes': notes
+
+        }), 200
+
+        
+
+    except Exception as e:
+
+        return jsonify({'error': str(e)}), 500
+
+

@@ -31,9 +31,10 @@ class Customer(db.Model):
     average_payment_days = db.Column(db.Integer, default=30)
     
     # Audit fields
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide customers
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    user_id = db.Column(db.Integer)  # Standardized user identification, nullable=True)
     
     # Relationships
     invoices = db.relationship('Invoice', backref='customer', lazy=True, cascade='all, delete-orphan')
@@ -83,9 +84,10 @@ class Invoice(db.Model):
     project_id = db.Column(db.Integer, nullable=True)
     
     # Audit fields
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide invoices
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    user_id = db.Column(db.Integer)  # Standardized user identification, nullable=True)
     
     # Relationships
     payments = db.relationship('Payment', backref='invoice', lazy=True, cascade='all, delete-orphan')
@@ -140,9 +142,10 @@ class Payment(db.Model):
     notes = db.Column(db.Text, nullable=True)
     
     # Audit fields
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide payments
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    user_id = db.Column(db.Integer)  # Standardized user identification, nullable=True)
     
     def __repr__(self):
         return f'<Payment {self.amount} for Invoice {self.invoice_id}>'
@@ -169,9 +172,10 @@ class CustomerCommunication(db.Model):
     invoice_id = db.Column(db.Integer, db.ForeignKey('invoices.id'), nullable=True)
     
     # Audit fields
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide communications
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    user_id = db.Column(db.Integer)  # Standardized user identification, nullable=True)
     
     # Relationships
     customer = db.relationship('Customer', backref='communications')

@@ -21,17 +21,11 @@ def drop_db():
     if os.getenv('FLASK_ENV') == 'production':
         raise RuntimeError("🚨 CRITICAL: Cannot drop database in production environment!")
     
-    # CRITICAL SAFETY: Create backup before any destructive operation
-    print("🔄 Creating backup before destructive operation...")
-    backup_file = f"database_backup_before_drop_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
-    try:
-        import shutil
-        shutil.copy2('edonuops.db', backup_file)
-        print(f"✅ Backup created: {backup_file}")
-    except Exception as e:
-        print(f"❌ Backup failed: {e}")
-        print("🚨 ABORTING: Cannot proceed without backup!")
-        return False
+    # CRITICAL SAFETY: PostgreSQL backup requires pg_dump
+    print("🔄 PostgreSQL backup required before destructive operation...")
+    print("⚠️  Please create a PostgreSQL backup using pg_dump before proceeding!")
+    print("🚨 ABORTING: Manual backup required for PostgreSQL!")
+    return False
     
     # Multiple safety checks
     print("🚨 CRITICAL WARNING: This will delete ALL data!")

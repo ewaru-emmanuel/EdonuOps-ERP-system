@@ -291,6 +291,8 @@ def update_user_tenant(user_tenant_id):
 def get_tenant_modules(tenant_id):
     """Get modules for a specific tenant (admin only)"""
     try:
+        from modules.core.tenant_query_helper import tenant_query
+        # Note: TenantModule queries by specific tenant_id are OK for admin routes
         modules = TenantModule.query.filter_by(tenant_id=tenant_id).all()
         
         return jsonify([{

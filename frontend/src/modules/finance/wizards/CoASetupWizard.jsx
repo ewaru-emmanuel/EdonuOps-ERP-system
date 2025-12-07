@@ -315,7 +315,7 @@ const CoASetupWizard = ({ open, onClose, onComplete }) => {
                 <ListItem key={index}>
                   <ListItemText
                     primary={account.name}
-                    secondary={`${account.code} - ${account.type}`}
+                    secondary={account.type}
                   />
                   <Chip size="small" label={account.category} />
                 </ListItem>

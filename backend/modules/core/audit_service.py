@@ -71,7 +71,8 @@ class AuditService:
     
     def get_tenant_audit_logs(self, tenant_id, limit=100, offset=0):
         """Get audit logs for a specific tenant"""
-        return AuditLog.query.filter_by(tenant_id=tenant_id)\
+        from modules.core.tenant_query_helper import tenant_query
+        return tenant_query(AuditLog)\
                            .order_by(AuditLog.timestamp.desc())\
                            .limit(limit)\
                            .offset(offset)\
@@ -106,7 +107,8 @@ class AuditService:
             today = date.today()
             
             # Get or create today's stats
-            stats = TenantUsageStats.query.filter_by(tenant_id=tenant_id, date=today).first()
+            from modules.core.tenant_query_helper import tenant_query
+            stats = tenant_query(TenantUsageStats).filter_by(date=today).first()
             if not stats:
                 stats = TenantUsageStats(tenant_id=tenant_id, date=today)
                 db.session.add(stats)

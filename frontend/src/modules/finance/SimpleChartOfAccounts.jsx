@@ -26,13 +26,13 @@ const SimpleChartOfAccounts = () => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('http://localhost:5000/api/finance/chart-of-accounts', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/finance/chart-of-accounts`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer user-session-test',
-          'X-Tenant-ID': 'default_tenant',
-          'X-User-ID': 'user_1'
+          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+          'X-Tenant-ID': process.env.REACT_APP_DEFAULT_TENANT_ID || 'default',
+          'X-User-ID': process.env.REACT_APP_DEFAULT_USER_ID || ''
         }
       });
 

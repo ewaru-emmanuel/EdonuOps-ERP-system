@@ -127,7 +127,9 @@ class PerformanceMonitor:
                 
                 for table in tables:
                     try:
-                        result = db.session.execute(text(f"SELECT COUNT(*) FROM {table}"))
+                        from modules.core.tenant_sql_helper import safe_sql_query
+                        # Note: Performance monitor queries all tables (system operation)
+                        result = safe_sql_query(f"SELECT COUNT(*) FROM {table}")
                         count = result.scalar()
                         table_sizes[table] = count
                     except Exception as e:

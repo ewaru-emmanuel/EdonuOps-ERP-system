@@ -33,6 +33,8 @@ class Contact(db.Model):
     status = db.Column(db.String(20), default='active')  # active, inactive
     region = db.Column(db.String(50))
     assigned_team = db.Column(db.String(100))
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -51,6 +53,8 @@ class Company(db.Model):
     size = db.Column(db.String(50))
     region = db.Column(db.String(50))
     assigned_team = db.Column(db.String(100))
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -64,6 +68,8 @@ class Customer(db.Model):
     tax_exempt = db.Column(db.Boolean, default=False)
     tax_id = db.Column(db.String(50))
     status = db.Column(db.String(20), default='active')  # active, inactive, suspended
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -91,7 +97,8 @@ class Lead(db.Model):
     ai_confidence = db.Column(db.Integer, default=0)  # AI confidence level
     behavioral_data = db.Column(_get_json_type())  # Behavioral tracking data
     last_ai_analysis = db.Column(db.DateTime)  # When AI last analyzed this lead
-    
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -113,6 +120,8 @@ class Opportunity(db.Model):
     region = db.Column(db.String(50))
     assigned_team = db.Column(db.String(100))
     products = db.Column(_get_json_type())  # list of {sku,name,quantity,unit_price}
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -133,7 +142,8 @@ class Communication(db.Model):
     content = db.Column(db.Text)
     duration = db.Column(db.Integer)  # for calls in seconds
     status = db.Column(db.String(20))  # completed, missed, scheduled
-    user_id = db.Column(db.Integer)  # Standardized user identification)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     scheduled_for = db.Column(db.DateTime)  # for scheduled communications
 
@@ -148,7 +158,8 @@ class FollowUp(db.Model):
     status = db.Column(db.String(20), default='pending')  # pending, completed, overdue
     notes = db.Column(db.Text)
     assigned_to = db.Column(db.Integer, db.ForeignKey('users.id'))
-    user_id = db.Column(db.Integer)  # Standardized user identification)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime)
 
@@ -168,6 +179,8 @@ class LeadIntake(db.Model):
     form_data = db.Column(db.Text)  # Store all form fields as JSON string
     status = db.Column(db.String(20), default='new')  # new, processed, converted
     assigned_to = db.Column(db.Integer, db.ForeignKey('users.id'))
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     processed_at = db.Column(db.DateTime)
 
@@ -186,7 +199,8 @@ class Ticket(db.Model):
     lead_id = db.Column(db.Integer, db.ForeignKey('leads.id'))
     opportunity_id = db.Column(db.Integer, db.ForeignKey('opportunities.id'))
     assignee_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    user_id = db.Column(db.Integer)  # Standardized user identification)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -198,7 +212,8 @@ class KnowledgeBaseArticle(db.Model):
     content = db.Column(db.Text)
     tags = db.Column(db.String(200))  # comma-separated tags for simple search
     published = db.Column(db.Boolean, default=False)
-    user_id = db.Column(db.Integer)  # Standardized user identification)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -222,6 +237,8 @@ class Pipeline(db.Model):
     type = db.Column(db.String(40), default='sales')  # future use
     stages = db.Column(_get_json_type())  # ordered list of stage names
     is_default = db.Column(db.Boolean, default=False)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -242,6 +259,8 @@ class TimeEntry(db.Model):
     currency = db.Column(db.String(10), default='USD')
     invoiced = db.Column(db.Boolean, default=False)
     invoice_id = db.Column(db.Integer)  # optional link to finance invoice
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -255,6 +274,8 @@ class BehavioralEvent(db.Model):
     event_type = db.Column(db.String(50))  # email_open, email_click, website_visit, call_duration, meeting_attended
     event_data = db.Column(_get_json_type())  # Additional event-specific data
     engagement_score = db.Column(db.Integer, default=0)  # 0-100 engagement level
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships

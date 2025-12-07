@@ -12,92 +12,156 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [initialized, setInitialized] = useState(false); // Start as false, set to true after session check
 
-  // Helper function to get or create user ID dynamically
-  const getOrCreateUserId = async (email) => {
-    try {
-      // Try to get existing user from database
-      const response = await fetch(`/api/users/find?email=${encodeURIComponent(email)}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
+  // SECURITY: Removed getOrCreateUserId function - authentication must be STRICT
+  // No fallbacks, no automatic user creation, no "in-between" states
+  // Either user is authenticated or they are not - PERIOD
+
+  // Restore user session on mount from localStorage - with backend validation
+  useEffect(() => {
+    const restoreSession = async () => {
+      const storedUserId = localStorage.getItem('userId');
+      const sessionToken = localStorage.getItem('sessionToken');
+      const storedEmail = localStorage.getItem('userEmail');
+      const storedUsername = localStorage.getItem('username');
+      const storedRole = localStorage.getItem('userRole');
+      
+      console.log('🔍 Session check:', {
+        hasUserId: !!storedUserId,
+        hasToken: !!sessionToken,
+        hasEmail: !!storedEmail,
+        storedUserId,
+        storedEmail
       });
       
-      if (response.ok) {
-        const user = await response.json();
-        return user.id;
-      } else {
-        // Create new user
-        const createResponse = await fetch('/api/users', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: email,
-            username: email.split('@')[0],
-            role: 'user'
-          })
-        });
-        
-        if (createResponse.ok) {
-          const newUser = await createResponse.json();
-          return newUser.id;
+      // Only restore session if we have ALL required data AND a valid token
+      if (storedUserId && sessionToken && storedEmail) {
+        // Validate token format (basic check - JWT tokens have 3 parts separated by dots)
+        const tokenParts = sessionToken.split('.');
+        if (tokenParts.length === 3) {
+          // SECURITY: Always validate token format and expiration before trusting it
+          try {
+            // First check token expiration client-side
+            const payload = JSON.parse(atob(tokenParts[1]));
+            const now = Math.floor(Date.now() / 1000);
+            
+            if (payload.exp && payload.exp < now) {
+              console.log('❌ Token expired, clearing session');
+              localStorage.removeItem('sessionToken');
+              localStorage.removeItem('userId');
+              localStorage.removeItem('userEmail');
+              localStorage.removeItem('username');
+              localStorage.removeItem('userRole');
+              setUser(null);
+              setIsAuthenticated(false);
+              setInitialized(true);
+              return;
+            }
+            
+            // Token format valid and not expired - validate with backend
+            // But if backend rejects it (user deleted, etc.), we'll clear it
+            const response = await fetch('/api/auth/verify-token', {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${sessionToken}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            if (response.ok) {
+              const userData = await response.json();
+              // Backend validated the token and returned user data
+              if (userData.valid && userData.user) {
+                const user = {
+                  id: userData.user.id || parseInt(storedUserId),
+                  user_id: userData.user.id || parseInt(storedUserId),
+                  email: userData.user.email || storedEmail,
+                  username: userData.user.username || storedUsername || 'user',
+                  role: userData.user.role || storedRole || 'user'
+                };
+                
+                console.log('✅ Session restored and validated with backend:', user);
+                setUser(user);
+                setIsAuthenticated(true);
+              } else {
+                throw new Error('Invalid token validation response');
+              }
+            } else {
+              // Backend rejected the token - user deleted or token invalid
+              console.log('❌ Backend rejected token (user deleted or invalid), clearing session');
+              localStorage.removeItem('sessionToken');
+              localStorage.removeItem('userId');
+              localStorage.removeItem('userEmail');
+              localStorage.removeItem('username');
+              localStorage.removeItem('userRole');
+              setUser(null);
+              setIsAuthenticated(false);
+            }
+          } catch (error) {
+            // Any error means token is invalid - clear session
+            console.log('❌ Token validation failed, clearing stale session:', error);
+            localStorage.removeItem('sessionToken');
+            localStorage.removeItem('userId');
+            localStorage.removeItem('userEmail');
+            localStorage.removeItem('username');
+            localStorage.removeItem('userRole');
+            setUser(null);
+            setIsAuthenticated(false);
+          }
+        } else {
+          // Invalid token format - clear session
+          console.log('❌ Invalid token format, clearing session');
+          localStorage.removeItem('sessionToken');
+          localStorage.removeItem('userId');
+          localStorage.removeItem('userEmail');
+          localStorage.removeItem('username');
+          localStorage.removeItem('userRole');
+          setUser(null);
+          setIsAuthenticated(false);
         }
+      } else {
+        console.log('❌ No valid session found, user needs to login');
+        setUser(null);
+        setIsAuthenticated(false);
       }
-    } catch (error) {
-      console.warn('Could not get/create user, using fallback:', error);
-    }
-    
-    // Fallback: Generate user ID based on email hash
-    const hash = email.split('').reduce((a, b) => {
-      a = ((a << 5) - a) + b.charCodeAt(0);
-      return a & a;
-    }, 0);
-    
-    // Special case: Use user 1 for admin emails
-    if (email === 'admin@edonuops.com' || email === 'admin@edonuerp.com') {
-      return 1;
-    }
-    
-    return Math.abs(hash) % 1000 + 2; // Start from 2, avoid 1 (admin)
-  };
-
-  // Restore user session on mount from localStorage (minimal data only)
-  useEffect(() => {
-    const storedUserId = localStorage.getItem('userId');
-    const sessionToken = localStorage.getItem('sessionToken');
-    const storedEmail = localStorage.getItem('userEmail');
-    const storedUsername = localStorage.getItem('username');
-    const storedRole = localStorage.getItem('userRole');
-    
-    console.log('🔍 Session check:', {
-      hasUserId: !!storedUserId,
-      hasToken: !!sessionToken,
-      hasEmail: !!storedEmail,
-      storedUserId,
-      storedEmail
-    });
-    
-    if (storedUserId && sessionToken && storedEmail) {
-      // Reconstruct user data from stored session
-      const userData = {
-        id: parseInt(storedUserId),
-        user_id: parseInt(storedUserId),
-        email: storedEmail,
-        username: storedUsername || 'user',
-        role: storedRole || 'user'
-      };
       
-      console.log('✅ Restoring session for user:', userData);
-      setUser(userData);
-      setIsAuthenticated(true);
-    } else {
-      console.log('❌ No valid session found, user needs to login');
-    }
+      // Mark initialization as complete
+      setInitialized(true);
+    };
     
-    // Mark initialization as complete
-    setInitialized(true);
+    restoreSession();
+    
+    // Listen for logout events from apiClient
+    const handleLogout = () => {
+      console.log('🔐 Logout event received, clearing session');
+      setUser(null);
+      setIsAuthenticated(false);
+      setInitialized(true);
+    };
+    
+    // Listen for login events (e.g., from email verification auto-login)
+    const handleLogin = (event) => {
+      console.log('🔐 Login event received, updating session');
+      const userData = event.detail;
+      if (userData) {
+        setUser({
+          id: userData.id,
+          user_id: userData.id,
+          email: userData.email,
+          username: userData.username || 'user',
+          role: userData.role || 'user'
+        });
+        setIsAuthenticated(true);
+        setInitialized(true);
+      }
+    };
+    
+    window.addEventListener('auth:logout', handleLogout);
+    window.addEventListener('auth:login', handleLogin);
+    
+    return () => {
+      window.removeEventListener('auth:logout', handleLogout);
+      window.removeEventListener('auth:login', handleLogin);
+    };
   }, []);
 
   const login = async (email, password) => {
@@ -111,95 +175,49 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('username');
       localStorage.removeItem('userRole');
       
-      // Map known admin emails to their user IDs
-      const adminEmailMap = {
-        'admin@edonuops.com': 1,
-        'admin@edonuerp.com': 3,
-        'herbertndawula070@gmail.com': 2
-      };
+      // SECURITY: Only authenticate through backend API - NO fallbacks
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password })
+      });
       
-      if (adminEmailMap[email]) {
-        const userId = adminEmailMap[email];
-        const userData = {
-          id: userId,
-          user_id: userId,
-          email: email,
-          username: email === 'admin@edonuops.com' ? 'admin' : 
-                   email === 'admin@edonuerp.com' ? 'admin_edonuerp' : 
-                   'edonuOps',
-          role: 'admin'
-        };
-        
-        setUser(userData);
-        setIsAuthenticated(true);
-        
-        // Store NEW session data for this user
-        const sessionToken = `session_${Date.now()}_${userData.id}`;
-        localStorage.setItem('sessionToken', sessionToken);
-        localStorage.setItem('userId', String(userId));
-        localStorage.setItem('userEmail', email);
-        localStorage.setItem('username', userData.username);
-        localStorage.setItem('userRole', 'admin');
-        
-        console.log('🔐 Admin user logged in successfully:', userData);
-        setLoading(false);
-        return;
+      if (!response.ok) {
+        // Authentication failed - do not create user or allow access
+        throw new Error('Invalid credentials');
       }
       
-      // Dynamic user authentication for other users
-      let userId = null;
-      let username = email.split('@')[0];
-      let role = 'user';
+      const userData = await response.json();
       
-      // Try to authenticate with backend API
-      try {
-        const response = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ email, password })
-        });
-        
-        if (response.ok) {
-          const userData = await response.json();
-          userId = userData.id;
-          username = userData.username || email.split('@')[0];
-          role = userData.role || 'user';
-        } else {
-          // Fallback: Create new user or use existing
-          userId = await getOrCreateUserId(email);
-          username = email.split('@')[0];
-          role = 'user';
-        }
-      } catch (error) {
-        console.warn('Backend authentication failed, using fallback:', error);
-        // Fallback: Create new user or use existing
-        userId = await getOrCreateUserId(email);
-        username = email.split('@')[0];
-        role = 'user';
+      // Only proceed if we have valid user data from backend
+      if (!userData.user || !userData.access_token) {
+        throw new Error('Invalid response from server');
       }
       
-      const userData = {
-        id: userId,
-        user_id: userId, // Use actual user ID for multi-tenancy
-        email: email,
-        username: username,
-        role: role
+      const user = {
+        id: userData.user.id || userData.user_id,
+        user_id: userData.user.id || userData.user_id,
+        email: userData.user.email,
+        username: userData.user.username,
+        role: userData.user.role || 'user'
       };
       
-      setUser(userData);
+      setUser(user);
       setIsAuthenticated(true);
       
-      // Store ONLY session token and user ID, not full user data
-      const sessionToken = `session_${Date.now()}_${userData.id}`;
-      localStorage.setItem('sessionToken', sessionToken);
-      localStorage.setItem('userId', String(userId));
-      localStorage.setItem('userEmail', email);
-      localStorage.setItem('username', username);
-      localStorage.setItem('userRole', 'user');
+      // Store session token and user data
+      localStorage.setItem('sessionToken', userData.access_token);
+      localStorage.setItem('userId', String(user.id));
+      localStorage.setItem('userEmail', user.email);
+      localStorage.setItem('username', user.username);
+      localStorage.setItem('userRole', user.role);
       
-      console.log('🔐 User logged in successfully:', userData);
+      // Verify token was stored
+      const storedToken = localStorage.getItem('sessionToken');
+      console.log('🔐 User logged in successfully:', user);
+      console.log('🔐 Token stored:', storedToken ? 'YES' : 'NO', storedToken ? `(${storedToken.substring(0, 20)}...)` : '');
       return true;
     } catch (error) {
       console.error('Login error:', error);

@@ -33,8 +33,8 @@ export const useTenantApi = () => {
   const apiCall = useCallback(async (endpoint, options = {}) => {
     const token = localStorage.getItem('access_token') || 'default-token';
     const tenantData = currentTenant || {
-      tenant_id: 'default_tenant',
-      user_id: 'user_1'
+      tenant_id: process.env.REACT_APP_DEFAULT_TENANT_ID || 'default',
+      user_id: process.env.REACT_APP_DEFAULT_USER_ID || ''
     };
 
     const headers = {
@@ -52,7 +52,7 @@ export const useTenantApi = () => {
       // In development, use full URL to backend; in production, use relative URLs
       const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
       const baseURL = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_API_URL || 
-                     (isDevelopment ? 'http://localhost:5000' : '');
+                     (isDevelopment ? process.env.REACT_APP_API_URL || '' : '');
       const fullURL = endpoint.startsWith('http') ? endpoint : `${baseURL}${endpoint}`;
       
       console.log(`🌐 API Call: ${fullURL}`);

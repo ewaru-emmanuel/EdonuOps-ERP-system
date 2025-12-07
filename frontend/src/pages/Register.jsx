@@ -11,6 +11,10 @@ function Register() {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [role, setRole] = useState('user');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -22,7 +26,16 @@ function Register() {
     setLoading(true);
 
     try {
-      const response = await apiClient.register({ username, email, password, role });
+      const response = await apiClient.register({ 
+        username, 
+        email, 
+        password, 
+        confirm_password: confirmPassword, 
+        first_name: firstName,
+        last_name: lastName,
+        phone_number: phoneNumber,
+        role 
+      });
       // Show success message and redirect
       alert('Registration successful! Please login with your credentials.');
       navigate('/login');
@@ -76,6 +89,47 @@ function Register() {
             onChange={(e) => setEmail(e.target.value)}
             disabled={loading}
           />
+
+          <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              id="firstName"
+              label="First Name"
+              name="firstName"
+              autoComplete="given-name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              disabled={loading}
+            />
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              id="lastName"
+              label="Last Name"
+              name="lastName"
+              autoComplete="family-name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              disabled={loading}
+            />
+          </Box>
+
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            id="phoneNumber"
+            label="Phone Number"
+            name="phoneNumber"
+            autoComplete="tel"
+            value={phoneNumber}
+            onChange={(e) => setPhoneNumber(e.target.value)}
+            disabled={loading}
+            placeholder="+1 (555) 123-4567"
+          />
           
           <TextField
             margin="normal"
@@ -88,6 +142,20 @@ function Register() {
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            disabled={loading}
+          />
+          
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            name="confirmPassword"
+            label="Confirm Password"
+            type="password"
+            id="confirmPassword"
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
             disabled={loading}
           />
           

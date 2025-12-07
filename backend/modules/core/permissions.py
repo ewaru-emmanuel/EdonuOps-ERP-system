@@ -4,7 +4,7 @@ from app import db
 from modules.core.models import User, Role
 from functools import wraps
 from flask import request, jsonify, g
-from flask_jwt_extended import get_jwt_identity, jwt_required
+from flask_jwt_extended import get_jwt_identity, jwt_required, verify_jwt_in_request
 import logging
 
 logger = logging.getLogger(__name__)
@@ -64,8 +64,8 @@ class PermissionManager:
             if not user or not user.role:
                 return False
             
-            # Admin role has all permissions
-            if user.role.role_name == 'admin':
+            # Superadmin and Admin roles have all permissions
+            if user.role.role_name in ['superadmin', 'admin']:
                 return True
             
             # Check if user's role has the specific permission
@@ -94,8 +94,8 @@ class PermissionManager:
             if not user or not user.role:
                 return False
             
-            # Admin role has all access
-            if user.role.role_name == 'admin':
+            # Superadmin and Admin roles have all access
+            if user.role.role_name in ['superadmin', 'admin']:
                 return True
             
             # Check if user has any permission in the module
@@ -121,8 +121,8 @@ class PermissionManager:
             if not user or not user.role:
                 return []
             
-            # Admin gets all permissions
-            if user.role.role_name == 'admin':
+            # Superadmin and Admin get all permissions
+            if user.role.role_name in ['superadmin', 'admin']:
                 return Permission.query.all()
             
             # Get user's role permissions
@@ -143,48 +143,74 @@ class PermissionManager:
     def get_user_modules(user_id):
         """Get all modules a user has access to"""
         try:
+            # Use __class__ to avoid any potential scoping issues
             permissions = PermissionManager.get_user_permissions(user_id)
-            modules = list(set([perm.module for perm in permissions]))
+            if not permissions:
+                return []
+            modules = list(set([perm.module for perm in permissions if perm and hasattr(perm, 'module')]))
             return modules
             
         except Exception as e:
-            logger.error(f"Error getting user modules: {e}")
+            logger.error(f"Error getting user modules for user {user_id}: {e}", exc_info=True)
             return []
 
 # Decorators for permission checking
 def require_permission(permission_name):
-    """Decorator to require a specific permission"""
+    """
+    Decorator to require a specific permission.
+    
+    SECURITY: For finance applications, this ONLY accepts JWT tokens.
+    No header fallbacks are allowed in production/staging environments.
+    """
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
+            # CRITICAL: Handle OPTIONS requests BEFORE any JWT/permission checks
+            # OPTIONS requests don't include JWT tokens and must pass through for CORS
+            if request.method == 'OPTIONS':
+                response = jsonify({})
+                response.headers.add("Access-Control-Allow-Origin", "*")
+                response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,X-User-ID,X-Tenant-ID")
+                response.headers.add('Access-Control-Allow-Methods', "GET,PUT,POST,DELETE,OPTIONS,PATCH")
+                return response, 200
+            
+            # For all other methods, require JWT authentication using jwt_required decorator
+            # We'll wrap the function logic in a try-except to handle JWT errors gracefully
             try:
-                # Try to get user ID from JWT token first
-                current_user_id = None
-                try:
-                    current_user_id = get_jwt_identity()
-                except:
-                    pass
-                
-                # If no JWT, try to get from headers (for development/testing)
-                if not current_user_id:
-                    current_user_id = request.headers.get('X-User-ID')
+                # Verify JWT token exists and is valid
+                verify_jwt_in_request(optional=False)
+                current_user_id = get_jwt_identity()
+            except Exception as jwt_error:
+                # JWT verification failed - return 401
+                return jsonify({
+                    'error': 'Authentication required',
+                    'message': 'Valid JWT token required'
+                }), 401
                 
                 if not current_user_id:
                     return jsonify({
                         'error': 'Authentication required',
-                        'message': 'User ID must be provided via JWT token or X-User-ID header'
+                        'message': 'User ID not found in JWT token'
                     }), 401
                 
-                # Handle different JWT identity formats
-                if isinstance(current_user_id, str) and current_user_id == 'admin@edonuops.com':
-                    # Hardcoded admin case - has all permissions
+                # Convert to int if it's a string
+                try:
+                    current_user_id = int(current_user_id) if current_user_id else None
+                except (ValueError, TypeError):
+                    return jsonify({
+                        'error': 'Invalid user ID in token'
+                    }), 400
+                
+                # Handle superadmin/admin case - check if user has superadmin or admin role
+                user = User.query.get(current_user_id)
+                if user and user.role and user.role.role_name in ['superadmin', 'admin']:
+                    # Superadmin and Admin roles have all permissions
+                    g.current_user_id = current_user_id
+                    g.required_permission = permission_name
                     return f(*args, **kwargs)
                 
-                # For development, allow all users to access finance permissions
-                if permission_name.startswith('finance.'):
-                    logger.info(f"Allowing finance permission '{permission_name}' for user {current_user_id} (development mode)")
-                    return f(*args, **kwargs)
-                
+                # Check permissions normally
+            try:
                 if not PermissionManager.user_has_permission(current_user_id, permission_name):
                     return jsonify({
                         'error': 'Insufficient permissions',
@@ -199,7 +225,7 @@ def require_permission(permission_name):
                 return f(*args, **kwargs)
                 
             except Exception as e:
-                logger.error(f"Permission check error: {e}")
+                logger.error(f"Permission check error: {e}", exc_info=True)
                 return jsonify({
                     'error': 'Permission check failed',
                     'message': 'Unable to verify permissions'
@@ -209,19 +235,46 @@ def require_permission(permission_name):
     return decorator
 
 def require_module_access(module_name):
-    """Decorator to require access to a specific module"""
+    """
+    Decorator to require access to a specific module.
+    
+    SECURITY: For finance applications, this ONLY accepts JWT tokens.
+    No header fallbacks are allowed in production/staging environments.
+    """
     def decorator(f):
         @wraps(f)
         @jwt_required()
         def decorated_function(*args, **kwargs):
+            # Skip authentication for OPTIONS requests (CORS preflight)
+            if request.method == 'OPTIONS':
+                return f(*args, **kwargs)
+            
             try:
                 current_user_id = get_jwt_identity()
                 
-                # Handle different JWT identity formats
-                if isinstance(current_user_id, str) and current_user_id == 'admin@edonuops.com':
-                    # Hardcoded admin case - has all access
+                if not current_user_id:
+                    return jsonify({
+                        'error': 'Authentication required',
+                        'message': 'User ID not found in JWT token'
+                    }), 401
+                
+                # Convert to int if it's a string
+                try:
+                    current_user_id = int(current_user_id) if current_user_id else None
+                except (ValueError, TypeError):
+                    return jsonify({
+                        'error': 'Invalid user ID in token'
+                    }), 400
+                
+                # Handle superadmin/admin case - check if user has superadmin or admin role
+                user = User.query.get(current_user_id)
+                if user and user.role and user.role.role_name in ['superadmin', 'admin']:
+                    # Superadmin and Admin roles have all access
+                    g.current_user_id = current_user_id
+                    g.required_module = module_name
                     return f(*args, **kwargs)
                 
+                # Check module access
                 if not PermissionManager.user_has_module_access(current_user_id, module_name):
                     return jsonify({
                         'error': 'Module access denied',
@@ -236,7 +289,7 @@ def require_module_access(module_name):
                 return f(*args, **kwargs)
                 
             except Exception as e:
-                logger.error(f"Module access check error: {e}")
+                logger.error(f"Module access check error: {e}", exc_info=True)
                 return jsonify({
                     'error': 'Module access check failed',
                     'message': 'Unable to verify module access'
@@ -254,9 +307,10 @@ def require_any_permission(*permission_names):
             try:
                 current_user_id = get_jwt_identity()
                 
-                # Handle different JWT identity formats
-                if isinstance(current_user_id, str) and current_user_id == 'admin@edonuops.com':
-                    # Hardcoded admin case - has all permissions
+                # Handle superadmin/admin case - check if user has superadmin or admin role
+                user = User.query.get(current_user_id)
+                if user and user.role and user.role.role_name in ['superadmin', 'admin']:
+                    # Superadmin and Admin roles have all permissions
                     return f(*args, **kwargs)
                 
                 # Check if user has any of the required permissions

@@ -13,7 +13,8 @@ class WorkflowRule(db.Model):
     actions = db.Column(JSON)  # JSON structure for actions
     is_active = db.Column(db.Boolean, default=True)
     priority = db.Column(db.Integer, default=1)  # Higher priority rules execute first
-    user_id = db.Column(db.Integer)  # Standardized user identification)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -29,6 +30,8 @@ class WorkflowExecution(db.Model):
     started_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime)
     error_message = db.Column(db.Text)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -44,6 +47,8 @@ class WorkflowAction(db.Model):
     result = db.Column(JSON)  # Result of the action
     error_message = db.Column(db.Text)
     executed_at = db.Column(db.DateTime)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -57,6 +62,7 @@ class WorkflowTemplate(db.Model):
     category = db.Column(db.String(50))  # crm, finance, procurement, etc.
     template_data = db.Column(JSON)  # JSON structure for the template
     is_active = db.Column(db.Boolean, default=True)
-    user_id = db.Column(db.Integer)  # Standardized user identification)
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

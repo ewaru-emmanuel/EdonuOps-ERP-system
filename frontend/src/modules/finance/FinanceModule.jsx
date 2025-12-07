@@ -48,8 +48,6 @@ const FinanceModule = () => {
         />;
       case 'trial-balance':
         return <TrialBalance />;
-      case 'advanced-reports':
-        return <SmartFinancialReports />;
       case 'general-ledger':
         return <SmartGeneralLedger />;
       case 'chart-of-accounts':

@@ -1,265 +1,281 @@
 """
-Tenant Context Middleware and Utilities
-Handles tenant isolation and context management
+🔧 EDONUOPS ERP - TENANT CONTEXT MIDDLEWARE
+============================================================
+
+Implements tenant context management for Flask application:
+- Automatic tenant detection from JWT tokens
+- Tenant context setting in PostgreSQL sessions
+- Tenant validation and access control
+- Audit logging for tenant access
+
+Author: EdonuOps Team
+Date: 2024
 """
 
+import os
+import logging
 from functools import wraps
-from flask import request, g, abort, jsonify
+from flask import request, g, current_app, jsonify
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 import jwt
-from datetime import datetime
-from app import db
-from modules.core.tenant_models import Tenant, UserTenant, TenantModule
 
-class TenantContext:
-    """Tenant context container"""
-    def __init__(self, tenant_id, user_id, role, permissions=None):
-        self.tenant_id = tenant_id
-        self.user_id = user_id
-        self.role = role
-        self.permissions = permissions or []
-        self.tenant = None
-        self.user_tenant = None
-    
-    def load_tenant_info(self):
-        """Load full tenant information"""
-        if not self.tenant:
-            self.tenant = Tenant.query.get(self.tenant_id)
-        return self.tenant
-    
-    def load_user_tenant_info(self):
-        """Load user-tenant relationship info"""
-        if not self.user_tenant:
-            self.user_tenant = UserTenant.query.filter_by(
-                user_id=self.user_id,
-                tenant_id=self.tenant_id
-            ).first()
-        return self.user_tenant
-    
-    def has_permission(self, permission):
-        """Check if user has specific permission in this tenant"""
-        if not self.permissions:
-            self.load_user_tenant_info()
-            self.permissions = self.user_tenant.permissions or []
-        
-        return permission in self.permissions
-    
-    def has_role(self, required_role):
-        """Check if user has specific role in this tenant"""
-        return self.role == required_role or self.role == 'admin'
-    
-    def to_dict(self):
-        """Convert context to dictionary"""
-        return {
-            'tenant_id': self.tenant_id,
-            'user_id': self.user_id,
-            'role': self.role,
-            'permissions': self.permissions
-        }
+logger = logging.getLogger(__name__)
 
-def extract_tenant_context():
-    """Extract tenant context from request - simplified version"""
-    try:
-        # Simple header-based approach - no JWT validation needed
-        tenant_id = request.headers.get('X-Tenant-ID', 'default_tenant')
-        user_id = request.headers.get('X-User-ID', 'user_1')
+class TenantContextManager:
+    """Manages tenant context for multi-tenant ERP system"""
+    
+    def __init__(self, app=None):
+        self.app = app
+        if app is not None:
+            self.init_app(app)
+    
+    def init_app(self, app):
+        """Initialize the tenant context manager with Flask app"""
+        self.app = app
         
-        # Always return a valid tenant context
-        return TenantContext(
-            tenant_id=tenant_id,
-            user_id=user_id,
-            role='admin',  # Give admin role for simplicity
-            permissions=['*']  # Give all permissions for simplicity
-        )
+        # Register before_request handler
+        app.before_request(self.set_tenant_context)
         
-    except Exception as e:
-        print(f"Error extracting tenant context: {e}")
-        # Return default context even on error
-        return TenantContext(
-            tenant_id='default_tenant',
-            user_id='user_1',
-            role='admin',
-            permissions=['*']
-        )
+        # Register after_request handler
+        app.after_request(self.cleanup_tenant_context)
+        
+        logger.info("✅ Tenant context manager initialized")
+    
+    def set_tenant_context(self):
+        """Set tenant context for the current request"""
+        try:
+            # Get tenant_id from JWT token
+            tenant_id = self._extract_tenant_from_token()
+            
+            if tenant_id:
+                # Set tenant context in PostgreSQL session
+                self._set_postgresql_tenant_context(tenant_id)
+                
+                # Store in Flask g object for access in views
+                g.tenant_id = tenant_id
+                g.tenant_context_set = True
+                
+                logger.debug(f"✅ Tenant context set: {tenant_id}")
+            else:
+                # No tenant context - this might be a public endpoint
+                g.tenant_id = None
+                g.tenant_context_set = False
+                
+                logger.debug("⚠️  No tenant context set")
+                
+        except Exception as e:
+            logger.error(f"❌ Failed to set tenant context: {e}")
+            g.tenant_id = None
+            g.tenant_context_set = False
+    
+    def cleanup_tenant_context(self, response):
+        """Clean up tenant context after request"""
+        try:
+            # Clear tenant context from PostgreSQL session
+            if hasattr(g, 'tenant_context_set') and g.tenant_context_set:
+                self._clear_postgresql_tenant_context()
+                
+        except Exception as e:
+            logger.error(f"❌ Failed to cleanup tenant context: {e}")
+        
+        return response
+    
+    def _extract_tenant_from_token(self):
+        """Extract tenant_id from JWT token"""
+        try:
+            # Get Authorization header
+            auth_header = request.headers.get('Authorization')
+            if not auth_header:
+                return None
+            
+            # Extract token
+            if not auth_header.startswith('Bearer '):
+                return None
+            
+            token = auth_header[7:]  # Remove 'Bearer ' prefix
+            
+            # Decode JWT token
+            jwt_secret = os.getenv('JWT_SECRET_KEY')
+            if not jwt_secret:
+                logger.error("❌ JWT_SECRET_KEY not set")
+                return None
+            
+            payload = jwt.decode(token, jwt_secret, algorithms=['HS256'])
+            
+            # Extract tenant_id
+            tenant_id = payload.get('tenant_id')
+            
+            if tenant_id:
+                logger.debug(f"✅ Extracted tenant_id from token: {tenant_id}")
+                return tenant_id
+            else:
+                logger.warning("⚠️  No tenant_id in JWT token")
+                return None
+                
+        except jwt.ExpiredSignatureError:
+            logger.warning("⚠️  JWT token expired")
+            return None
+        except jwt.InvalidTokenError as e:
+            logger.warning(f"⚠️  Invalid JWT token: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"❌ Error extracting tenant from token: {e}")
+            return None
+    
+    def _set_postgresql_tenant_context(self, tenant_id):
+        """Set tenant context in PostgreSQL session"""
+        try:
+            from app import db
+            
+            # Set tenant context using our custom function
+            db.session.execute(text("SELECT set_tenant_context(:tenant_id)"), {
+                'tenant_id': tenant_id
+            })
+            
+            # Also set user context for audit logging
+            user_id = self._extract_user_from_token()
+            if user_id:
+                db.session.execute(text("SELECT set_config('my.user_id', :user_id, false)"), {
+                    'user_id': str(user_id)
+                })
+            
+            # Set user agent for audit logging
+            user_agent = request.headers.get('User-Agent', 'Unknown')
+            db.session.execute(text("SELECT set_config('my.user_agent', :user_agent, false)"), {
+                'user_agent': user_agent
+            })
+            
+            db.session.commit()
+            
+        except SQLAlchemyError as e:
+            logger.error(f"❌ Failed to set PostgreSQL tenant context: {e}")
+            raise
+    
+    def _clear_postgresql_tenant_context(self):
+        """Clear tenant context from PostgreSQL session"""
+        try:
+            from app import db
+            
+            # Clear tenant context
+            db.session.execute(text("SELECT set_config('my.tenant_id', '', false)"))
+            db.session.execute(text("SELECT set_config('my.user_id', '', false)"))
+            db.session.execute(text("SELECT set_config('my.user_agent', '', false)"))
+            
+            db.session.commit()
+            
+        except SQLAlchemyError as e:
+            logger.error(f"❌ Failed to clear PostgreSQL tenant context: {e}")
+    
+    def _extract_user_from_token(self):
+        """Extract user_id from JWT token"""
+        try:
+            auth_header = request.headers.get('Authorization')
+            if not auth_header or not auth_header.startswith('Bearer '):
+                return None
+            
+            token = auth_header[7:]
+            jwt_secret = os.getenv('JWT_SECRET_KEY')
+            
+            if not jwt_secret:
+                return None
+            
+            payload = jwt.decode(token, jwt_secret, algorithms=['HS256'])
+            return payload.get('user_id')
+            
+        except Exception as e:
+            logger.error(f"❌ Error extracting user from token: {e}")
+            return None
 
-def require_tenant(f):
-    """Decorator to enforce tenant context"""
+def require_tenant_context(f):
+    """Decorator to require tenant context for API endpoints"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        tenant_context = extract_tenant_context()
-        if not tenant_context:
-            return jsonify({'error': 'Tenant context required'}), 401
-        
-        # Validate tenant exists and is active
-        tenant = Tenant.query.get(tenant_context.tenant_id)
-        if not tenant:
-            return jsonify({'error': 'Invalid tenant'}), 403
-        
-        if tenant.status != 'active':
-            return jsonify({'error': 'Tenant is not active'}), 403
-        
-        # Validate user has access to this tenant
-        user_tenant = UserTenant.query.filter_by(
-            user_id=tenant_context.user_id,
-            tenant_id=tenant_context.tenant_id
-        ).first()
-        
-        if not user_tenant:
-            return jsonify({'error': 'Access denied to this tenant'}), 403
-        
-        # Store context in Flask g
-        g.tenant_context = tenant_context
-        g.tenant = tenant
-        g.user_tenant = user_tenant
+        if not hasattr(g, 'tenant_context_set') or not g.tenant_context_set:
+            return jsonify({
+                'error': 'Tenant context required',
+                'message': 'This endpoint requires a valid tenant context'
+            }), 401
         
         return f(*args, **kwargs)
+    
     return decorated_function
 
-def require_tenant_access(tenant_id):
-    """Decorator to verify user has access to specific tenant"""
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            if not hasattr(g, 'tenant_context'):
-                return jsonify({'error': 'Tenant context required'}), 401
-            
-            if g.tenant_context.tenant_id != tenant_id:
-                return jsonify({'error': 'Access denied to this tenant'}), 403
-            
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
-
-def require_permission(permission):
-    """Decorator to require specific permission"""
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            if not hasattr(g, 'tenant_context'):
-                return jsonify({'error': 'Tenant context required'}), 401
-            
-            if not g.tenant_context.has_permission(permission):
-                return jsonify({'error': f'Permission required: {permission}'}), 403
-            
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
-
-def require_role(role):
-    """Decorator to require specific role"""
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            if not hasattr(g, 'tenant_context'):
-                return jsonify({'error': 'Tenant context required'}), 401
-            
-            if not g.tenant_context.has_role(role):
-                return jsonify({'error': f'Role required: {role}'}), 403
-            
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
-
-def get_tenant_context():
-    """Get current tenant context"""
-    return getattr(g, 'tenant_context', None)
-
-def get_current_tenant():
-    """Get current tenant"""
-    return getattr(g, 'tenant', None)
-
-def get_current_user_tenant():
-    """Get current user-tenant relationship"""
-    return getattr(g, 'user_tenant', None)
-
-class TenantAwareQuery:
-    """Helper class for tenant-aware database queries"""
-    
-    @staticmethod
-    def filter_by_tenant(query, tenant_id):
-        """Add tenant filter to any query"""
-        return query.filter_by(tenant_id=tenant_id)
-    
-    @staticmethod
-    def get_by_tenant_and_id(model_class, tenant_id, record_id):
-        """Get record by tenant and ID"""
-        return model_class.query.filter_by(tenant_id=tenant_id, id=record_id).first()
-    
-    @staticmethod
-    def get_all_by_tenant(model_class, tenant_id):
-        """Get all records for a tenant"""
-        return model_class.query.filter_by(tenant_id=tenant_id).all()
-    
-    @staticmethod
-    def create_with_tenant(model_class, tenant_id, **data):
-        """Create record with tenant_id"""
-        data['tenant_id'] = tenant_id
-        record = model_class(**data)
-        db.session.add(record)
-        db.session.commit()
-        return record
-    
-    @staticmethod
-    def update_by_tenant_and_id(model_class, tenant_id, record_id, **data):
-        """Update record by tenant and ID"""
-        record = model_class.query.filter_by(tenant_id=tenant_id, id=record_id).first()
-        if record:
-            for key, value in data.items():
-                setattr(record, key, value)
-            db.session.commit()
-            return record
-        return None
-    
-    @staticmethod
-    def delete_by_tenant_and_id(model_class, tenant_id, record_id):
-        """Delete record by tenant and ID"""
-        record = model_class.query.filter_by(tenant_id=tenant_id, id=record_id).first()
-        if record:
-            db.session.delete(record)
-            db.session.commit()
+def validate_tenant_access(user_id, tenant_id):
+    """Validate that user has access to the specified tenant"""
+    try:
+        from app import db
+        
+        # Use our PostgreSQL function to validate access
+        result = db.session.execute(text("""
+            SELECT validate_tenant_access(:user_id, :tenant_id)
+        """), {
+            'user_id': user_id,
+            'tenant_id': tenant_id
+        })
+        
+        has_access = result.scalar()
+        
+        if has_access:
+            logger.debug(f"✅ User {user_id} has access to tenant {tenant_id}")
             return True
+        else:
+            logger.warning(f"❌ User {user_id} denied access to tenant {tenant_id}")
+            return False
+            
+    except SQLAlchemyError as e:
+        logger.error(f"❌ Error validating tenant access: {e}")
         return False
 
-def validate_tenant_access(user_id, tenant_id):
-    """Validate that user has access to tenant"""
-    user_tenant = UserTenant.query.filter_by(
-        user_id=user_id,
-        tenant_id=tenant_id
-    ).first()
+def audit_tenant_access(user_id, tenant_id, action, table_name, record_id=None):
+    """Audit tenant access for compliance"""
+    try:
+        from app import db
+        
+        # Use our PostgreSQL function to audit access
+        db.session.execute(text("""
+            SELECT audit_tenant_access(:user_id, :tenant_id, :action, :table_name, :record_id)
+        """), {
+            'user_id': user_id,
+            'tenant_id': tenant_id,
+            'action': action,
+            'table_name': table_name,
+            'record_id': record_id
+        })
+        
+        db.session.commit()
+        
+        logger.debug(f"✅ Audited tenant access: {action} on {table_name}")
+        
+    except SQLAlchemyError as e:
+        logger.error(f"❌ Error auditing tenant access: {e}")
+
+def get_current_tenant():
+    """Get current tenant ID from context"""
+    return getattr(g, 'tenant_id', None)
+
+def get_current_user():
+    """Get current user ID from context"""
+    return getattr(g, 'user_id', None)
+
+# Example usage in API endpoints:
+"""
+from flask import Blueprint, request, jsonify, g
+from .tenant_context import require_tenant_context, get_current_tenant, audit_tenant_access
+
+api = Blueprint('api', __name__)
+
+@api.route('/invoices', methods=['GET'])
+@require_tenant_context
+def get_invoices():
+    tenant_id = get_current_tenant()
+    user_id = get_current_user()
     
-    return user_tenant is not None
-
-def get_user_tenants(user_id):
-    """Get all tenants for a user"""
-    user_tenants = UserTenant.query.filter_by(user_id=user_id).all()
-    return [ut.to_dict() for ut in user_tenants]
-
-def get_tenant_modules(tenant_id):
-    """Get all modules for a tenant"""
-    modules = TenantModule.query.filter_by(tenant_id=tenant_id, enabled=True).all()
-    return [module.to_dict() for module in modules]
-
-def check_module_access(tenant_id, module_name):
-    """Check if tenant has access to a specific module"""
-    module = TenantModule.query.filter_by(
-        tenant_id=tenant_id,
-        module_name=module_name,
-        enabled=True
-    ).first()
+    # Audit the access
+    audit_tenant_access(user_id, tenant_id, 'READ', 'invoices')
     
-    return module is not None
-
-def require_module(module_name):
-    """Decorator to require specific module access"""
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            if not hasattr(g, 'tenant_context'):
-                return jsonify({'error': 'Tenant context required'}), 401
-            
-            if not check_module_access(g.tenant_context.tenant_id, module_name):
-                return jsonify({'error': f'Module access required: {module_name}'}), 403
-            
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
-
+    # Query will automatically be filtered by RLS
+    invoices = Invoice.query.all()
+    
+    return jsonify([invoice.to_dict() for invoice in invoices])
+"""

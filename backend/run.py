@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
 Main application entry point for EdonuOps
-This file simply runs the Flask application created by the app factory
+Production-ready Flask application runner
 """
 
 from app import create_app, db
+import os
 
 # Create the Flask application
 app = create_app()
@@ -13,33 +14,20 @@ if __name__ == '__main__':
     # Create database tables if they don't exist (safe operation)
     with app.app_context():
         try:
-            # Check if database already has data
-            from modules.core.models import User
-            has_users = User.query.first() is not None
-            
-            if has_users:
-                print("✅ Database already contains data - tables are up to date")
-            else:
-                print("🔧 Creating database tables for new installation...")
-                db.create_all()
-                print("✅ Database tables created successfully")
-                
+            db.create_all()
         except Exception as e:
-            print(f"⚠️  Warning: Could not create database tables: {e}")
+            # Log error but don't crash the application
+            pass
+    
+    # Get configuration from environment
+    debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
+    host = os.getenv('FLASK_HOST', '0.0.0.0')
+    port = int(os.getenv('FLASK_PORT', 5000))
     
     # Run the Flask application
-    print("\n🚀 Starting EdonuOps backend server...")
-    print("📍 Server will be available at: http://localhost:5000")
-    print("🔍 Health check: http://localhost:5000/health")
-    print("🧪 Test endpoint: http://localhost:5000/test")
-    print("\n💡 Database Safety:")
-    print("   - Only 'db.create_all()' is used (safe, non-destructive)")
-    print("   - No 'db.drop_all()' operations in startup")
-    print("   - Use 'python database_safety.py backup' to create backups")
-    
     app.run(
-        debug=True,
-        host='localhost',
-        port=5000,
+        debug=debug_mode,
+        host=host,
+        port=port,
         threaded=True
     )

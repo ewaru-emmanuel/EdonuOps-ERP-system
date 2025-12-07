@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/apiClient';
 import {
@@ -6,7 +6,7 @@ import {
   LinearProgress, Chip, IconButton, InputAdornment, Breadcrumbs, Link, Stepper, Step, StepLabel
 } from '@mui/material';
 import {
-  PersonAdd, Visibility, VisibilityOff, CheckCircle, Error, Person, Home, Login, Dashboard
+  PersonAdd, Visibility, VisibilityOff, CheckCircle, Error, Person, Home, Login, Dashboard, Refresh, Email
 } from '@mui/icons-material';
 
 function EnhancedRegister() {
@@ -14,7 +14,10 @@ function EnhancedRegister() {
     username: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    firstName: '',
+    lastName: '',
+    phoneNumber: ''
   });
   
   const [passwordStrength, setPasswordStrength] = useState({
@@ -31,6 +34,10 @@ function EnhancedRegister() {
   });
   
   const [errors, setErrors] = useState({});
+  const [infoMessage, setInfoMessage] = useState(null);
+  const [showResendButton, setShowResendButton] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -99,11 +106,32 @@ function EnhancedRegister() {
       newErrors.email = 'Please enter a valid email address';
     }
 
+    // First Name validation
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = 'First name is required';
+    } else if (formData.firstName.length < 2) {
+      newErrors.firstName = 'First name must be at least 2 characters';
+    }
+
+    // Last Name validation
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = 'Last name is required';
+    } else if (formData.lastName.length < 2) {
+      newErrors.lastName = 'Last name must be at least 2 characters';
+    }
+
+    // Phone Number validation
+    if (!formData.phoneNumber.trim()) {
+      newErrors.phoneNumber = 'Phone number is required';
+    } else if (!/^[\+]?[1-9][\d]{0,15}$/.test(formData.phoneNumber.replace(/[\s\-\(\)]/g, ''))) {
+      newErrors.phoneNumber = 'Please enter a valid phone number';
+    }
+
     // Password validation
     if (!formData.password) {
       newErrors.password = 'Password is required';
-    } else if (passwordStrength.score < 3) {
-      newErrors.password = 'Password must be at least medium strength';
+    } else if (passwordStrength.score < 5) {
+      newErrors.password = 'Password must meet all requirements (8+ chars, uppercase, lowercase, number, special character)';
     }
 
     // Confirm password validation
@@ -118,6 +146,38 @@ function EnhancedRegister() {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Handle resend verification email
+  const handleResendVerification = async () => {
+    if (!verificationEmail) return;
+    
+    setResendLoading(true);
+    setErrors({});
+    
+    try {
+      await apiClient.post('/api/auth/resend-verification', {
+        email: verificationEmail
+      });
+      
+      setInfoMessage({
+        message: `Verification email sent successfully to ${verificationEmail}. Please check your inbox.`,
+        field: 'email',
+        type: 'verification_sent',
+        email: verificationEmail
+      });
+      
+      // Hide resend button again and show it after 5 seconds
+      setShowResendButton(false);
+      setTimeout(() => {
+        setShowResendButton(true);
+      }, 5000);
+    } catch (err) {
+      const errorMessage = err.response?.data?.error || err.response?.data?.message || 'Failed to resend verification email';
+      setErrors({ email: errorMessage });
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -128,6 +188,9 @@ function EnhancedRegister() {
 
     setLoading(true);
     setErrors({});
+    setInfoMessage(null);
+    setShowResendButton(false);
+    setVerificationEmail(null);
 
     try {
       // Register user
@@ -135,26 +198,83 @@ function EnhancedRegister() {
         username: formData.username,
         email: formData.email,
         password: formData.password,
+        confirm_password: formData.confirmPassword,
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        phone_number: formData.phoneNumber,
         role: 'user' // Will be set to admin during onboarding
       });
 
-      alert('Registration successful! Please login to continue with onboarding.');
-      navigate('/login');
+      // Check if email verification was sent
+      if (userResponse.email_verification_sent) {
+        // Navigate to verification page with email info
+        navigate('/verify-email', { 
+          state: { 
+            email: formData.email,
+            message: userResponse.message 
+          } 
+        });
+      } else {
+        alert('Registration successful! Please login to continue with onboarding.');
+        navigate('/login');
+      }
 
     } catch (err) {
       console.error('Registration error:', err);
       
-      if (err.response?.status === 409) {
-        setErrors({ email: 'An account with this email already exists' });
-      } else if (err.response?.status === 400) {
-        const errorData = err.response.data;
+      // Handle 409 CONFLICT responses (email/username exists)
+      if (err.status === 409 || err.response?.status === 409) {
+        const errorData = err.response?.data || err.data;
+        
+        // Check if email exists but not verified
+        if (errorData?.info === 'email_not_verified' && errorData?.can_resend) {
+          const email = errorData?.email || formData.email;
+          const message = errorData?.message || 'A verification email has been sent. Please check your inbox.';
+          
+          // Navigate to EmailVerification page (same page used for first-time registration)
+          navigate('/verify-email', {
+            state: {
+              email: email,
+              message: message,
+              fromUnverifiedEmail: true
+            }
+          });
+        } else {
+          // Regular conflict (email/username exists and verified)
+          const message = errorData?.message || 'An account with this information already exists. Please login instead.';
+          
+          setInfoMessage({
+            message: message,
+            field: errorData?.field || 'email',
+            suggestion: errorData?.suggestion || 'login'
+          });
+          
+          if (errorData?.field === 'email') {
+            setErrors({ email: 'This email is already registered' });
+          } else if (errorData?.field === 'username') {
+            setErrors({ username: 'This username is already taken' });
+          }
+        }
+      } else if (err.status === 400 || err.response?.status === 400) {
+        const errorData = err.response?.data || err.data;
         if (errorData.errors) {
-          setErrors(errorData.errors);
+          // Map backend field names to frontend field names
+          const mappedErrors = {};
+          Object.keys(errorData.errors).forEach(key => {
+            if (key === 'first_name') mappedErrors.firstName = errorData.errors[key];
+            else if (key === 'last_name') mappedErrors.lastName = errorData.errors[key];
+            else if (key === 'phone_number') mappedErrors.phoneNumber = errorData.errors[key];
+            else if (key === 'confirm_password') mappedErrors.confirmPassword = errorData.errors[key];
+            else mappedErrors[key] = errorData.errors[key];
+          });
+          setErrors(mappedErrors);
         } else {
           setErrors({ general: errorData.message || 'Registration failed' });
         }
       } else {
-        setErrors({ general: err.message || 'Registration failed. Please try again.' });
+        // Handle other errors
+        const errorMessage = err.response?.data?.message || err.message || 'Registration failed. Please try again.';
+        setErrors({ general: errorMessage });
       }
     } finally {
       setLoading(false);
@@ -214,6 +334,53 @@ function EnhancedRegister() {
         </Box>
         
         <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
+          {infoMessage && (
+            <Alert 
+              severity={infoMessage.type === 'verification_sent' ? 'info' : 'info'}
+              icon={infoMessage.type === 'verification_sent' ? <Email /> : undefined}
+              sx={{ mb: 3 }}
+              action={
+                infoMessage.type === 'verification_sent' && showResendButton ? (
+                  <Button 
+                    color="inherit" 
+                    size="small" 
+                    onClick={handleResendVerification}
+                    disabled={resendLoading}
+                    startIcon={resendLoading ? <CircularProgress size={16} /> : <Refresh />}
+                    sx={{ textTransform: 'none', fontWeight: 500 }}
+                  >
+                    {resendLoading ? 'Sending...' : 'Resend Email'}
+                  </Button>
+                ) : infoMessage.suggestion === 'login' ? (
+                  <Button 
+                    color="inherit" 
+                    size="small" 
+                    onClick={() => navigate('/login')}
+                    sx={{ textTransform: 'none', fontWeight: 500 }}
+                  >
+                    Go to Login
+                  </Button>
+                ) : null
+              }
+            >
+              <Box>
+                <Typography variant="body1" sx={{ mb: 0.5, fontWeight: 500 }}>
+                  {infoMessage.message}
+                </Typography>
+                {infoMessage.type === 'verification_sent' && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Please check your inbox and spam folder. If you don't receive the email within a few minutes, click the resend button.
+                  </Typography>
+                )}
+                {infoMessage.suggestion === 'login' && (
+                  <Typography variant="body2" color="text.secondary">
+                    If this is your account, please login to continue. If you forgot your password, you can reset it from the login page.
+                  </Typography>
+                )}
+              </Box>
+            </Alert>
+          )}
+          
           {errors.general && (
             <Alert severity="error" sx={{ mb: 3 }}>
               {errors.general}
@@ -248,6 +415,39 @@ function EnhancedRegister() {
             />
           </Box>
 
+          <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+            <TextField
+              fullWidth
+              label="First Name"
+              value={formData.firstName}
+              onChange={handleChange('firstName')}
+              error={!!errors.firstName}
+              helperText={errors.firstName}
+              required
+            />
+            <TextField
+              fullWidth
+              label="Last Name"
+              value={formData.lastName}
+              onChange={handleChange('lastName')}
+              error={!!errors.lastName}
+              helperText={errors.lastName}
+              required
+            />
+          </Box>
+
+          <TextField
+            fullWidth
+            label="Phone Number"
+            value={formData.phoneNumber}
+            onChange={handleChange('phoneNumber')}
+            error={!!errors.phoneNumber}
+            helperText={errors.phoneNumber}
+            required
+            placeholder="+1 (555) 123-4567"
+            sx={{ mb: 2 }}
+          />
+
           {/* Password Section */}
           <Box sx={{ mb: 2 }}>
             <TextField
@@ -269,6 +469,11 @@ function EnhancedRegister() {
                 )
               }}
             />
+            
+            {/* Password Requirements */}
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              Password must contain: 8+ characters, uppercase, lowercase, number, and special character (!@#$%^&*)
+            </Typography>
             
             {/* Password Strength Indicator */}
             {formData.password && (
@@ -334,7 +539,7 @@ function EnhancedRegister() {
             fullWidth
             variant="contained"
             size="large"
-            disabled={loading || passwordStrength.score < 3}
+            disabled={loading || passwordStrength.score < 5}
             sx={{ mt: 3, mb: 2, py: 1.5 }}
           >
             {loading ? (

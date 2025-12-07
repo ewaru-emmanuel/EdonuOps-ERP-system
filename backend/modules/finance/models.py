@@ -1,39 +1,38 @@
 from app import db
 from datetime import datetime
-from sqlalchemy import func, JSON, Text
-import os
+from sqlalchemy import func, Text
+from sqlalchemy.dialects.postgresql import JSONB
 
-# Use JSON for SQLite compatibility, JSONB for PostgreSQL
+# Use JSONB for PostgreSQL (our target database)
 def get_json_type():
-    """Return appropriate JSON type based on database"""
-    db_url = os.environ.get("DATABASE_URL", "sqlite:///edonuops.db")
-    if "postgresql" in db_url.lower():
-        try:
-            from sqlalchemy.dialects.postgresql import JSONB
-            return JSONB
-        except ImportError:
-            return JSON
-    else:
-        # For SQLite, use JSON type
-        return JSON
+    """Return JSONB type for PostgreSQL"""
+    return JSONB
 
 class Account(db.Model):
     __tablename__ = 'accounts'
     id = db.Column(db.Integer, primary_key=True)
-    code = db.Column(db.String(20), unique=True, nullable=False)
+    code = db.Column(db.String(20), nullable=False)  # Removed unique=True - now unique per user via composite constraint
     name = db.Column(db.String(100), nullable=False)
     type = db.Column(db.String(20), nullable=False)  # asset, liability, equity, revenue, expense
     balance = db.Column(db.Float, default=0.0)
     currency = db.Column(db.String(3), default='USD')
     parent_id = db.Column(db.Integer, db.ForeignKey('accounts.id'))
     is_active = db.Column(db.Boolean, default=True)
-    user_id = db.Column(db.Integer)  # Standardized user identification)  # User isolation
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
+    notes = db.Column(db.Text, nullable=True)  # Account notes for documentation and reference
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide accounts
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     parent = db.relationship('Account', remote_side=[id], backref='children')
+    
+    # Composite unique constraint: code must be unique per tenant (company-wide)
+    # extend_existing=True allows the table to be redefined if imported multiple times
+    __table_args__ = (
+        db.UniqueConstraint('tenant_id', 'code', name='uq_account_tenant_code'),
+        {'extend_existing': True},
+    )
 
 class JournalEntry(db.Model):
     __tablename__ = 'journal_entries'
@@ -54,13 +53,16 @@ class JournalEntry(db.Model):
     period_locked = db.Column(db.Boolean, default=False)
     backdate_reason = db.Column(db.String(200))
     
-    user_id = db.Column(db.Integer)  # Standardized user identification)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))  # Multi-tenancy support
+    tenant_id = db.Column(db.String(50), nullable=False, index=True)  # Company/tenant identifier - company-wide transactions
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # User who created (audit trail)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     lines = db.relationship('JournalLine', backref='journal_entry', cascade='all, delete-orphan')
+    
+    # extend_existing=True allows the table to be redefined if imported multiple times
+    __table_args__ = {'extend_existing': True}
 
 class JournalLine(db.Model):
     __tablename__ = 'journal_lines'
@@ -86,6 +88,9 @@ class JournalLine(db.Model):
 
     # Relationships
     account = db.relationship('Account')
+    
+    # extend_existing=True allows the table to be redefined if imported multiple times
+    __table_args__ = {'extend_existing': True}
 
 class Invoice(db.Model):
     __tablename__ = 'invoices'
@@ -100,7 +105,7 @@ class Invoice(db.Model):
     status = db.Column(db.String(20), default='draft')  # draft, sent, paid, overdue, cancelled
     currency = db.Column(db.String(3), default='USD')
     notes = db.Column(db.Text)
-    user_id = db.Column(db.Integer)  # Standardized user identification)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -116,7 +121,7 @@ class Payment(db.Model):
     reference_number = db.Column(db.String(100))
     status = db.Column(db.String(20), default='pending')  # pending, completed, failed, refunded
     notes = db.Column(db.Text)
-    user_id = db.Column(db.Integer)  # Standardized user identification)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -131,7 +136,7 @@ class Budget(db.Model):
     forecast_amount = db.Column(db.Float, default=0.0)
     scenario = db.Column(db.String(20), default='base')  # base, optimistic, pessimistic, custom
     notes = db.Column(db.Text)
-    user_id = db.Column(db.Integer)  # Standardized user identification)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -148,12 +153,13 @@ class BudgetScenario(db.Model):
     growth_rate = db.Column(db.Float, default=0.0)  # Percentage change from base
     assumptions = db.Column(get_json_type())  # JSON object for custom assumptions
     is_active = db.Column(db.Boolean, default=True)
-    user_id = db.Column(db.Integer)  # Standardized user identification)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # User isolation
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 # Indexes
 db.Index('ix_journal_lines_account_id', JournalLine.account_id)
 db.Index('ix_journal_lines_journal_entry_id', JournalLine.journal_entry_id)
-db.Index('ix_accounts_code', Account.code)
+db.Index('ix_accounts_tenant_code', Account.tenant_id, Account.code)  # Composite index for tenant_id + code lookups
+db.Index('ix_accounts_tenant_id', Account.tenant_id)  # Index for tenant isolation queries
 db.Index('ix_invoices_invoice_number', Invoice.invoice_number)

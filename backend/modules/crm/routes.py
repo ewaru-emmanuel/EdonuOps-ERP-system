@@ -3,6 +3,7 @@ from flask import Blueprint, jsonify, request, Response
 from app import db
 from modules.crm.models import Contact, Lead, Opportunity, Company, Communication, Ticket, FollowUp, KnowledgeBaseArticle, KnowledgeBaseAttachment, Pipeline, TimeEntry, BehavioralEvent
 from modules.finance.models import Invoice
+from modules.core.permissions import require_permission
 from datetime import datetime, timedelta
 import json
 from openai import OpenAI
@@ -14,6 +15,7 @@ import os
 crm_bp = Blueprint('crm', __name__)
 
 @crm_bp.route('/contacts', methods=['GET', 'OPTIONS'])
+@require_permission('crm.contacts.read')
 def get_contacts():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -39,6 +41,7 @@ def get_contacts():
         return jsonify({"error": "Failed to fetch contacts"}), 500
 
 @crm_bp.route('/leads', methods=['GET', 'OPTIONS'])
+@require_permission('crm.leads.read')
 def get_leads():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -91,6 +94,7 @@ def get_leads():
         return jsonify({"error": "Failed to fetch leads"}), 500
 
 @crm_bp.route('/opportunities', methods=['GET', 'OPTIONS'])
+@require_permission('crm.opportunities.read')
 def get_opportunities():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -139,6 +143,7 @@ def get_opportunities():
         return jsonify({"error": "Failed to fetch opportunities"}), 500
 
 @crm_bp.route('/contacts', methods=['POST'])
+@require_permission('crm.contacts.create')
 def create_contact():
     """Create a new contact in database"""
     try:
@@ -179,6 +184,7 @@ def create_contact():
         return jsonify({"error": "Failed to create contact"}), 500
 
 @crm_bp.route('/contacts/<int:contact_id>', methods=['PUT'])
+@require_permission('crm.contacts.update')
 def update_contact(contact_id):
     """Update a contact in database"""
     try:
@@ -218,6 +224,7 @@ def update_contact(contact_id):
         return jsonify({"error": "Failed to update contact"}), 500
 
 @crm_bp.route('/contacts/<int:contact_id>', methods=['DELETE'])
+@require_permission('crm.contacts.delete')
 def delete_contact(contact_id):
     """Delete a contact from database"""
     try:
@@ -231,6 +238,7 @@ def delete_contact(contact_id):
         return jsonify({"error": "Failed to delete contact"}), 500
 
 @crm_bp.route('/leads', methods=['POST'])
+@require_permission('crm.leads.create')
 def create_lead():
     """Create a new lead in database"""
     try:
@@ -274,6 +282,7 @@ def create_lead():
         return jsonify({"error": "Failed to create lead"}), 500
 
 @crm_bp.route('/leads/<int:lead_id>', methods=['PUT'])
+@require_permission('crm.leads.update')
 def update_lead(lead_id):
     """Update a lead in database"""
     try:
@@ -316,6 +325,7 @@ def update_lead(lead_id):
         return jsonify({"error": "Failed to update lead"}), 500
 
 @crm_bp.route('/leads/<int:lead_id>', methods=['DELETE'])
+@require_permission('crm.leads.delete')
 def delete_lead(lead_id):
     """Delete a lead from database"""
     try:
@@ -329,6 +339,7 @@ def delete_lead(lead_id):
         return jsonify({"error": "Failed to delete lead"}), 500
 
 @crm_bp.route('/opportunities', methods=['POST'])
+@require_permission('crm.opportunities.create')
 def create_opportunity():
     """Create a new opportunity in database"""
     try:
@@ -372,6 +383,7 @@ def create_opportunity():
         return jsonify({"error": "Failed to create opportunity"}), 500
 
 @crm_bp.route('/opportunities/<int:opportunity_id>', methods=['PUT'])
+@require_permission('crm.opportunities.update')
 def update_opportunity(opportunity_id):
     """Update an opportunity in database"""
     try:
@@ -415,6 +427,7 @@ def update_opportunity(opportunity_id):
 
 
 @crm_bp.route('/opportunities/<int:opportunity_id>/move', methods=['PATCH', 'OPTIONS'])
+@require_permission('crm.opportunities.update')
 def move_opportunity_stage(opportunity_id: int):
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -434,6 +447,7 @@ def move_opportunity_stage(opportunity_id: int):
 
 # Companies CRUD (minimal for linking)
 @crm_bp.route('/companies', methods=['GET', 'OPTIONS'])
+@require_permission('crm.companies.read')
 def get_companies():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -455,6 +469,7 @@ def get_companies():
         return jsonify({"error": "Failed to fetch companies"}), 500
 
 @crm_bp.route('/companies', methods=['POST', 'OPTIONS'])
+@require_permission('crm.companies.create')
 def create_company():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -476,6 +491,7 @@ def create_company():
         return jsonify({"error": "Failed to create company"}), 500
 
 @crm_bp.route('/opportunities/<int:opportunity_id>', methods=['DELETE'])
+@require_permission('crm.opportunities.delete')
 def delete_opportunity(opportunity_id):
     """Delete an opportunity from database"""
     try:
@@ -493,6 +509,7 @@ def delete_opportunity(opportunity_id):
 # -----------------------------
 
 @crm_bp.route('/ai/score-lead', methods=['POST'])
+@require_permission('crm.leads.update')
 def ai_score_lead():
     """Enhanced AI lead scoring with explainability, behavioral data, and next best actions."""
     try:
@@ -590,6 +607,7 @@ def ai_score_lead():
 
 
 @crm_bp.route('/ai/next-actions', methods=['POST'])
+@require_permission('crm.leads.read')
 def ai_next_best_actions():
     """Return 1-3 next-best actions for a lead or deal payload using OpenAI."""
     try:
@@ -657,6 +675,7 @@ def ai_next_best_actions():
 # -----------------------------
 
 @crm_bp.route('/ai/extract-entities', methods=['POST', 'OPTIONS'])
+@require_permission('crm.contacts.create')
 def ai_extract_entities():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -706,6 +725,7 @@ def ai_extract_entities():
 
 
 @crm_bp.route('/ai/suggest-mapping', methods=['POST', 'OPTIONS'])
+@require_permission('crm.contacts.update')
 def ai_suggest_mapping():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -747,6 +767,7 @@ def ai_suggest_mapping():
 
 
 @crm_bp.route('/ai/generate-email', methods=['POST', 'OPTIONS'])
+@require_permission('crm.communications.create')
 def ai_generate_email():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -784,6 +805,7 @@ def ai_generate_email():
 # -----------------------------
 
 @crm_bp.route('/email/sync', methods=['POST', 'OPTIONS'])
+@require_permission('crm.communications.read')
 def email_sync():
     """Enhanced email sync with Gmail/Outlook support, activity tracking, and smart send time."""
     if request.method == 'OPTIONS':
@@ -998,6 +1020,7 @@ def _generate_smart_send_times(activity_events):
 # Deal Won → Finance (draft invoice)
 # -----------------------------
 @crm_bp.route('/deals/<int:opportunity_id>/win', methods=['POST'])
+@require_permission('crm.opportunities.update')
 def mark_deal_won(opportunity_id):
     """Mark deal as won and emit draft invoice in Finance (if available)."""
     try:
@@ -1037,6 +1060,7 @@ def mark_deal_won(opportunity_id):
 # Activities (Communications)
 # -----------------------------
 @crm_bp.route('/activities', methods=['GET'])
+@require_permission('crm.activities.read')
 def list_activities():
     try:
         related_type = request.args.get('relatedType')  # lead, contact, opportunity
@@ -1083,6 +1107,7 @@ def list_activities():
 
 
 @crm_bp.route('/activities', methods=['POST'])
+@require_permission('crm.activities.create')
 def create_activity():
     try:
         data = request.get_json() or {}
@@ -1119,6 +1144,7 @@ def create_activity():
 # -----------------------------
 
 @crm_bp.route('/time-entries', methods=['GET', 'POST', 'OPTIONS'])
+@require_permission('crm.time_entries.read')
 def time_entries_collection():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -1196,6 +1222,7 @@ def time_entries_collection():
 
 
 @crm_bp.route('/time-entries/<int:entry_id>', methods=['PUT', 'DELETE', 'OPTIONS'])
+@require_permission('crm.time_entries.update')
 def time_entry_detail(entry_id: int):
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -1239,6 +1266,7 @@ def time_entry_detail(entry_id: int):
 # CRM KPIs
 # -----------------------------
 @crm_bp.route('/reports/kpis', methods=['GET'])
+@require_permission('crm.reports.read')
 def crm_kpis():
     try:
         total_leads = Lead.query.count()
@@ -1263,6 +1291,7 @@ def crm_kpis():
 # --------------------------------------------------
 
 @crm_bp.route('/pipelines', methods=['GET', 'OPTIONS'])
+@require_permission('crm.pipelines.read')
 def list_pipelines():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -1290,6 +1319,7 @@ def list_pipelines():
 
 
 @crm_bp.route('/pipelines', methods=['POST'])
+@require_permission('crm.pipelines.create')
 def create_pipeline():
     try:
         data = request.get_json() or {}
@@ -1315,6 +1345,7 @@ def create_pipeline():
 
 
 @crm_bp.route('/pipelines/<int:pipeline_id>', methods=['PUT', 'DELETE', 'OPTIONS'])
+@require_permission('crm.pipelines.update')
 def pipeline_detail(pipeline_id: int):
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -1350,6 +1381,7 @@ def pipeline_detail(pipeline_id: int):
 
 
 @crm_bp.route('/tasks', methods=['GET', 'OPTIONS'])
+@require_permission('crm.tasks.read')
 def list_tasks():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -1377,6 +1409,7 @@ def list_tasks():
 
 
 @crm_bp.route('/tasks', methods=['POST'])
+@require_permission('crm.tasks.create')
 def create_task():
     try:
         data = request.get_json() or {}
@@ -1405,6 +1438,7 @@ def create_task():
 
 
 @crm_bp.route('/tasks/<int:task_id>', methods=['PUT', 'DELETE', 'OPTIONS'])
+@require_permission('crm.tasks.update')
 def task_detail(task_id):
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -1446,6 +1480,7 @@ def task_detail(task_id):
 
 
 @crm_bp.route('/lead-intake', methods=['GET', 'OPTIONS'])
+@require_permission('crm.leads.read')
 def list_lead_intake():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -1457,6 +1492,7 @@ def list_lead_intake():
 
 
 @crm_bp.route('/users', methods=['GET', 'OPTIONS'])
+@require_permission('crm.users.read')
 def list_crm_users():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -1484,6 +1520,7 @@ def _rows_to_csv(fieldnames, rows):
 
 
 @crm_bp.route('/exports/<string:entity>', methods=['GET'])
+@require_permission('crm.data.export')
 def export_entity(entity: str):
     entity = (entity or '').lower()
     try:
@@ -1656,6 +1693,7 @@ def _dedupe_key(entity: str, row: dict):
 
 
 @crm_bp.route('/imports/<string:entity>', methods=['POST', 'OPTIONS'])
+@require_permission('crm.data.import')
 def import_entity(entity: str):
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -1831,6 +1869,7 @@ def import_entity(entity: str):
 # -----------------------------
 
 @crm_bp.route('/tasks/calendar.ics', methods=['GET'])
+@require_permission('crm.tasks.read')
 def tasks_calendar_ics():
     try:
         items = FollowUp.query.order_by(FollowUp.due_date.asc()).all()
@@ -1876,6 +1915,7 @@ def tasks_calendar_ics():
 # -----------------------------
 
 @crm_bp.route('/reports/forecast', methods=['GET'])
+@require_permission('crm.reports.read')
 def crm_forecast():
     try:
         # Overall forecast and by stage
@@ -1922,6 +1962,7 @@ def crm_forecast():
 
 
 @crm_bp.route('/reports/performance', methods=['GET'])
+@require_permission('crm.reports.read')
 def crm_performance():
     try:
         # Basic team and region performance snapshots
@@ -1955,6 +1996,7 @@ def crm_performance():
 # -----------------------------
 
 @crm_bp.route('/reports/funnel', methods=['GET'])
+@require_permission('crm.reports.read')
 def crm_funnel():
     try:
         # Simple stage counts and ordered funnel for opportunities
@@ -1975,6 +2017,7 @@ def crm_funnel():
 
 
 @crm_bp.route('/reports/stuck', methods=['GET'])
+@require_permission('crm.reports.read')
 def crm_stuck_deals():
     try:
         # Deals not updated for N days and not closed
@@ -2018,6 +2061,7 @@ MARKETING_STORE = {
 
 
 @crm_bp.route('/marketing/sender', methods=['GET', 'POST', 'OPTIONS'])
+@require_permission('crm.marketing.read')
 def marketing_sender():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2032,6 +2076,7 @@ def marketing_sender():
 
 
 @crm_bp.route('/marketing/segments', methods=['GET', 'POST', 'OPTIONS'])
+@require_permission('crm.marketing.read')
 def marketing_segments():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2048,6 +2093,7 @@ def marketing_segments():
 
 
 @crm_bp.route('/marketing/templates', methods=['GET', 'POST', 'OPTIONS'])
+@require_permission('crm.marketing.read')
 def marketing_templates():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2065,6 +2111,7 @@ def marketing_templates():
 
 
 @crm_bp.route('/marketing/campaigns', methods=['GET', 'POST', 'OPTIONS'])
+@require_permission('crm.marketing.read')
 def marketing_campaigns():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2085,6 +2132,7 @@ def marketing_campaigns():
 
 # Drip Sequences
 @crm_bp.route('/marketing/sequences', methods=['GET', 'POST', 'OPTIONS'])
+@require_permission('crm.marketing.read')
 def marketing_sequences():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2118,6 +2166,7 @@ def _next_workflow_id():
 
 
 @crm_bp.route('/workflows', methods=['GET', 'POST', 'OPTIONS'])
+@require_permission('crm.workflows.read')
 def workflows_collection():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2142,6 +2191,7 @@ def workflows_collection():
 
 
 @crm_bp.route('/workflows/<int:wf_id>', methods=['PUT', 'DELETE', 'OPTIONS'])
+@require_permission('crm.workflows.update')
 def workflow_detail(wf_id: int):
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2168,6 +2218,7 @@ def workflow_detail(wf_id: int):
 
 
 @crm_bp.route('/workflows/<int:wf_id>/toggle', methods=['PATCH', 'OPTIONS'])
+@require_permission('crm.workflows.update')
 def workflow_toggle(wf_id: int):
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2180,6 +2231,7 @@ def workflow_toggle(wf_id: int):
 
 
 @crm_bp.route('/workflows/execution-history', methods=['GET', 'OPTIONS'])
+@require_permission('crm.workflows.read')
 def workflow_execution_history():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2188,6 +2240,7 @@ def workflow_execution_history():
 
 
 @crm_bp.route('/workflows/schedules', methods=['GET', 'POST', 'OPTIONS'])
+@require_permission('crm.workflows.read')
 def workflow_schedules():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2208,6 +2261,7 @@ def workflow_schedules():
         return jsonify({'error': 'Failed to create schedule'}), 500
 
 @crm_bp.route('/workflows/schedules/run', methods=['POST', 'OPTIONS'])
+@require_permission('crm.workflows.update')
 def workflow_run_schedules():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2237,6 +2291,7 @@ def workflow_run_schedules():
 # -----------------------------
 
 @crm_bp.route('/kb/articles', methods=['GET', 'POST', 'OPTIONS'])
+@require_permission('crm.knowledge_base.read')
 def kb_articles():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2283,6 +2338,7 @@ def kb_articles():
 
 
 @crm_bp.route('/kb/articles/<int:article_id>', methods=['PUT', 'DELETE', 'OPTIONS'])
+@require_permission('crm.knowledge_base.update')
 def kb_article_detail(article_id: int):
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2372,6 +2428,7 @@ def kb_public_detail(article_id: int):
         return jsonify({'error': 'Failed to fetch article'}), 500
 
 @crm_bp.route('/kb/articles/<int:article_id>/attachments', methods=['POST', 'OPTIONS'])
+@require_permission('crm.knowledge_base.update')
 def kb_upload_attachment(article_id: int):
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2417,6 +2474,7 @@ def kb_upload_attachment(article_id: int):
         return jsonify({'error': 'Failed to upload attachment'}), 500
 
 @crm_bp.route('/kb/attachments/<int:attachment_id>', methods=['GET', 'DELETE', 'OPTIONS'])
+@require_permission('crm.knowledge_base.read')
 def kb_attachment_detail(attachment_id: int):
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2449,6 +2507,7 @@ def kb_attachment_detail(attachment_id: int):
 # -----------------------------
 
 @crm_bp.route('/data-quality/duplicates', methods=['GET', 'OPTIONS'])
+@require_permission('crm.data.read')
 def data_quality_duplicates():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2526,6 +2585,7 @@ def data_quality_duplicates():
 
 
 @crm_bp.route('/data-quality/merge', methods=['POST', 'OPTIONS'])
+@require_permission('crm.data.update')
 def data_quality_merge():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2580,6 +2640,7 @@ def data_quality_merge():
 # -----------------------------
 
 @crm_bp.route('/tickets', methods=['GET', 'POST', 'OPTIONS'])
+@require_permission('crm.tickets.read')
 def tickets_collection():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2639,6 +2700,7 @@ def tickets_collection():
 
 
 @crm_bp.route('/tickets/<int:ticket_id>', methods=['PUT', 'DELETE', 'OPTIONS'])
+@require_permission('crm.tickets.update')
 def ticket_detail(ticket_id):
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2681,6 +2743,7 @@ SLA_STORE = {
 
 
 @crm_bp.route('/tickets/sla-policy', methods=['GET', 'POST', 'OPTIONS'])
+@require_permission('crm.tickets.update')
 def tickets_sla_policy():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2700,6 +2763,7 @@ def tickets_sla_policy():
 
 
 @crm_bp.route('/tickets/assignment', methods=['GET', 'POST', 'OPTIONS'])
+@require_permission('crm.tickets.update')
 def tickets_assignment():
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2719,6 +2783,7 @@ def tickets_assignment():
 
 
 @crm_bp.route('/tickets/<int:ticket_id>/assign', methods=['POST', 'OPTIONS'])
+@require_permission('crm.tickets.update')
 def assign_ticket(ticket_id):
     if request.method == 'OPTIONS':
         return ('', 200)
@@ -2742,6 +2807,7 @@ def assign_ticket(ticket_id):
 # -----------------------------
 
 @crm_bp.route('/behavioral-events', methods=['POST', 'OPTIONS'])
+@require_permission('crm.leads.update')
 def track_behavioral_event():
     """Track behavioral events for leads, contacts, or opportunities."""
     if request.method == 'OPTIONS':
@@ -2819,6 +2885,7 @@ def track_behavioral_event():
 
 
 @crm_bp.route('/ai/suggest-tasks', methods=['POST', 'OPTIONS'])
+@require_permission('crm.tasks.create')
 def ai_suggest_tasks():
     """Generate AI-suggested tasks based on communication history and behavioral data."""
     if request.method == 'OPTIONS':
@@ -3007,6 +3074,7 @@ def _trigger_ai_lead_analysis(lead):
 
 
 @crm_bp.route('/ai/pipeline-insights', methods=['POST', 'OPTIONS'])
+@require_permission('crm.reports.read')
 def ai_pipeline_insights():
     """Generate AI insights for pipeline movement and stage optimization."""
     if request.method == 'OPTIONS':
@@ -3117,6 +3185,7 @@ def ai_pipeline_insights():
 
 
 @crm_bp.route('/ai/transcribe-meeting', methods=['POST', 'OPTIONS'])
+@require_permission('crm.activities.create')
 def ai_transcribe_meeting():
     """Real-time transcription with AI-generated summaries and action points."""
     if request.method == 'OPTIONS':
@@ -3274,6 +3343,7 @@ def ai_transcribe_meeting():
 
 
 @crm_bp.route('/analytics/time-per-client', methods=['GET', 'OPTIONS'])
+@require_permission('crm.reports.read')
 def time_analytics_per_client():
     """Time spent per client analytics linked to sales outcomes."""
     if request.method == 'OPTIONS':
@@ -3417,6 +3487,7 @@ def time_analytics_per_client():
 
 
 @crm_bp.route('/data-validation/duplicates', methods=['GET', 'POST', 'OPTIONS'])
+@require_permission('crm.data.read')
 def data_validation_duplicates():
     """Detect and suggest fixes for duplicate data."""
     if request.method == 'OPTIONS':
@@ -3602,6 +3673,7 @@ def data_validation_duplicates():
 
 
 @crm_bp.route('/data-validation/fuzzy-match', methods=['POST', 'OPTIONS'])
+@require_permission('crm.data.read')
 def fuzzy_match_entities():
     """Fuzzy matching for contacts, leads, and companies."""
     if request.method == 'OPTIONS':
@@ -3692,6 +3764,7 @@ def fuzzy_match_entities():
 
 
 @crm_bp.route('/dashboard/widgets', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+@require_permission('crm.dashboard.read')
 def dashboard_widgets():
     """Manage customizable dashboard widgets."""
     if request.method == 'OPTIONS':
@@ -3868,6 +3941,7 @@ def dashboard_widgets():
 
 
 @crm_bp.route('/dashboard/widgets/<widget_id>/data', methods=['GET', 'OPTIONS'])
+@require_permission('crm.dashboard.read')
 def get_widget_data(widget_id):
     """Get data for a specific dashboard widget."""
     if request.method == 'OPTIONS':
