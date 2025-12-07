@@ -118,6 +118,21 @@ def create_app(config_name='development'):
         import logging
         logging.getLogger(__name__).warning(f"Database schema sync warning: {e}")
     
+    # SECURITY: Seed permissions on startup (ensures all permissions exist)
+    try:
+        with app.app_context():
+            from modules.core.permission_seeder import seed_all_permissions
+            result = seed_all_permissions()
+            if result['created'] > 0:
+                logging.getLogger(__name__).info(f"✅ Seeded {result['created']} new permissions on startup")
+                print(f"✅ Seeded {result['created']} new permissions on startup")
+            elif result['errors']:
+                logging.getLogger(__name__).warning(f"⚠️  Permission seeding encountered {len(result['errors'])} errors")
+    except Exception as e:
+        # Log but don't crash - permission seeding is non-critical for startup
+        import logging
+        logging.getLogger(__name__).warning(f"Permission seeding warning: {e}")
+    
     # Register blueprints
     register_blueprints(app)
     

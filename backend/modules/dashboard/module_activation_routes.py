@@ -3,6 +3,10 @@ from datetime import datetime
 from app import db
 from modules.dashboard.models import UserModules, Dashboard, DashboardWidget, WidgetTemplate, DashboardTemplate
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from modules.core.module_permission_service import grant_module_permissions, revoke_module_permissions
+import logging
+
+logger = logging.getLogger(__name__)
 
 module_activation_bp = Blueprint('module_activation', __name__)  # Prefix set during registration
 
@@ -195,6 +199,23 @@ def activate_module():
         
         print(f'✅ Module activated successfully: user_id={user_id}, module_id={module_id}, is_active={user_module.is_active}, is_enabled={user_module.is_enabled}')
         
+        # SECURITY: Auto-grant module permissions to user's role
+        logger.info(f"🔐 Auto-granting permissions for module '{module_id}' to user {user_id}")
+        print(f"🔐 Auto-granting permissions for module '{module_id}' to user {user_id}")
+        permission_result = grant_module_permissions(
+            user_id=user_id,
+            module_id=module_id,
+            granted_by_user_id=user_id
+        )
+        
+        if permission_result['success']:
+            logger.info(f"✅ Successfully granted {len(permission_result['granted'])} permissions for module '{module_id}'")
+            print(f"✅ Successfully granted {len(permission_result['granted'])} permissions for module '{module_id}'")
+        else:
+            logger.warning(f"⚠️  Some permissions failed to grant for module '{module_id}': {permission_result['errors']}")
+            print(f"⚠️  Some permissions failed to grant for module '{module_id}': {permission_result['errors']}")
+            # Don't fail the activation, but log the warning
+        
         module_info = AVAILABLE_MODULES[module_id]
         
         return jsonify({
@@ -208,7 +229,9 @@ def activate_module():
                 'is_active': user_module.is_active,
                 'permissions': user_module.permissions,
                 'activated_at': user_module.activated_at.isoformat()
-            }
+            },
+            'permissions_granted': len(permission_result['granted']),
+            'permissions_failed': len(permission_result['failed'])
         }), 200
         
     except Exception as e:
@@ -254,11 +277,30 @@ def deactivate_module():
         if not success:
             return jsonify({'error': f'Module {module_id} not found for user'}), 404
         
+        # SECURITY: Auto-revoke module permissions from user's role
+        logger.info(f"🔐 Auto-revoking permissions for module '{module_id}' from user {user_id}")
+        print(f"🔐 Auto-revoking permissions for module '{module_id}' from user {user_id}")
+        permission_result = revoke_module_permissions(
+            user_id=user_id,
+            module_id=module_id,
+            revoked_by_user_id=user_id
+        )
+        
+        if permission_result['success']:
+            logger.info(f"✅ Successfully revoked {len(permission_result['revoked'])} permissions for module '{module_id}'")
+            print(f"✅ Successfully revoked {len(permission_result['revoked'])} permissions for module '{module_id}'")
+        else:
+            logger.warning(f"⚠️  Some permissions failed to revoke for module '{module_id}': {permission_result['errors']}")
+            print(f"⚠️  Some permissions failed to revoke for module '{module_id}': {permission_result['errors']}")
+            # Don't fail the deactivation, but log the warning
+        
         module_info = AVAILABLE_MODULES.get(module_id, {})
         
         return jsonify({
             'message': f'Module {module_info.get("name", module_id)} deactivated successfully',
-            'module_id': module_id
+            'module_id': module_id,
+            'permissions_revoked': len(permission_result['revoked']),
+            'permissions_failed': len(permission_result['failed'])
         }), 200
         
     except Exception as e:

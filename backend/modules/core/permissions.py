@@ -180,12 +180,6 @@ def require_permission(permission_name):
                 # Verify JWT token exists and is valid
                 verify_jwt_in_request(optional=False)
                 current_user_id = get_jwt_identity()
-            except Exception as jwt_error:
-                # JWT verification failed - return 401
-                return jsonify({
-                    'error': 'Authentication required',
-                    'message': 'Valid JWT token required'
-                }), 401
                 
                 if not current_user_id:
                     return jsonify({
@@ -210,7 +204,6 @@ def require_permission(permission_name):
                     return f(*args, **kwargs)
                 
                 # Check permissions normally
-            try:
                 if not PermissionManager.user_has_permission(current_user_id, permission_name):
                     return jsonify({
                         'error': 'Insufficient permissions',
@@ -224,6 +217,13 @@ def require_permission(permission_name):
                 
                 return f(*args, **kwargs)
                 
+            except Exception as jwt_error:
+                # JWT verification failed - return 401
+                logger.warning(f"JWT verification failed: {jwt_error}")
+                return jsonify({
+                    'error': 'Authentication required',
+                    'message': 'Valid JWT token required'
+                }), 401
             except Exception as e:
                 logger.error(f"Permission check error: {e}", exc_info=True)
                 return jsonify({

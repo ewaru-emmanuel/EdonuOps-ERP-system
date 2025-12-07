@@ -242,7 +242,7 @@ def enhanced_register():
         response = jsonify({})
         response.headers.add('Access-Control-Allow-Origin', '*')
         response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-ID')
         return response, 200
     
     """Enhanced registration with invite token support"""
@@ -567,36 +567,36 @@ def verify_email():
                 "message": "Invalid or expired verification token"
             }), 400
         
-                if verification.used:
-                    # Get user to return their info
-                    user = User.query.get(verification.user_id)
-                    if user and user.email_verified:
-                        logger.info(f"✅ Email already verified for user {verification.user_id}")
-                        
-                        # Auto-login: Create JWT access token for seamless onboarding
-                        access_token = create_access_token(identity=str(user.id), additional_claims={
-                            'email': user.email,
-                            'username': user.username,
-                            'role': user.role.role_name if user.role else 'user',
-                            'is_active': user.is_active,
-                            'tenant_id': user.tenant_id,
-                            'email_verified': True
-                        })
-                        
-                        return jsonify({
-                            "message": "Email has already been verified",
-                            "already_verified": True,
-                            "access_token": access_token,
-                            "user": {
-                                "id": user.id,
-                                "username": user.username,
-                                "email": user.email,
-                                "email_verified": True,
-                                "role": user.role.role_name if user.role else 'user',
-                                "tenant_id": user.tenant_id
-                            },
-                            "redirect_to": "onboarding"
-                        }), 200  # Return 200 instead of 400 for already verified
+        if verification.used:
+            # Get user to return their info
+            user = User.query.get(verification.user_id)
+            if user and user.email_verified:
+                logger.info(f"✅ Email already verified for user {verification.user_id}")
+                
+                # Auto-login: Create JWT access token for seamless onboarding
+                access_token = create_access_token(identity=str(user.id), additional_claims={
+                    'email': user.email,
+                    'username': user.username,
+                    'role': user.role.role_name if user.role else 'user',
+                    'is_active': user.is_active,
+                    'tenant_id': user.tenant_id,
+                    'email_verified': True
+                })
+                
+                return jsonify({
+                    "message": "Email has already been verified",
+                    "already_verified": True,
+                    "access_token": access_token,
+                    "user": {
+                        "id": user.id,
+                        "username": user.username,
+                        "email": user.email,
+                        "email_verified": True,
+                        "role": user.role.role_name if user.role else 'user',
+                        "tenant_id": user.tenant_id
+                    },
+                    "redirect_to": "onboarding"
+                }), 200  # Return 200 instead of 400 for already verified
             else:
                 return jsonify({
                     "message": "This verification link has already been used"
