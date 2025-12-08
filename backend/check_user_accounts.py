@@ -48,16 +48,10 @@ def check_user_accounts(user_id):
         print(f"🔍 Searching for accounts with tenant_id: {user.tenant_id}")
         print()
         
-        # Query accounts using tenant_query helper
+        # Query accounts directly (script context, no JWT)
         try:
-            from modules.core.tenant_query_helper import tenant_query
-            
-            # Temporarily set tenant context for this user
-            from flask import g
-            g.current_user_id = str(user_id)
-            g.current_user_tenant_id = user.tenant_id
-            
-            accounts = tenant_query(Account).order_by(Account.code).all()
+            # Direct query for script context (admin script, not user request)
+            accounts = Account.query.filter_by(tenant_id=user.tenant_id).order_by(Account.code).all()
             
             print(f"📊 Found {len(accounts)} accounts for tenant {user.tenant_id}")
             print()

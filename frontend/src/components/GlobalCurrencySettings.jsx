@@ -46,8 +46,12 @@ export const CurrencyProvider = ({ children }) => {
   ];
 
   useEffect(() => {
-    loadCurrencySettings();
-    loadExchangeRates();
+    // Only load currency settings if user is authenticated
+    const token = localStorage.getItem('sessionToken') || localStorage.getItem('access_token');
+    if (token) {
+      loadCurrencySettings();
+      loadExchangeRates();
+    }
   }, []);
 
   const loadCurrencySettings = async () => {

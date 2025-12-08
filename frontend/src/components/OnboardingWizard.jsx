@@ -526,38 +526,14 @@ const OnboardingWizard = () => {
         console.error('❌ Error verifying modules:', verifyError);
       }
       
-      // Create default accounts if Finance module is selected and user confirmed
-      if (onboardingData.selectedModules.includes('finance') && createDefaultAccounts) {
-        console.log('💰 Finance module selected - creating default accounts...');
-        try {
-          // Check if user already has accounts by fetching them
-          const existingAccounts = await apiClient.get('/api/finance/double-entry/accounts');
-          const accountsArray = Array.isArray(existingAccounts) ? existingAccounts : [];
-          
-          if (accountsArray.length === 0) {
-            console.log('📊 Creating default accounts for user...');
-            const createResult = await apiClient.post('/api/finance/double-entry/accounts/default/create', {});
-            console.log('✅ Default accounts created:', createResult);
-            
-            if (createResult.new_count > 0) {
-              console.log(`✅ Successfully created ${createResult.new_count} default accounts`);
-            }
-          } else {
-            console.log('ℹ️ User already has accounts, skipping default account creation');
-          }
-        } catch (accountError) {
-          console.error('⚠️ Error creating default accounts:', accountError);
-          // Don't fail onboarding if account creation fails
-        }
-      }
-      
-      // Mark onboarding as completed via tenant-aware API
+      // Mark onboarding as completed - backend automatically creates 25 default accounts
+      // Simple: Complete onboarding → Backend creates accounts → User can access app
       try {
-        await apiClient.post('/api/onboarding/complete');
-        console.log('✅ Onboarding marked as completed via tenant-aware API');
+        const completeResult = await apiClient.post('/api/onboarding/complete');
+        console.log('✅ Onboarding completed - 25 default accounts created automatically:', completeResult);
       } catch (error) {
-        console.error('⚠️ Error marking onboarding as complete:', error);
-        // Continue anyway - data is saved
+        console.error('❌ Error completing onboarding:', error);
+        throw new Error(`Onboarding completion failed: ${error.message || 'Please try again or contact support.'}`);
       }
       
       // No localStorage needed - everything is in database

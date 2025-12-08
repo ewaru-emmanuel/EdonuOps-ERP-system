@@ -1,11 +1,13 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime
+from flask_jwt_extended import jwt_required
 from app import db
 from modules.core.models import User, UserData
 
 user_data_bp = Blueprint('user_data', __name__, url_prefix='/api/user-data')
 
 @user_data_bp.route('/save', methods=['POST'])
+@jwt_required()
 def save_user_data():
     """Save user data to database"""
     try:
@@ -73,6 +75,7 @@ def save_user_data():
         }), 500
 
 @user_data_bp.route('/load/<data_type>', methods=['GET'])
+@jwt_required()
 def load_user_data(data_type):
     """Load user data from database - ONBOARDING SUPPORTED with strict user isolation"""
     try:
@@ -129,6 +132,7 @@ def load_user_data(data_type):
         return jsonify({'error': str(e)}), 500
 
 @user_data_bp.route('/all', methods=['GET'])
+@jwt_required()
 def get_all_user_data():
     """Get all user data from database - ONBOARDING SUPPORTED with strict user isolation"""
     try:

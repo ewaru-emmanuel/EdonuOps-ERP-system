@@ -413,12 +413,13 @@ def complete_onboarding_step(step_name):
         
         update_fields = []
         update_values = {}
+        processed_fields = set()  # Track which database fields we've already processed
         
         # Map frontend field names (camelCase) to database column names (snake_case)
         field_mapping = {
             'companyName': 'company_name',
             'companySize': 'company_size',
-            'employeeCount': 'company_size',  # Map employeeCount to company_size
+            'employeeCount': 'company_size',  # Map employeeCount to company_size (same as companySize)
             'companyWebsite': 'company_website',
             'companyAddress': 'company_address',
             'companyPhone': 'company_phone',
@@ -440,8 +441,16 @@ def complete_onboarding_step(step_name):
                 
                 # Only update if field exists in users table
                 if hasattr(User, db_field):
-                    update_fields.append(f"{db_field} = :{db_field}")
-                    update_values[db_field] = value
+                    # FIXED: Prevent duplicate field assignments (e.g., companySize and employeeCount both map to company_size)
+                    if db_field not in processed_fields:
+                        update_fields.append(f"{db_field} = :{db_field}")
+                        update_values[db_field] = value
+                        processed_fields.add(db_field)
+                    else:
+                        # Field already processed - use the first value encountered or prefer companySize over employeeCount
+                        if field == 'companySize' and 'employeeCount' in data:
+                            # Prefer companySize if both are present
+                            update_values[db_field] = value
         
         if update_fields:
             update_sql = f"""
@@ -657,7 +666,16 @@ def update_user_profile():
 @onboarding_bp.route("/complete", methods=["POST"])
 @jwt_required()
 def complete_onboarding():
-    """Mark onboarding as completed - TENANT-CENTRIC (like CoA)"""
+    """
+    Mark onboarding as completed - TENANT-CENTRIC (like CoA)
+    
+    SECURITY & ROBUSTNESS:
+    - Creates 25 default accounts for the tenant (company) when onboarding completes
+    - This is MANDATORY - accounts must exist before user can access the app
+    - If account creation fails, onboarding fails (user cannot proceed)
+    - Idempotent: Safe to retry if accounts already exist
+    - Tenant-centric: Accounts belong to tenant, all users in company see same accounts
+    """
     try:
         # TENANT-CENTRIC: Get tenant_id and user_id using the same pattern as CoA
         tenant_id = get_current_user_tenant_id()
@@ -671,7 +689,88 @@ def complete_onboarding():
         if not user:
             return jsonify({"error": "User not found or access denied"}), 404
         
+        # SECURITY: Create 25 default accounts for tenant (MANDATORY - cannot fail)
+        # This ensures every business has essential chart of accounts ready
+        logger.info(f"🔨 Creating 25 default accounts for tenant {tenant_id} (user {user_id_int}) during onboarding completion")
+        print(f"🔨 Creating 25 default accounts for tenant {tenant_id} (user {user_id_int}) during onboarding completion")
+        
+        try:
+            from modules.finance.default_accounts_service import create_default_accounts, check_tenant_has_accounts
+            
+            # Check if tenant already has accounts (idempotent check)
+            has_accounts = check_tenant_has_accounts(tenant_id)
+            
+            if has_accounts:
+                # Accounts already exist - log and continue (idempotent)
+                logger.info(f"ℹ️  Tenant {tenant_id} already has accounts, skipping creation (idempotent)")
+                print(f"ℹ️  Tenant {tenant_id} already has accounts, skipping creation (idempotent)")
+                accounts_created = False
+            else:
+                # Create 25 default accounts - MUST SUCCEED
+                result = create_default_accounts(
+                    tenant_id=tenant_id,
+                    created_by=user_id_int,
+                    force=False  # Don't recreate if they exist (idempotent)
+                )
+                
+                # Verify accounts were created successfully
+                if result['new_count'] == 0 and len(result['skipped']) == 0:
+                    # No accounts created and none skipped - this is an error
+                    error_msg = f"Failed to create default accounts: No accounts created and none skipped"
+                    logger.error(f"❌ {error_msg}")
+                    raise Exception(error_msg)
+                
+                # Verify we have at least 25 accounts (or close to it if some were skipped)
+                total_accounts = result['total']
+                if total_accounts < 20:  # Allow some flexibility but ensure most accounts exist
+                    error_msg = f"Only {total_accounts} accounts created, expected at least 20"
+                    logger.error(f"❌ {error_msg}")
+                    raise Exception(error_msg)
+                
+                logger.info(f"✅ Successfully created {result['new_count']} default accounts for tenant {tenant_id} (total: {total_accounts})")
+                print(f"✅ Successfully created {result['new_count']} default accounts for tenant {tenant_id} (total: {total_accounts})")
+                accounts_created = True
+                
+        except Exception as account_error:
+            # Account creation failed - onboarding MUST fail
+            # User cannot proceed without accounts
+            logger.error(f"❌ CRITICAL: Failed to create default accounts during onboarding: {account_error}")
+            print(f"❌ CRITICAL: Failed to create default accounts during onboarding: {account_error}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            db.session.rollback()
+            return jsonify({
+                "error": "Failed to create default accounts",
+                "message": "Onboarding cannot be completed without creating essential accounts. Please try again or contact support.",
+                "details": str(account_error)
+            }), 500
+        
+        # SECURITY: Create default accounting periods for tenant (MANDATORY - cannot fail)
+        # This ensures every business has fiscal year and periods ready
+        try:
+            from modules.finance.accounting_periods import period_manager
+            logger.info(f"📅 Creating default accounting periods for tenant {tenant_id} during onboarding completion")
+            print(f"📅 Creating default accounting periods for tenant {tenant_id} during onboarding completion")
+            
+            # Initialize default periods (idempotent - won't create if already exists)
+            fiscal_year = period_manager.initialize_default_periods(tenant_id)
+            logger.info(f"✅ Created/verified accounting periods for tenant {tenant_id}")
+            print(f"✅ Created/verified accounting periods for tenant {tenant_id}")
+        except Exception as period_error:
+            # CRITICAL: Period creation failed - onboarding MUST fail
+            logger.error(f"❌ CRITICAL: Failed to create accounting periods during onboarding: {period_error}")
+            print(f"❌ CRITICAL: Failed to create accounting periods during onboarding: {period_error}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            db.session.rollback()
+            return jsonify({
+                "error": "Failed to create accounting periods",
+                "message": "Onboarding cannot be completed without creating accounting periods. Please try again or contact support.",
+                "details": str(period_error)
+            }), 500
+        
         # Mark onboarding as completed - TENANT-CENTRIC
+        # Only do this AFTER accounts and periods are successfully created
         db.session.execute(text("""
             UPDATE users 
             SET onboarding_completed = TRUE, onboarding_completed_at = NOW()
@@ -680,15 +779,23 @@ def complete_onboarding():
         
         db.session.commit()
         
+        logger.info(f"✅ Onboarding completed successfully for user {user_id_int} (tenant {tenant_id})")
+        print(f"✅ Onboarding completed successfully for user {user_id_int} (tenant {tenant_id})")
+        
         return jsonify({
-            "message": "Onboarding completed successfully"
+            "message": "Onboarding completed successfully",
+            "accounts_created": accounts_created if 'accounts_created' in locals() else False,
+            "tenant_id": tenant_id
         }), 200
         
     except Exception as e:
         logger.error(f"Complete onboarding error: {e}")
         db.session.rollback()
+        import traceback
+        traceback.print_exc()
         return jsonify({
-            "message": "Failed to complete onboarding"
+            "error": "Failed to complete onboarding",
+            "message": str(e)
         }), 500
 
 @onboarding_bp.route("/skip-step/<step_name>", methods=["POST"])

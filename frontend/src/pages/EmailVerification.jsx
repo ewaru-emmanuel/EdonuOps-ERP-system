@@ -136,19 +136,22 @@ const EmailVerification = () => {
             token: token
           });
 
+          console.log('📧 Verification response:', response);
+
+          // apiClient.post returns the JSON directly, not wrapped in .data
           // Check if already verified or newly verified
-          if (response.data.already_verified || response.data.user) {
-            const userInfo = response.data.user;
+          if (response.already_verified || response.user) {
+            const userInfo = response.user;
             if (userInfo) {
               setUserInfo(userInfo);
               setUserEmail(userInfo.email);
             }
             
             // Auto-login: Store token and user info if access token is provided
-            if (response.data.access_token) {
-              // Store authentication data
-              localStorage.setItem('sessionToken', response.data.access_token);
-              localStorage.setItem('access_token', response.data.access_token);
+            if (response.access_token) {
+              // Store authentication data IMMEDIATELY
+              localStorage.setItem('sessionToken', response.access_token);
+              localStorage.setItem('access_token', response.access_token);
               localStorage.setItem('userId', userInfo?.id?.toString() || '');
               localStorage.setItem('userEmail', userInfo?.email || '');
               localStorage.setItem('username', userInfo?.username || '');
@@ -162,22 +165,41 @@ const EmailVerification = () => {
                 localStorage.setItem('user', JSON.stringify(userInfo));
               }
               
-              // Trigger auth context update
+              // Verify token is stored before proceeding
+              const storedToken = localStorage.getItem('sessionToken');
+              if (!storedToken) {
+                console.error('❌ Failed to store authentication token');
+                setError('Failed to store authentication token. Please try logging in manually.');
+                return;
+              }
+              
+              console.log('✅ Authentication token stored successfully');
+              
+              // Trigger auth context update and wait a moment for it to process
               window.dispatchEvent(new CustomEvent('auth:login', { detail: userInfo }));
               
-              const message = response.data.already_verified 
+              const message = response.already_verified 
                 ? '✅ Your email is already verified! Redirecting to onboarding...'
                 : '✅ Email verified successfully! Redirecting to onboarding...';
               
               setSuccess(message);
               
-              // Redirect to onboarding page after 1.5 seconds
+              // Give AuthContext time to update before redirecting
+              // Also ensure token is available for apiClient
               setTimeout(() => {
-                navigate('/onboarding');
-              }, 1500);
+                // Double-check token is still available before redirect
+                const verifyToken = localStorage.getItem('sessionToken');
+                if (verifyToken) {
+                  console.log('✅ Token verified, redirecting to onboarding');
+                  navigate('/onboarding');
+                } else {
+                  console.error('❌ Token missing on redirect, redirecting to login instead');
+                  navigate('/login');
+                }
+              }, 2000); // Increased to 2 seconds to ensure AuthContext updates
             } else {
               // No token (already verified scenario) - redirect to login
-              const message = response.data.already_verified 
+              const message = response.already_verified 
                 ? '✅ Your email is already verified! Redirecting to login...'
                 : '✅ Email verified successfully! Redirecting to login...';
               
@@ -194,7 +216,8 @@ const EmailVerification = () => {
             }, 2000);
           }
         } catch (err) {
-          const errorMessage = err.response?.data?.error || err.response?.data?.message || 'Email verification failed';
+          console.error('❌ Email verification error:', err);
+          const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message || 'Email verification failed';
           setError(errorMessage);
         } finally {
           setLoading(false);
@@ -224,19 +247,22 @@ const EmailVerification = () => {
         token: token
       });
 
+      console.log('📧 Verification response:', response);
+
+      // apiClient.post returns the JSON directly, not wrapped in .data
       // Check if already verified or newly verified
-      if (response.data.already_verified || response.data.user) {
-        const userInfo = response.data.user;
+      if (response.already_verified || response.user) {
+        const userInfo = response.user;
         if (userInfo) {
           setUserInfo(userInfo);
           setUserEmail(userInfo.email);
         }
         
         // Auto-login: Store token and user info if access token is provided
-        if (response.data.access_token) {
+        if (response.access_token) {
           // Store authentication data
-          localStorage.setItem('sessionToken', response.data.access_token);
-          localStorage.setItem('access_token', response.data.access_token);
+          localStorage.setItem('sessionToken', response.access_token);
+          localStorage.setItem('access_token', response.access_token);
           localStorage.setItem('userId', userInfo?.id?.toString() || '');
           localStorage.setItem('userEmail', userInfo?.email || '');
           localStorage.setItem('username', userInfo?.username || '');
@@ -253,7 +279,7 @@ const EmailVerification = () => {
           // Trigger auth context update
           window.dispatchEvent(new CustomEvent('auth:login', { detail: userInfo }));
           
-          const message = response.data.already_verified 
+          const message = response.already_verified 
             ? '✅ Your email is already verified! Redirecting to onboarding...'
             : '✅ Email verified successfully! Redirecting to onboarding...';
           
@@ -265,7 +291,7 @@ const EmailVerification = () => {
           }, 1500);
         } else {
           // No token (already verified scenario) - redirect to login
-          const message = response.data.already_verified 
+          const message = response.already_verified 
             ? '✅ Your email is already verified! Redirecting to login...'
             : '✅ Email verified successfully! Redirecting to login...';
           

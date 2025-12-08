@@ -82,6 +82,13 @@ export const CurrencyProvider = ({ children }) => {
 
   // Fetch current exchange rates
   const fetchExchangeRates = useCallback(async (baseCurrency = selectedCurrency) => {
+    // Only fetch if user is authenticated
+    const token = localStorage.getItem('sessionToken') || localStorage.getItem('access_token');
+    if (!token) {
+      console.log('⚠️ Skipping exchange rates fetch - user not authenticated');
+      return exchangeRates;
+    }
+    
     try {
       const rates = await apiCall(`/exchange-rates?from_currency=${baseCurrency}`);
       
@@ -251,8 +258,14 @@ export const CurrencyProvider = ({ children }) => {
     };
   }, [availableCurrencies]);
 
-  // Initialize on mount
+  // Initialize on mount (only if authenticated)
   useEffect(() => {
+    const token = localStorage.getItem('sessionToken') || localStorage.getItem('access_token');
+    if (!token) {
+      console.log('⚠️ Skipping currency initialization - user not authenticated');
+      return;
+    }
+    
     const initialize = async () => {
       await fetchCurrencies();
       await fetchExchangeRates();
@@ -261,10 +274,17 @@ export const CurrencyProvider = ({ children }) => {
     initialize();
   }, [fetchCurrencies, fetchExchangeRates]);
 
-  // Auto-update rates every 30 minutes
+  // Auto-update rates every 30 minutes (only if authenticated)
   useEffect(() => {
+    const token = localStorage.getItem('sessionToken') || localStorage.getItem('access_token');
+    if (!token) {
+      return; // Don't start interval if not authenticated
+    }
+    
     const interval = setInterval(() => {
-      if (!loading) {
+      // Check token again before each refresh
+      const currentToken = localStorage.getItem('sessionToken') || localStorage.getItem('access_token');
+      if (currentToken && !loading) {
         fetchExchangeRates();
       }
     }, 30 * 60 * 1000); // 30 minutes

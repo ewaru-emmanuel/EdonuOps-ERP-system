@@ -19,6 +19,7 @@ class Permission(db.Model):
     action = db.Column(db.String(50), nullable=False)
     resource = db.Column(db.String(100))
     description = db.Column(db.Text)
+    tenant_id = db.Column(db.String(50), db.ForeignKey('tenants.id'), nullable=True)  # NULL = global/system permissions
     created_at = db.Column(db.DateTime, server_default=db.func.now())
     
     def __repr__(self):

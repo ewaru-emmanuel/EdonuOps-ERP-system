@@ -60,10 +60,8 @@ def get_journal_entries():
         if not tenant_id:
             return jsonify({"error": "Tenant context required"}), 403
         
-        # Get journal entries for this tenant (company-wide)
-        entries = JournalEntry.query.filter(
-            JournalEntry.tenant_id == tenant_id
-        ).order_by(JournalEntry.doc_date.desc()).all()
+        # Get journal entries for this tenant (company-wide) - USING TENANT_QUERY for consistency
+        entries = tenant_query(JournalEntry).order_by(JournalEntry.doc_date.desc()).all()
         
         result = []
         for entry in entries:
@@ -88,9 +86,10 @@ def get_journal_entries():
                 "lines": []
             }
             
-            # Add journal lines
+            # Add journal lines - SECURITY: Use tenant_query to ensure account belongs to tenant
             for line in lines:
-                account = Account.query.get(line.account_id)
+                # SECURITY FIX: Use tenant_query instead of Account.query.get() to prevent cross-tenant data access
+                account = tenant_query(Account).filter_by(id=line.account_id).first()
                 line_data = {
                     "id": line.id,
                     "account_id": line.account_id,

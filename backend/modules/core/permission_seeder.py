@@ -15,10 +15,33 @@ This service is:
 from app import db
 from modules.core.permissions import Permission
 from modules.core.module_permission_mappings import PERMISSION_DEFINITIONS
+from modules.core.tenant_models import Tenant
 import logging
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+def _get_or_create_system_tenant():
+    """
+    Get or create a system tenant for global permissions.
+    System permissions are shared across all tenants.
+    """
+    system_tenant_id = 'system'
+    system_tenant = Tenant.query.filter_by(id=system_tenant_id).first()
+    
+    if not system_tenant:
+        logger.info("🔧 Creating system tenant for global permissions...")
+        system_tenant = Tenant(
+            id=system_tenant_id,
+            name='System',
+            status='active',
+            subscription_plan='system'
+        )
+        db.session.add(system_tenant)
+        db.session.commit()
+        logger.info("✅ Created system tenant")
+    
+    return system_tenant_id
 
 def seed_all_permissions():
     """
@@ -43,6 +66,13 @@ def seed_all_permissions():
     logger.info("🔐 Starting permission seeding process...")
     print("🔐 Starting permission seeding process...")
     
+    # Ensure system tenant exists for global permissions
+    try:
+        system_tenant_id = _get_or_create_system_tenant()
+    except Exception as e:
+        logger.warning(f"⚠️  Could not create system tenant, trying with NULL tenant_id: {e}")
+        system_tenant_id = None  # Fallback to NULL if system tenant creation fails
+    
     try:
         for permission_name, permission_def in PERMISSION_DEFINITIONS.items():
             try:
@@ -53,13 +83,14 @@ def seed_all_permissions():
                     existing_count += 1
                     logger.debug(f"   ⏭️  Permission '{permission_name}' already exists - skipping")
                 else:
-                    # Create new permission
+                    # Create new permission with system tenant (global permissions)
                     new_permission = Permission(
                         name=permission_name,
                         module=permission_def['module'],
                         action=permission_def['action'],
                         resource=permission_def.get('resource'),
-                        description=permission_def.get('description', '')
+                        description=permission_def.get('description', ''),
+                        tenant_id=system_tenant_id  # Use system tenant for global permissions
                     )
                     db.session.add(new_permission)
                     created_count += 1

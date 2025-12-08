@@ -49,14 +49,36 @@ class ApiClient {
   }
 
   // Get headers with authentication and user context
-  getHeaders(customHeaders = {}) {
+  getHeaders(customHeaders = {}, endpoint = '') {
     const token = this.getAuthToken();
     const user = this.getUserContext();
+    
+    // Define public routes where X-User-ID should not be sent
+    // These routes don't require authentication, so no user context exists
+    const PUBLIC_ROUTES = [
+      '/api/auth/register',
+      '/api/auth/login',
+      '/api/auth/verify-email',
+      '/api/auth/resend-verification',
+      '/api/auth/reset-password',
+      '/api/auth/request-password-reset',
+      '/api/auth/verify-token', // Public for token validation
+      '/api/invites/validate-invite'
+    ];
+    
+    // Check if endpoint is a public route
+    const isPublicRoute = PUBLIC_ROUTES.some(route => endpoint.includes(route));
     
     const headers = {
       ...this.defaultHeaders,
       ...(token && { 'Authorization': `Bearer ${token}` }),
-      ...(user && { 'X-User-ID': user.id || user.user_id || '1' }),
+      // Only send X-User-ID if:
+      // 1. User exists and has an ID (authenticated)
+      // 2. Not a public route (public routes don't need user context)
+      // 3. User ID is valid (not '1' as fallback - that's a security risk)
+      ...(user && user.id && !isPublicRoute && user.id !== '1' && { 
+        'X-User-ID': String(user.id || user.user_id) 
+      }),
       ...customHeaders
     };
     
@@ -253,7 +275,7 @@ class ApiClient {
   // Generic GET request
   async get(endpoint, options = {}) {
     const url = buildApiUrl(endpoint);
-    const headers = this.getHeaders(options.headers);
+    const headers = this.getHeaders(options.headers, endpoint);
 
     return this.retryRequest(async () => {
       const response = await fetch(url, {
@@ -277,7 +299,7 @@ class ApiClient {
   // Generic POST request
   async post(endpoint, data = null, options = {}) {
     const url = buildApiUrl(endpoint);
-    const headers = this.getHeaders(options.headers);
+    const headers = this.getHeaders(options.headers, endpoint);
 
     return this.retryRequest(async () => {
       const response = await fetch(url, {
@@ -321,7 +343,7 @@ class ApiClient {
   // Generic PUT request
   async put(endpoint, data = null, options = {}) {
     const url = buildApiUrl(endpoint);
-    const headers = this.getHeaders(options.headers);
+    const headers = this.getHeaders(options.headers, endpoint);
 
     return this.retryRequest(async () => {
       const response = await fetch(url, {
@@ -345,7 +367,7 @@ class ApiClient {
   // Generic DELETE request
   async delete(endpoint, options = {}) {
     const url = buildApiUrl(endpoint);
-    const headers = this.getHeaders(options.headers);
+    const headers = this.getHeaders(options.headers, endpoint);
 
     return this.retryRequest(async () => {
       const response = await fetch(url, {
@@ -372,7 +394,7 @@ class ApiClient {
     formData.append('file', file);
 
     const headers = {
-      ...this.getHeaders(),
+      ...this.getHeaders(options.headers, endpoint),
       ...options.headers
     };
     delete headers['Content-Type']; // Let browser set content-type for FormData

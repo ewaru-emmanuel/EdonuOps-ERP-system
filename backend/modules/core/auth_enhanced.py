@@ -465,14 +465,18 @@ def enhanced_register():
         db.session.commit()
         
         # Create default accounts automatically for new user
+        # NOTE: This is a fallback - accounts should be created during onboarding completion
+        # This ensures accounts exist even if user skips onboarding
         try:
             from modules.finance.default_accounts_service import create_default_accounts
             print(f"📊 Creating default accounts for new user {new_user.id}...")
-            result = create_default_accounts(new_user.id, force=False)
+            # FIXED: Pass both tenant_id and created_by arguments
+            tenant_id = new_user.tenant_id or 'default_tenant'
+            result = create_default_accounts(tenant_id=tenant_id, created_by=new_user.id, force=False)
             print(f"✅ Created {result['new_count']} default accounts for user {new_user.id}")
         except Exception as e:
             print(f"⚠️  Warning: Failed to create default accounts for user {new_user.id}: {e}")
-            # Don't fail registration if account creation fails - can be created later
+            # Don't fail registration if account creation fails - can be created later during onboarding
             import traceback
             traceback.print_exc()
 

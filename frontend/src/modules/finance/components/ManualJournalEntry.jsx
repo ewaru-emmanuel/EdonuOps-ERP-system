@@ -17,16 +17,23 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null, showAc
     ? propShowAccountCodes 
     : (localStorage.getItem('coa_show_account_codes') === 'true');
   
+  // SIMPLE MODE: Business-friendly entry (default)
+  const [simpleMode, setSimpleMode] = useState(true);
+  const [transactionType, setTransactionType] = useState('expense'); // Default to most common
+  
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     reference: '',
     description: '',
     status: 'draft',
-    payment_method: 'bank'
+    payment_method: 'bank',
+    amount: '' // For simple mode
   });
   
+  // DOUBLE-ENTRY: Start with 2 lines (minimum required for double-entry accounting)
   const [journalLines, setJournalLines] = useState([
-    { id: 1, account_id: '', description: '', debit_amount: 0, credit_amount: 0 }
+    { id: 1, account_id: '', description: '', debit_amount: 0, credit_amount: 0 },
+    { id: 2, account_id: '', description: '', debit_amount: 0, credit_amount: 0 }
   ]);
   
   const [accounts, setAccounts] = useState([]);
@@ -65,6 +72,29 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null, showAc
       loadEditData();
     }
   }, [accounts, open, editEntry]);
+
+  // Validate simple mode fields
+  useEffect(() => {
+    if (simpleMode && open) {
+      if (formData.amount && formData.description && transactionType) {
+        setValidation({
+          valid: true,
+          errors: [],
+          totalDebits: parseFloat(formData.amount) || 0,
+          totalCredits: parseFloat(formData.amount) || 0,
+          isBalanced: true
+        });
+      } else {
+        setValidation({
+          valid: false,
+          errors: [],
+          totalDebits: 0,
+          totalCredits: 0,
+          isBalanced: false
+        });
+      }
+    }
+  }, [simpleMode, formData.amount, formData.description, transactionType, open]);
 
   const loadAccounts = async () => {
     try {
@@ -192,10 +222,14 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null, showAc
       reference: '',
       description: '',
       status: 'draft',
-      payment_method: 'bank'
+      payment_method: 'bank',
+      amount: ''
     });
+    setTransactionType('expense');
+    // DOUBLE-ENTRY: Start with 2 lines (minimum required)
     setJournalLines([
-      { id: 1, account_id: '', description: '', debit_amount: 0, credit_amount: 0 }
+      { id: 1, account_id: '', description: '', debit_amount: 0, credit_amount: 0 },
+      { id: 2, account_id: '', description: '', debit_amount: 0, credit_amount: 0 }
     ]);
     setValidation({ valid: false, errors: [] });
   };
@@ -243,10 +277,7 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null, showAc
     
     const errors = [];
     
-    // For business-friendly mode, we only need basic validation
-    // The system will auto-balance the entries
-    
-    // Check if we have at least one line with an account and amount
+    // DOUBLE-ENTRY VALIDATION: Require at least 2 lines
     const validLines = journalLines.filter(line => 
       line.account_id && ((line.debit_amount || 0) > 0 || (line.credit_amount || 0) > 0)
     );
@@ -254,8 +285,11 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null, showAc
     console.log('🔍 Valid lines found:', validLines);
     
     if (validLines.length === 0) {
-      errors.push('Please select an account and enter an amount');
+      errors.push('Please select an account and enter an amount for at least one line');
       console.log('❌ No valid lines found');
+    } else if (validLines.length < 2) {
+      errors.push('Double-entry accounting requires at least 2 lines (one debit and one credit)');
+      console.log('❌ Insufficient lines for double-entry');
     } else {
       console.log('✅ Valid lines found:', validLines.length);
       
@@ -276,104 +310,228 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null, showAc
         errors.push(`Cannot use inactive accounts: ${accountList}. Please select active accounts only.`);
         console.log('❌ Inactive accounts detected:', inactiveAccounts);
       }
+      
+      // Validate each line has only debit OR credit (not both)
+      validLines.forEach((line, index) => {
+        if (line.debit_amount > 0 && line.credit_amount > 0) {
+          errors.push(`Line ${index + 1}: Cannot have both debit and credit amounts`);
+        }
+        if (line.debit_amount === 0 && line.credit_amount === 0) {
+          errors.push(`Line ${index + 1}: Must have either a debit or credit amount`);
+        }
+      });
     }
     
     // Calculate totals for display
-    const totalDebits = journalLines.reduce((sum, line) => sum + (line.debit_amount || 0), 0);
-    const totalCredits = journalLines.reduce((sum, line) => sum + (line.credit_amount || 0), 0);
+    const totalDebits = journalLines.reduce((sum, line) => sum + (parseFloat(line.debit_amount) || 0), 0);
+    const totalCredits = journalLines.reduce((sum, line) => sum + (parseFloat(line.credit_amount) || 0), 0);
+    const difference = Math.abs(totalDebits - totalCredits);
+    
+    // DOUBLE-ENTRY VALIDATION: Debits must equal credits
+    if (validLines.length >= 2 && difference > 0.01) {
+      errors.push(`Double-entry validation failed: Total debits ($${totalDebits.toFixed(2)}) must equal total credits ($${totalCredits.toFixed(2)}). Difference: $${difference.toFixed(2)}`);
+      console.log('❌ Double-entry validation failed:', { totalDebits, totalCredits, difference });
+    } else if (validLines.length >= 2 && difference <= 0.01) {
+      console.log('✅ Double-entry validation passed:', { totalDebits, totalCredits, difference });
+    }
     
     setValidation({
       valid: errors.length === 0,
       errors,
       totalDebits,
-      totalCredits
+      totalCredits,
+      isBalanced: difference <= 0.01
     });
+  };
+
+  // Auto-balance function for simple mode - creates balanced journal entries from transaction type
+  const autoBalanceTransaction = (type, amount, description, paymentMethod) => {
+    const amountFloat = parseFloat(amount) || 0;
+    if (amountFloat <= 0) return [];
+    
+    // Find accounts by type/code
+    const findAccountByType = (typeName) => {
+      return accounts.find(acc => 
+        acc.type?.toLowerCase() === typeName.toLowerCase() || 
+        acc.name?.toLowerCase().includes(typeName.toLowerCase())
+      );
+    };
+    
+    // Find accounts by code (default accounts)
+    const findAccountByCode = (code) => {
+      return accounts.find(acc => acc.code === code);
+    };
+    
+    let lines = [];
+    
+    switch (type) {
+      case 'cash_sale':
+        // Cash Sale: Cash (Debit) + Sales Revenue (Credit)
+        const cashAccount = findAccountByCode('1000') || findAccountByType('cash') || accounts.find(a => a.name?.toLowerCase().includes('cash'));
+        const salesAccount = findAccountByCode('4000') || findAccountByType('revenue') || accounts.find(a => a.name?.toLowerCase().includes('sales'));
+        if (cashAccount && salesAccount) {
+          lines = [
+            { account_id: cashAccount.id, description: `Cash received: ${description}`, debit_amount: amountFloat, credit_amount: 0 },
+            { account_id: salesAccount.id, description: `Sales: ${description}`, debit_amount: 0, credit_amount: amountFloat }
+          ];
+        }
+        break;
+        
+      case 'bank_sale':
+        // Bank Sale: Bank (Debit) + Sales Revenue (Credit)
+        const bankAccount = findAccountByCode('1100') || findAccountByType('bank') || accounts.find(a => a.name?.toLowerCase().includes('bank'));
+        const salesAccount2 = findAccountByCode('4000') || findAccountByType('revenue') || accounts.find(a => a.name?.toLowerCase().includes('sales'));
+        if (bankAccount && salesAccount2) {
+          lines = [
+            { account_id: bankAccount.id, description: `Bank deposit: ${description}`, debit_amount: amountFloat, credit_amount: 0 },
+            { account_id: salesAccount2.id, description: `Sales: ${description}`, debit_amount: 0, credit_amount: amountFloat }
+          ];
+        }
+        break;
+        
+      case 'expense':
+        // Expense: Expense Account (Debit) + Payment Account (Credit)
+        const expenseAccount = findAccountByCode('5100') || findAccountByType('expense') || accounts.find(a => a.name?.toLowerCase().includes('expense'));
+        const paymentAccount = paymentMethod === 'cash' 
+          ? (findAccountByCode('1000') || findAccountByType('cash') || accounts.find(a => a.name?.toLowerCase().includes('cash')))
+          : (findAccountByCode('1100') || findAccountByType('bank') || accounts.find(a => a.name?.toLowerCase().includes('bank')));
+        if (expenseAccount && paymentAccount) {
+          lines = [
+            { account_id: expenseAccount.id, description: `Expense: ${description}`, debit_amount: amountFloat, credit_amount: 0 },
+            { account_id: paymentAccount.id, description: `Payment: ${description}`, debit_amount: 0, credit_amount: amountFloat }
+          ];
+        }
+        break;
+        
+      case 'purchase':
+        // Purchase: Asset/Inventory (Debit) + Payment Account (Credit)
+        const assetAccount = findAccountByCode('1200') || findAccountByType('asset') || findAccountByType('inventory') || accounts.find(a => a.name?.toLowerCase().includes('inventory'));
+        const purchasePaymentAccount = paymentMethod === 'cash' 
+          ? (findAccountByCode('1000') || findAccountByType('cash'))
+          : (findAccountByCode('1100') || findAccountByType('bank'));
+        if (assetAccount && purchasePaymentAccount) {
+          lines = [
+            { account_id: assetAccount.id, description: `Purchase: ${description}`, debit_amount: amountFloat, credit_amount: 0 },
+            { account_id: purchasePaymentAccount.id, description: `Payment: ${description}`, debit_amount: 0, credit_amount: amountFloat }
+          ];
+        }
+        break;
+        
+      case 'payment_received':
+        // Payment Received: Cash/Bank (Debit) + Accounts Receivable (Credit)
+        const receivablesAccount = findAccountByCode('1300') || findAccountByType('receivable') || accounts.find(a => a.name?.toLowerCase().includes('receivable'));
+        const receiptAccount = paymentMethod === 'cash' 
+          ? (findAccountByCode('1000') || findAccountByType('cash'))
+          : (findAccountByCode('1100') || findAccountByType('bank'));
+        if (receivablesAccount && receiptAccount) {
+          lines = [
+            { account_id: receiptAccount.id, description: `Payment received: ${description}`, debit_amount: amountFloat, credit_amount: 0 },
+            { account_id: receivablesAccount.id, description: `Accounts receivable: ${description}`, debit_amount: 0, credit_amount: amountFloat }
+          ];
+        }
+        break;
+        
+      default:
+        // Generic: Try to infer from description
+        break;
+    }
+    
+    return lines;
   };
 
   const handleSubmit = async () => {
     console.log('🔍 Submit button clicked!');
-    console.log('🔍 Validation state:', validation);
-    console.log('🔍 Journal lines:', journalLines);
+    console.log('🔍 Simple mode:', simpleMode);
+    console.log('🔍 Transaction type:', transactionType);
     console.log('🔍 Form data:', formData);
     
-    if (!validation.valid) {
-      console.log('❌ Validation failed:', validation.errors);
-      setSnackbar({
-        open: true,
-        message: 'Please fix validation errors before submitting',
-        severity: 'error'
-      });
-      return;
-    }
-    
-    console.log('✅ Validation passed, proceeding with submission...');
-
     setLoading(true);
     try {
-      // For business-friendly mode, we'll use the transaction templates API
-      // to automatically create balanced journal entries
+      let validLines = [];
       
-      // Get the first valid line (business transaction)
-      const validLine = journalLines.find(line => 
-        line.account_id && ((line.debit_amount || 0) > 0 || (line.credit_amount || 0) > 0)
-      );
-      
-      console.log('🔍 All journal lines:', journalLines);
-      console.log('🔍 Valid line found:', validLine);
-      
-      if (!validLine) {
-        throw new Error('No valid transaction found');
+      if (simpleMode) {
+        // SIMPLE MODE: Auto-balance transaction
+        if (!formData.amount || parseFloat(formData.amount) <= 0) {
+          throw new Error('Please enter a valid amount');
+        }
+        if (!formData.description) {
+          throw new Error('Please enter a description');
+        }
+        
+        validLines = autoBalanceTransaction(
+          transactionType,
+          formData.amount,
+          formData.description,
+          formData.payment_method
+        );
+        
+        if (validLines.length < 2) {
+          throw new Error('Could not automatically balance transaction. Please check your accounts or use Advanced Mode.');
+        }
+        
+        console.log('✅ Auto-balanced lines:', validLines);
+      } else {
+        // ADVANCED MODE: Manual double-entry
+        if (!validation.valid) {
+          throw new Error('Please fix validation errors before submitting');
+        }
+        
+        validLines = journalLines.filter(line => 
+          line.account_id && ((line.debit_amount || 0) > 0 || (line.credit_amount || 0) > 0)
+        );
+        
+        if (validLines.length < 2) {
+          throw new Error('Double-entry accounting requires at least 2 lines');
+        }
+        
+        // Validate double-entry balance
+        const totalDebits = validLines.reduce((sum, line) => sum + (parseFloat(line.debit_amount) || 0), 0);
+        const totalCredits = validLines.reduce((sum, line) => sum + (parseFloat(line.credit_amount) || 0), 0);
+        const difference = Math.abs(totalDebits - totalCredits);
+        
+        if (difference > 0.01) {
+          throw new Error(`Double-entry validation failed: Total debits ($${totalDebits.toFixed(2)}) must equal total credits ($${totalCredits.toFixed(2)}). Difference: $${difference.toFixed(2)}`);
+        }
       }
       
-      // Determine transaction type based on account and amount
-      const amount = validLine.debit_amount || validLine.credit_amount;
-      const isDebit = validLine.debit_amount > 0;
-      
-      console.log('🔍 Transaction details:', {
-        amount,
-        isDebit,
-        account_id: validLine.account_id,
-        description: validLine.description
-      });
-      
-      // Prepare data for the backend API (matching backend expectations)
-      const transactionData = {
-        entry_date: formData.date,
+      // Prepare data for the DOUBLE-ENTRY API endpoint
+      const journalEntryData = {
+        date: formData.date || new Date().toISOString().split('T')[0],
+        description: formData.description || 'Manual Journal Entry',
         reference: formData.reference || `JE-${Date.now()}`,
-        description: formData.description || validLine.description,
-        account_id: parseInt(validLine.account_id), // Ensure account_id is an integer
-        debit_amount: isDebit ? amount : 0,
-        credit_amount: isDebit ? 0 : amount,
-        status: formData.status || 'posted',
-        journal_type: 'manual'
+        status: formData.status || 'draft',
+        payment_method: formData.payment_method || 'bank',
+        currency: 'USD',
+        lines: validLines.map(line => ({
+          account_id: parseInt(line.account_id),
+          description: line.description || '',
+          debit_amount: parseFloat(line.debit_amount) || 0,
+          credit_amount: parseFloat(line.credit_amount) || 0
+        }))
       };
 
-      console.log('🔍 Frontend sending transaction data:', transactionData);
-      console.log('🔍 Data types:', {
-        debit_amount: typeof transactionData.debit_amount,
-        credit_amount: typeof transactionData.credit_amount,
-        description: typeof transactionData.description,
-        account_id: typeof transactionData.account_id
-      });
+      console.log('🔍 Frontend sending double-entry journal data:', journalEntryData);
+      console.log('🔍 Number of lines:', journalEntryData.lines.length);
 
       let response;
       if (editEntry) {
-        // Extract the actual entry ID from composite ID (format: "entryId-lineId")
-        // Convert to string first to handle both number and string IDs
-        const entryIdStr = String(editEntry.id);
-        const entryId = entryIdStr.includes('-') ? entryIdStr.split('-')[0] : entryIdStr;
-        console.log('✏️ Updating existing entry ID:', entryId);
-        console.log('✏️ Original editEntry.id:', editEntry.id, 'type:', typeof editEntry.id);
-        console.log('✏️ Processed entryId:', entryId, 'type:', typeof entryId);
-        console.log('✏️ Update data:', transactionData);
-        response = await apiClient.put(`/api/finance/advanced/general-ledger/${entryId}`, transactionData);
-      } else {
-        // Use the advanced general ledger API for creating entries
-        console.log('🆕 Creating new entry...');
-        response = await apiClient.post('/api/finance/advanced/general-ledger', transactionData);
+        // NOTE: Update endpoint for journal entries not yet implemented
+        // For now, editing will create a new entry
+        console.log('⚠️ Edit mode: Update endpoint not yet implemented, creating new entry instead');
+        setSnackbar({
+          open: true,
+          message: 'Update functionality coming soon. Creating new entry instead.',
+          severity: 'info'
+        });
+        // Fall through to create new entry
       }
+      
+      // Use the proper DOUBLE-ENTRY API endpoint for creating entries
+      console.log('🆕 Creating new double-entry journal entry...');
+      response = await apiClient.post('/api/finance/double-entry/journal-entries', journalEntryData);
 
-      if (response.success || response.id) {
+      // Handle response from double-entry endpoint
+      if (response.entry_id || response.id || response.message) {
         setSnackbar({
           open: true,
           message: editEntry ? 'Journal entry updated successfully!' : 'Journal entry created successfully!',
@@ -470,7 +628,7 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null, showAc
         <DialogTitle>
           <Box display="flex" alignItems="center" justifyContent="space-between">
             <Typography variant="h5">
-              {editEntry ? 'Edit Manual Journal Entry' : 'Create Manual Journal Entry'}
+              {editEntry ? 'Edit Entry' : 'Record Transaction'}
             </Typography>
             <IconButton onClick={handleClose}>
               <Close />
@@ -479,13 +637,166 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null, showAc
         </DialogTitle>
         
         <DialogContent>
-          {/* Header Information */}
-          <Card sx={{ mb: 3 }}>
+          {/* Mode Toggle */}
+          <Card sx={{ mb: 2 }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Entry Information
-              </Typography>
-              <Grid container spacing={2}>
+              <Box display="flex" justifyContent="space-between" alignItems="center">
+                <Typography variant="subtitle1">Entry Mode</Typography>
+                <Box>
+                  <Button
+                    variant={simpleMode ? "contained" : "outlined"}
+                    size="small"
+                    onClick={() => setSimpleMode(true)}
+                    sx={{ mr: 1 }}
+                  >
+                    Simple
+                  </Button>
+                  <Button
+                    variant={!simpleMode ? "contained" : "outlined"}
+                    size="small"
+                    onClick={() => setSimpleMode(false)}
+                  >
+                    Advanced
+                  </Button>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+
+          {/* Simple Mode UI */}
+          {simpleMode ? (
+            <Card sx={{ mb: 3 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  What happened today?
+                </Typography>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Just describe your transaction. We'll handle the accounting automatically!
+                </Alert>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      label="Date"
+                      type="date"
+                      value={formData.date}
+                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                      fullWidth
+                      InputLabelProps={{ shrink: true }}
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth required>
+                      <InputLabel>Transaction Type</InputLabel>
+                      <Select
+                        value={transactionType}
+                        onChange={(e) => setTransactionType(e.target.value)}
+                        label="Transaction Type"
+                      >
+                        <MenuItem value="expense">
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Payment /> Expense Payment
+                          </Box>
+                        </MenuItem>
+                        <MenuItem value="cash_sale">
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <AttachMoney /> Cash Sale
+                          </Box>
+                        </MenuItem>
+                        <MenuItem value="bank_sale">
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <AccountBalance /> Bank Sale
+                          </Box>
+                        </MenuItem>
+                        <MenuItem value="purchase">
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Receipt /> Purchase
+                          </Box>
+                        </MenuItem>
+                        <MenuItem value="payment_received">
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Business /> Payment Received
+                          </Box>
+                        </MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      label="Description"
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      fullWidth
+                      multiline
+                      rows={2}
+                      placeholder="e.g., Office supplies, Customer payment, etc."
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      label="Amount"
+                      type="number"
+                      value={formData.amount}
+                      onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                      fullWidth
+                      InputProps={{
+                        startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                      }}
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth>
+                      <InputLabel>Payment Method</InputLabel>
+                      <Select
+                        value={formData.payment_method}
+                        onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
+                        label="Payment Method"
+                      >
+                        <MenuItem value="cash">💵 Cash</MenuItem>
+                        <MenuItem value="bank">🏦 Bank Transfer</MenuItem>
+                        <MenuItem value="wire">🌐 Wire Transfer</MenuItem>
+                        <MenuItem value="credit_card">💳 Credit Card</MenuItem>
+                        <MenuItem value="check">📝 Check</MenuItem>
+                        <MenuItem value="digital">📱 Digital Payment</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      label="Reference (Optional)"
+                      value={formData.reference}
+                      onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
+                      fullWidth
+                      placeholder="Auto-generated if empty"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth>
+                      <InputLabel>Status</InputLabel>
+                      <Select
+                        value={formData.status}
+                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                        label="Status"
+                      >
+                        <MenuItem value="draft">Draft</MenuItem>
+                        <MenuItem value="posted">Posted</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {/* Advanced Mode - Original UI */}
+              <Card sx={{ mb: 3 }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Entry Information
+                  </Typography>
+                  <Grid container spacing={2}>
                 <Grid item xs={12} sm={6}>
                   <TextField
                     label="Date"
@@ -710,12 +1021,16 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null, showAc
             </CardContent>
           </Card>
 
-          {/* Validation Summary */}
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Validation Summary
-              </Typography>
+              </>
+          )}
+
+          {/* Validation Summary - Only show in Advanced Mode */}
+          {!simpleMode && (
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Validation Summary
+                </Typography>
               
               {validation.errors.length > 0 ? (
                 <Alert severity="error" sx={{ mb: 2 }}>
@@ -728,10 +1043,16 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null, showAc
                     ))}
                   </ul>
                 </Alert>
-              ) : (
+              ) : validation.isBalanced ? (
                 <Alert severity="success" sx={{ mb: 2 }}>
                   <Typography variant="subtitle2">
-                    ✅ Ready to create journal entry - system will auto-balance
+                    ✅ Ready to create journal entry - Double-entry validation passed!
+                  </Typography>
+                </Alert>
+              ) : (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2">
+                    ⚠️ Please ensure debits equal credits before submitting
                   </Typography>
                 </Alert>
               )}
@@ -755,15 +1076,26 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null, showAc
               
               {validation.totalDebits && validation.totalCredits && (
                 <Box textAlign="center" mt={2}>
-                  <Chip
-                    label="🤖 Auto-Balanced by System"
-                    color="info"
-                    variant="filled"
-                  />
+                  {validation.isBalanced ? (
+                    <Chip
+                      label="✅ Balanced - Ready to Post"
+                      color="success"
+                      variant="filled"
+                      icon={<CheckCircle />}
+                    />
+                  ) : (
+                    <Chip
+                      label={`⚠️ Out of Balance: $${Math.abs(validation.totalDebits - validation.totalCredits).toFixed(2)}`}
+                      color="error"
+                      variant="filled"
+                      icon={<Warning />}
+                    />
+                  )}
                 </Box>
               )}
             </CardContent>
           </Card>
+          )}
         </DialogContent>
         
         <DialogActions>
@@ -773,10 +1105,10 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null, showAc
           <Button
             variant="contained"
             onClick={handleSubmit}
-            disabled={!validation.valid || loading}
+            disabled={(!simpleMode && !validation.valid) || loading}
             startIcon={loading ? <CircularProgress size={20} /> : <Save />}
           >
-            {loading ? 'Saving...' : (editEntry ? 'Update Entry' : 'Create Entry')}
+            {loading ? 'Saving...' : (editEntry ? 'Update Entry' : 'Record Transaction')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -878,3 +1210,4 @@ const ManualJournalEntry = ({ open, onClose, onSuccess, editEntry = null, showAc
 };
 
 export default ManualJournalEntry;
+

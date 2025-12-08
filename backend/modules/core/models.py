@@ -1,5 +1,8 @@
 from app import db
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -179,17 +182,26 @@ class UserData(db.Model):
     
     @classmethod
     def save_user_data(cls, user_id, data_type, data):
-        """Save or update user data"""
+        """Save or update user data - TENANT-CENTRIC (strict tenant isolation)"""
         import json
         
-        # Ensure default tenant exists
-        tenant_id = cls._get_or_create_default_tenant()
+        # SECURITY: Get user's actual tenant_id (not default_tenant)
+        user = User.query.get(user_id)
+        if not user:
+            raise ValueError(f"User {user_id} not found")
+        
+        # SECURITY: Use user's actual tenant_id for strict tenant isolation
+        tenant_id = user.tenant_id
+        if not tenant_id:
+            # Fallback only for development - should never happen in production
+            logger.warning(f"User {user_id} has no tenant_id, using default_tenant (DEVELOPMENT ONLY)")
+            tenant_id = cls._get_or_create_default_tenant()
         
         # Convert data to JSON string
         data_json = json.dumps(data) if not isinstance(data, str) else data
         
-        # Check if data already exists
-        existing = cls.query.filter_by(user_id=user_id, data_type=data_type).first()
+        # SECURITY: Check if data already exists using tenant-aware query
+        existing = cls.query.filter_by(user_id=user_id, data_type=data_type, tenant_id=tenant_id).first()
         
         if existing:
             # Update existing
@@ -202,7 +214,7 @@ class UserData(db.Model):
                 user_id=user_id, 
                 data_type=data_type, 
                 data=data_json,
-                tenant_id=tenant_id
+                tenant_id=tenant_id  # SECURITY: Use user's actual tenant_id
             )
             db.session.add(existing)
         
@@ -211,10 +223,21 @@ class UserData(db.Model):
     
     @classmethod
     def load_user_data(cls, user_id, data_type):
-        """Load user data by type"""
+        """Load user data by type - TENANT-CENTRIC (strict tenant isolation)"""
         import json
         
-        record = cls.query.filter_by(user_id=user_id, data_type=data_type).first()
+        # SECURITY: Get user's actual tenant_id
+        user = User.query.get(user_id)
+        if not user:
+            return None
+        
+        tenant_id = user.tenant_id
+        if not tenant_id:
+            # Fallback only for development
+            tenant_id = 'default_tenant'
+        
+        # SECURITY: Load data using tenant-aware query
+        record = cls.query.filter_by(user_id=user_id, data_type=data_type, tenant_id=tenant_id).first()
         if record:
             try:
                 return json.loads(record.data)
